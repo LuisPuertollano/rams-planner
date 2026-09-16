@@ -42,7 +42,12 @@ COPY --from=build /app/packages/api/dist         ./packages/api/dist
 COPY --from=build /app/packages/web/dist         ./packages/web/dist
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
-RUN chown -R planner:planner /app && chmod +x /usr/local/bin/entrypoint.sh
+# El `sed` quita los retornos de carro. `.gitattributes` ya fuerza LF, pero esta
+# línea cuesta nada y evita que un checkout hecho antes de existir ese fichero,
+# o un editor despistado, deje la imagen sin arrancar por un `\r` en el shebang.
+RUN sed -i 's/\r$//' /usr/local/bin/entrypoint.sh \
+ && chmod +x /usr/local/bin/entrypoint.sh \
+ && chown -R planner:planner /app
 USER planner
 
 EXPOSE 45678

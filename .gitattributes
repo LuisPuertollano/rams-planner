@@ -1,0 +1,23 @@
+# Finales de línea.
+#
+# Esto no es cosmética: `docker/entrypoint.sh` se copia dentro de la imagen y lo
+# ejecuta /bin/sh. Si se clona en Windows con la configuración por defecto de Git
+# (core.autocrlf=true), el fichero llega con CRLF, el shebang pasa a ser
+# `#!/bin/sh\r` y el contenedor muere nada más arrancar con un
+# «$'\r': command not found» que no dice nada. En Linux y macOS no pasa nunca,
+# así que CI no lo ve.
+#
+# Se normaliza todo el texto a LF en el repositorio y en el checkout. Quien
+# trabaje en Windows puede seguir usando el editor que quiera: los editores
+# modernos respetan el LF y Docker lo necesita.
+* text=auto eol=lf
+
+# Lo que nunca se toca.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.woff  binary
+*.woff2 binary
