@@ -1,5 +1,13 @@
 import { useMemo, useState } from 'react'
-import { createNode, createProject, updateTask, type FieldValue, type Project, type TaskRow } from '../api.js'
+import {
+  createNode,
+  createProject,
+  duplicateProject,
+  updateTask,
+  type FieldValue,
+  type Project,
+  type TaskRow,
+} from '../api.js'
 import { days, fullDate, hours, percent } from '../format.js'
 
 interface Props {
@@ -95,11 +103,46 @@ export function PlanView({
       .finally(() => { setSaving(null) })
   }
 
+  /**
+   * Crear un proyecto a partir de una plantilla. Se copia todo el molde —árbol,
+   * duraciones, dependencias y disciplinas— y se ancla en la fecha que se pida.
+   * Lo que nunca viaja es la gente: eso se decide mirando quién tiene hueco.
+   */
+  const fromTemplate = (template: Project): void => {
+    const name = window.prompt(`Nombre del proyecto nuevo a partir de «${template.name}»`)
+    if (name === null || name.trim() === '') return
+    const code = window.prompt('Código del proyecto (corto y único)', name.trim().slice(0, 12).toUpperCase())
+    if (code === null || code.trim() === '') return
+    const start = window.prompt('Fecha de arranque (AAAA-MM-DD)', new Date().toISOString().slice(0, 10))
+    if (start === null || !/^\d{4}-\d{2}-\d{2}$/.test(start.trim())) return
+
+    setSaving(template.id)
+    setError(null)
+    duplicateProject(template.id, { code: code.trim(), name: name.trim(), statusStart: start.trim() })
+      .then(onChanged)
+      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : 'No se pudo crear') })
+      .finally(() => { setSaving(null) })
+  }
+
+  const plantillas = projects.filter((project) => project.isTemplate)
+  const enMarcha = projects.filter((project) => !project.isTemplate)
+
   return (
     <>
       {error === null ? null : <div className="error-banner" style={{ margin: 12 }}>{error}</div>}
       <div className="toolbar">
         <button className="button" onClick={addProject} disabled={saving !== null}>+ Proyecto</button>
+        {plantillas.map((template) => (
+          <button
+            key={template.id}
+            className="button"
+            disabled={saving !== null}
+            onClick={() => { fromTemplate(template) }}
+            title={`Copia el molde completo de «${template.name}» en un proyecto nuevo`}
+          >
+            + Desde «{template.code}»
+          </button>
+        ))}
         <span className="faint">
           Todo lo que se añade aquí es dato declarado. Las fechas las sigue calculando el motor.
         </span>
@@ -119,7 +162,7 @@ export function PlanView({
           </tr>
         </thead>
         <tbody>
-          {projects.map((project) => (
+          {[...enMarcha, ...plantillas].map((project) => (
             <ProjectRows
               key={project.id}
               project={project}
@@ -170,9 +213,14 @@ function ProjectRows({
 }: ProjectRowsProps): React.JSX.Element {
   return (
     <>
-      <tr className="row--total">
+      <tr className={project.isTemplate ? 'row--total row--template' : 'row--total'}>
         <td colSpan={8}>
           {project.code} · {project.name}
+          {project.isTemplate ? (
+            <span className="wbs__kind" style={{ marginLeft: 10 }} title="Un molde: no se calcula ni genera carga">
+              plantilla
+            </span>
+          ) : null}
         </td>
         <td style={{ whiteSpace: 'nowrap' }}>
           <button

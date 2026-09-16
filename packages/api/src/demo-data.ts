@@ -157,12 +157,16 @@ const PROJECTS: readonly DemoProject[] = [
 ]
 
 export async function seedDemoData(db: Queryable): Promise<boolean> {
-  const existing = await db.query<{ exists: number }>('SELECT 1 AS exists FROM project LIMIT 1')
+  // Las plantillas no cuentan: vienen de serie con el esquema, así que una base
+  // recién migrada tiene una y seguiría estando vacía a todos los efectos.
+  const existing = await db.query<{ exists: number }>(
+    'SELECT 1 AS exists FROM project WHERE NOT is_template LIMIT 1',
+  )
   if (existing.rows.length > 0) return false
 
   await seedResources(db)
-  await seedFieldDefinitions(db)
-  await seedProjects(db)
+  const ramsFieldId = await seedFieldDefinitions(db)
+  await seedProjects(db, ramsFieldId)
   return true
 }
 
@@ -198,18 +202,25 @@ async function seedResources(db: Queryable): Promise<void> {
 }
 
 /** Los atributos del dominio son datos, no columnas (P6). */
-async function seedFieldDefinitions(db: Queryable): Promise<void> {
-  await db.query(
-    `INSERT INTO field_definition (id, entity_type, field_key, label, data_type, options, display_order)
-     VALUES ($1, 'wbs_node', 'rams_tag', 'Disciplina RAMS', 'single_select', $2::jsonb, 1)`,
-    [
-      uuid(5, 1),
-      JSON.stringify(['Plan', 'Hazard Log', 'FMECA', 'RAM', 'SIL', 'Verificación', 'Safety Case']),
-    ],
+/**
+ * La disciplina RAMS la define una migración, porque es un campo del dominio y
+ * no del juego de datos de ejemplo. Aquí sólo se localiza; el `INSERT` es para
+ * una base a la que le faltara, no para la ruta normal.
+ */
+async function seedFieldDefinitions(db: Queryable): Promise<string> {
+  const { rows } = await db.query<{ id: string }>(
+    `INSERT INTO field_definition (entity_type, field_key, label, data_type, options, display_order)
+     VALUES ('wbs_node', 'rams_tag', 'Disciplina RAMS', 'single_select', $1::jsonb, 1)
+     ON CONFLICT (entity_type, field_key) DO UPDATE SET label = EXCLUDED.label
+     RETURNING id`,
+    [JSON.stringify(['Plan', 'Definición', 'Hazard Log', 'Requisitos', 'SIL', 'FMECA', 'RAM', 'V&V', 'Safety Case'])],
   )
+  const id = rows[0]?.id
+  if (id === undefined) throw new Error('No se pudo definir el campo de disciplina RAMS')
+  return id
 }
 
-async function seedProjects(db: Queryable): Promise<void> {
+async function seedProjects(db: Queryable, ramsFieldId: string): Promise<void> {
   for (const project of PROJECTS) {
     const projectId = uuid(2, project.key)
     await db.query(
@@ -266,7 +277,7 @@ async function seedProjects(db: Queryable): Promise<void> {
       if (task.ramsTag !== undefined) {
         await db.query(
           'INSERT INTO field_value (field_id, entity_id, value_text) VALUES ($1, $2, $3)',
-          [uuid(5, 1), nodeId, task.ramsTag],
+          [ramsFieldId, nodeId, task.ramsTag],
         )
       }
       for (const link of task.after ?? []) {

@@ -343,22 +343,35 @@ export async function readResources(
   }))
 }
 
-export async function readProjects(
-  db: Queryable,
-): Promise<readonly { id: string; code: string; name: string; statusStart: string; priority: number }[]> {
+export interface ProjectSummary {
+  readonly id: string
+  readonly code: string
+  readonly name: string
+  readonly statusStart: string
+  readonly priority: number
+  /** Una plantilla no se calcula: es un molde, no un proyecto en marcha. */
+  readonly isTemplate: boolean
+}
+
+export async function readProjects(db: Queryable): Promise<readonly ProjectSummary[]> {
   const { rows } = await db.query<{
     id: string
     code: string
     name: string
     status_start: string
     priority: number
-  }>('SELECT id, code, name, status_start::text, priority FROM project WHERE deleted_at IS NULL ORDER BY code')
+    is_template: boolean
+  }>(
+    `SELECT id, code, name, status_start::text, priority, is_template
+     FROM project WHERE deleted_at IS NULL ORDER BY is_template, code`,
+  )
   return rows.map((row) => ({
     id: row.id,
     code: row.code,
     name: row.name,
     statusStart: row.status_start,
     priority: row.priority,
+    isTemplate: row.is_template,
   }))
 }
 

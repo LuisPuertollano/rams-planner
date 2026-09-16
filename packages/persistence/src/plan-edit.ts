@@ -22,6 +22,8 @@ export interface ProjectInput {
   readonly name: string
   readonly statusStart: string
   readonly calendarCode?: string | undefined
+  /** `true` crea una plantilla: un molde que no se calcula ni genera carga. */
+  readonly asTemplate?: boolean | undefined
 }
 
 export async function createProject(db: Queryable, input: ProjectInput): Promise<string> {
@@ -31,9 +33,9 @@ export async function createProject(db: Queryable, input: ProjectInput): Promise
     [input.calendarCode ?? null],
   )
   const { rows } = await db.query<{ id: string }>(
-    `INSERT INTO project (code, name, calendar_id, status_start, priority, currency)
-     VALUES ($1, $2, $3, $4, 500, 'EUR') RETURNING id`,
-    [input.code, input.name, calendar.rows[0]?.id ?? null, input.statusStart],
+    `INSERT INTO project (code, name, calendar_id, status_start, priority, currency, is_template)
+     VALUES ($1, $2, $3, $4, 500, 'EUR', $5) RETURNING id`,
+    [input.code, input.name, calendar.rows[0]?.id ?? null, input.statusStart, input.asTemplate ?? false],
   )
   const id = rows[0]?.id
   if (id === undefined) throw new Error('No se pudo crear el proyecto')
@@ -45,6 +47,7 @@ export interface ProjectChanges {
   readonly name?: string | undefined
   readonly statusStart?: string | undefined
   readonly priority?: number | undefined
+  readonly isTemplate?: boolean | undefined
 }
 
 /**
@@ -63,6 +66,7 @@ export async function updateProject(db: Queryable, projectId: string, changes: P
   if (changes.name !== undefined) set('name', changes.name)
   if (changes.statusStart !== undefined) set('status_start', changes.statusStart)
   if (changes.priority !== undefined) set('priority', changes.priority)
+  if (changes.isTemplate !== undefined) set('is_template', changes.isTemplate)
   if (columns.length === 0) throw new Error('No hay nada que cambiar')
   await db.query(`UPDATE project SET ${columns.join(', ')} WHERE id = $1`, values)
 }

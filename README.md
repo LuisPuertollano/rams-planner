@@ -55,6 +55,13 @@ no cabe ni sola en la jornada de la persona, lo dice en vez de retrasarla
 eternamente: ahí lo que hay que cambiar es la dedicación, la duración o el
 calendario, no la fecha.
 
+La herramienta trae de serie la plantilla **PLANTILLA-RAMS**, con el ciclo de
+vida de la EN 50126 en seis fases, sus hitos y sus dependencias encadenadas. El
+botón **+ Desde «PLANTILLA-RAMS»** crea un proyecto entero a partir de ella,
+anclado en la fecha que le digas. Cualquier proyecto se puede **guardar como
+plantilla** desde su panel, que es como se acaban teniendo los moldes que de
+verdad se usan. Una plantilla no lleva gente y no se calcula: es un molde.
+
 La vista **Plan** también se edita: **+ Proyecto** y **+ Fase** crean la
 estructura, y el botón **✎** de cada fila abre el panel donde se pone el nombre,
 se asigna a quién trabaja en la tarea y con qué dedicación, se declara de qué

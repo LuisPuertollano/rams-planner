@@ -70,6 +70,45 @@ Lo importante de la importación:
 - Las personas que no existan **se crean solas**, con jornada estándar y **sin
   tarifa**. La respuesta te dice cuáles. Vuelve a la pestaña Equipo y complétalas.
 
+#### A partir de una plantilla
+
+Es lo que de verdad se usa cuando los proyectos se parecen entre sí, que en
+RAMS es casi siempre.
+
+En la pestaña **Plan**, junto a **+ Proyecto**, hay un botón por cada plantilla:
+**+ Desde «PLANTILLA-RAMS»**. Pide nombre, código y fecha de arranque, y crea un
+proyecto entero con el árbol, las duraciones, las dependencias y las disciplinas
+del molde.
+
+La herramienta trae de serie **PLANTILLA-RAMS**, con el ciclo de vida de la
+EN 50126 en seis fases —planificación, análisis preliminar, riesgos y
+requisitos, análisis RAM, verificación y caso de seguridad— con sus hitos y sus
+24 dependencias encadenadas. Es un punto de partida, no un dogma: edítala como
+cualquier otro proyecto hasta que se parezca a cómo trabajas.
+
+Tres cosas que conviene saber:
+
+- **Una plantilla no lleva gente.** Describe el trabajo, no quién lo hace. La
+  base de datos lo impide, no es una convención. El equipo de cada proyecto se
+  decide mirando quién tiene hueco, que es justo lo que la pestaña **Carga**
+  contesta.
+- **Una plantilla no se calcula.** No tiene fechas ni genera carga ni aparece en
+  la matriz. Sólo es un molde.
+- **Las fechas absolutas se desplazan.** Si el molde tiene una restricción o una
+  fecha objetivo, se mueven los mismos días naturales que separan las dos fechas
+  de arranque. El resultado te dice cuántas se han movido.
+
+Para hacerte tus propias plantillas, en el panel **✎** de cualquier proyecto:
+
+| Botón | Qué hace |
+|-------|----------|
+| **Guardar como plantilla** | Copia este proyecto en un molde nuevo, sin la gente ni el avance |
+| **Duplicar el proyecto** | Copia este proyecto en otro proyecto, con otra fecha de arranque |
+| **Convertir en plantilla** | Convierte este mismo proyecto en molde; deja de calcularse |
+
+Lo normal es planificar un proyecto de verdad, verlo funcionar, y cuando
+funcione, **guardarlo como plantilla** para el siguiente.
+
 #### A mano
 
 En la pestaña **Plan**:
@@ -225,6 +264,10 @@ cualquier tarea movida enseña la cadena completa.
 **«Ya hay un periodo de disponibilidad que se solapa con esas fechas.»**
 Una persona no puede estar al 50 % y al 80 % el mismo día. Borra el tramo
 anterior o ajusta las fechas. Lo mismo con las tarifas.
+
+**«Una plantilla no lleva personas asignadas.»**
+Estás intentando poner equipo en un molde. Crea un proyecto a partir de ella
+—**+ Desde «…»** en la pestaña Plan— y asigna la gente ahí.
 
 **«Sólo se puede colgar trabajo de una fase o de un paquete de trabajo.»**
 Estás intentando meter una tarea debajo de otra tarea. Crea una fase y cuelga

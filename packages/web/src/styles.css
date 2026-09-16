@@ -217,6 +217,8 @@ button { font: inherit; color: inherit; }
 .row--project td:first-child { padding-left: 28px; color: var(--text-muted); }
 .row--capacity td { color: var(--text-faint); font-size: 12px; }
 .row--total td { font-weight: 650; border-top: 2px solid var(--border-strong); }
+.row--template td { color: var(--text-muted); font-style: italic; }
+.row--template td:first-child { font-style: normal; }
 
 .cell--derived { position: relative; }
 .cell--zero { color: var(--text-faint); }
