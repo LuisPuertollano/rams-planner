@@ -81,6 +81,16 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/tests/invariants.sql
 Toda migración tiene que ser **reversible**: CI hace `down` de todas y vuelve a
 hacer `up`.
 
+## Dónde está el porqué
+
+- La especificación completa: [`docs/diseno/`](docs/diseno/).
+- Las decisiones estructurales, con sus alternativas descartadas: [`docs/adr/`](docs/adr/).
+- Los 40 casos límite que el motor tiene que pasar:
+  [`docs/diseno/04-motor-de-calculo.md`](docs/diseno/04-motor-de-calculo.md).
+
+Si vas a implementar algo que contradice un ADR, cámbialo primero ahí y explica por qué.
+Un ADR que ya no se cumple es peor que no tenerlo.
+
 ## Fases
 
 Se trabaja por fases y **se para en cada puerta**. No adelantes trabajo de fases

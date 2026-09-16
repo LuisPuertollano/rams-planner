@@ -67,8 +67,10 @@ db/
   tests/           invariantes que hace cumplir la base de datos
 tools/             verificación de la regla de dependencia
 docs/
-  esquema.md       las cuatro zonas de datos y por qué están separadas
+  diseno/          la especificación completa: objetivos, dominio, esquema,
+                   motor, arquitectura, auditoría, vistas y plan de fases
   adr/             decisiones de arquitectura, con sus alternativas descartadas
+  prompt-inicial.md  el enunciado con el que nació el proyecto
 ```
 
 Arquitectura hexagonal: las dependencias apuntan hacia dentro y CI lo verifica.
@@ -76,10 +78,21 @@ El núcleo se empaquetará también para el navegador, de modo que la
 previsualización interactiva use el mismo motor que el servidor y no un segundo
 motor aproximado que dé números distintos.
 
+## Documentación
+
+- [`docs/diseno/`](docs/diseno/) — la especificación completa. Empieza por
+  [objetivos y principios](docs/diseno/01-objetivos-y-principios.md); si vas a tocar
+  el motor, la lista de 40 casos límite de
+  [`04-motor-de-calculo.md`](docs/diseno/04-motor-de-calculo.md) es el contrato de pruebas.
+- [`docs/adr/`](docs/adr/) — las decisiones estructurales, una por fichero, con lo que
+  se descartó y por qué.
+- [`CLAUDE.md`](CLAUDE.md) — las convenciones de trabajo: unidades, reglas y puertas de fase.
+
 ## Los principios
 
 Tienen prioridad sobre cualquier conveniencia de implementación. En conflicto,
-gana el de número más bajo. Están desarrollados en [`CLAUDE.md`](CLAUDE.md).
+gana el de número más bajo. Están desarrollados en [`CLAUDE.md`](CLAUDE.md) y
+razonados en [`docs/diseno/01-objetivos-y-principios.md`](docs/diseno/01-objetivos-y-principios.md).
 
 1. **Lo declarado y lo derivado no se tocan** — tablas distintas, roles distintos.
 2. **El motor es una función pura y determinista** — mismo snapshot, mismo resultado.
