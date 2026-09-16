@@ -7,12 +7,14 @@
  */
 
 import type { FastifyInstance } from 'fastify'
+import { calendarDate } from '@planner/domain'
 import { z } from 'zod'
 import {
   freezeRun,
   latestRun,
   readBaselines,
   recentRuns,
+  readDailyCapacity,
   readDerivations,
   readDiff,
   readFieldValues,
@@ -88,6 +90,21 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
       runId,
       bucket: query.bucket,
       cells: await withDb((db) => readUtilization(db, runId, query.bucket)),
+    }
+  })
+
+  /** Capacidad y carga día a día: el calendario del equipo. */
+  app.get('/api/runs/:runId/capacity', async (request) => {
+    const { runId } = z.object({ runId: z.string().uuid() }).parse(request.params)
+    const query = z
+      .object({
+        from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      })
+      .parse(request.query)
+    return {
+      runId,
+      days: await withDb((db) => readDailyCapacity(db, runId, calendarDate(query.from), calendarDate(query.to))),
     }
   })
 

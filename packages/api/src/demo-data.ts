@@ -25,6 +25,9 @@ interface DemoResource {
   readonly centsPerHour: number
   readonly availability?: readonly { from: string; to: string; unitsBp: number }[]
   readonly absences?: readonly { from: string; to: string; kind: string; minutesPerDay?: number }[]
+  /** Competencias por código, con su nivel. Deliberadamente desigual: un equipo
+   *  real tiene huecos, y es justo lo que la hoja de competencias debe enseñar. */
+  readonly skills?: Readonly<Record<string, number>>
 }
 
 const RESOURCES: readonly DemoResource[] = [
@@ -35,8 +38,16 @@ const RESOURCES: readonly DemoResource[] = [
     calendarId: CAL_BW_35H,
     centsPerHour: 7_800,
     absences: [{ from: '2026-08-03', to: '2026-08-21', kind: 'vacation' }],
+    skills: { Plan: 4, 'Hazard Log': 5, Requisitos: 4, FMECA: 3, 'Safety Case': 4 },
   },
-  { key: 2, code: 'miglesias', name: 'Marc Iglesias', calendarId: CAL_BW, centsPerHour: 8_500 },
+  {
+    key: 2,
+    code: 'miglesias',
+    name: 'Marc Iglesias',
+    calendarId: CAL_BW,
+    centsPerHour: 8_500,
+    skills: { Plan: 5, SIL: 4, Requisitos: 4, 'Safety Case': 5, 'V&V': 3 },
+  },
   {
     key: 3,
     code: 'lvogt',
@@ -49,8 +60,10 @@ const RESOURCES: readonly DemoResource[] = [
       { from: '2026-04-01', to: '2026-06-30', unitsBp: 6_000 },
       { from: '2026-07-01', to: '2029-12-31', unitsBp: 10_000 },
     ],
+    skills: { FMECA: 5, RAM: 4, 'Hazard Log': 3, Definición: 3 },
   },
-  { key: 4, code: 'truiz', name: 'Tomás Ruiz', calendarId: CAL_BW, centsPerHour: 6_900 },
+  { key: 4, code: 'truiz', name: 'Tomás Ruiz', calendarId: CAL_BW, centsPerHour: 6_900,
+    skills: { RAM: 5, FMECA: 3, Definición: 4 } },
   {
     key: 5,
     code: 'sbraun',
@@ -58,8 +71,12 @@ const RESOURCES: readonly DemoResource[] = [
     calendarId: CAL_BW_35H,
     centsPerHour: 7_100,
     absences: [{ from: '2026-05-11', to: '2026-05-13', kind: 'training' }],
+    skills: { FMECA: 4, 'V&V': 4, RAM: 2 },
   },
-  { key: 6, code: 'jkowalski', name: 'Jan Kowalski', calendarId: CAL_BW, centsPerHour: 6_600 },
+  // A propósito sin «Safety Case» ni «SIL»: el equipo depende de dos personas
+  // para eso, y la hoja de competencias lo enseña de un vistazo.
+  { key: 6, code: 'jkowalski', name: 'Jan Kowalski', calendarId: CAL_BW, centsPerHour: 6_600,
+    skills: { 'V&V': 5, Definición: 3, Requisitos: 2 } },
 ]
 
 interface DemoTask {
@@ -178,6 +195,14 @@ async function seedResources(db: Queryable): Promise<void> {
        VALUES ($1, $2, $3, 'person', $4, 10000)`,
       [id, resource.code, resource.name, resource.calendarId],
     )
+    for (const [code, level] of Object.entries(resource.skills ?? {})) {
+      await db.query(
+        `INSERT INTO resource_skill (resource_id, skill_id, level)
+         SELECT $1, s.id, $3 FROM skill s WHERE s.code = $2
+         ON CONFLICT (resource_id, skill_id) DO UPDATE SET level = EXCLUDED.level`,
+        [id, code, level],
+      )
+    }
     const availability = resource.availability ?? [{ from: '2026-01-01', to: '2029-12-31', unitsBp: 10_000 }]
     for (const period of availability) {
       await db.query(
@@ -278,6 +303,15 @@ async function seedProjects(db: Queryable, ramsFieldId: string): Promise<void> {
         await db.query(
           'INSERT INTO field_value (field_id, entity_id, value_text) VALUES ($1, $2, $3)',
           [ramsFieldId, nodeId, task.ramsTag],
+        )
+        // La disciplina dice de qué va la tarea; el requisito dice qué hay que
+        // saber para hacerla. Aquí coinciden, pero son cosas distintas: una se
+        // usa para agrupar y la otra se comprueba.
+        await db.query(
+          `INSERT INTO node_skill_requirement (node_id, skill_id, min_level)
+           SELECT $1, s.id, 3 FROM skill s WHERE s.code = $2
+           ON CONFLICT (node_id, skill_id) DO NOTHING`,
+          [nodeId, task.ramsTag],
         )
       }
       for (const link of task.after ?? []) {

@@ -42,6 +42,8 @@ pnpm dev:web                                 # opcional: Vite en :45677 con reca
 | **Saturación** | Quién se pasa de capacidad, cuándo y por cuánto. Escala divergente centrada en el 100 % |
 | **Plan** | El árbol de trabajo con las fechas que ha calculado el motor, la holgura y el camino crítico |
 | **Cronograma** | El plan en el tiempo, con hitos y camino crítico |
+| **Calendario** | Quién está fuera, cuándo, y qué capacidad exacta le queda al equipo cada día y cada mes |
+| **Competencias** | Quién sabe hacer qué, en una matriz de personas × competencias, y dónde el equipo tiene un único especialista |
 | **Equipo** | De qué está hecha la capacidad: el calendario de cada persona, su dedicación, sus ausencias y su tarifa. Todo declarado, y cada cambio recalcula |
 | **Hallazgos** | Ciclos, conflictos de restricción, sobrecargas, deadlines incumplidos y desvíos de presupuesto |
 | **Comparar** | En qué se diferencia el plan de hoy de una línea base o de cualquier cálculo anterior |

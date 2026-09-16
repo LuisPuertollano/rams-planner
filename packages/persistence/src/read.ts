@@ -375,6 +375,53 @@ export async function readProjects(db: Queryable): Promise<readonly ProjectSumma
   }))
 }
 
+export interface DailyCapacity {
+  readonly resourceId: string
+  readonly date: string
+  readonly capacityMinutes: number
+  readonly plannedMinutes: number
+}
+
+/**
+ * Capacidad y carga día a día, para el calendario del equipo.
+ *
+ * Se lee de lo DERIVADO a propósito, en vez de reconstruirlo en el cliente a
+ * partir del calendario y las ausencias: esta es la capacidad que el motor ha
+ * usado de verdad para repartir el trabajo. Una vista que calculase lo suyo
+ * por su cuenta acabaría enseñando un número distinto del que manda.
+ *
+ * Los días sin fila son días sin capacidad: fin de semana, festivo o ausencia.
+ */
+export async function readDailyCapacity(
+  db: Queryable,
+  runId: string,
+  from: CalendarDate,
+  to: CalendarDate,
+): Promise<readonly DailyCapacity[]> {
+  const { rows } = await db.query<{
+    resource_id: string
+    date: string
+    capacity_minutes: number
+    planned_minutes: string | null
+  }>(
+    `SELECT c.resource_id, c.work_date::text AS date, c.capacity_minutes,
+            (SELECT SUM(tp.planned_minutes) FROM assignment_timephased tp
+              JOIN assignment a ON a.id = tp.assignment_id
+              WHERE tp.run_id = c.run_id AND a.resource_id = c.resource_id
+                AND tp.work_date = c.work_date) AS planned_minutes
+     FROM resource_capacity_timephased c
+     WHERE c.run_id = $1 AND c.work_date BETWEEN $2 AND $3
+     ORDER BY c.resource_id, c.work_date`,
+    [runId, from, to],
+  )
+  return rows.map((row) => ({
+    resourceId: row.resource_id,
+    date: row.date,
+    capacityMinutes: row.capacity_minutes,
+    plannedMinutes: row.planned_minutes === null ? 0 : Number(row.planned_minutes),
+  }))
+}
+
 function periodExpression(bucket: 'day' | 'week' | 'month' | 'quarter', column = 'tp.work_date'): string {
   switch (bucket) {
     case 'day':
