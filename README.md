@@ -52,6 +52,34 @@ resultado queda guardado como una ejecución nueva. Las demás columnas llevan
 candado. Congelar el plan con el botón **Línea base** y volver a la pestaña
 **Comparar** enseña la cascada completa de un cambio.
 
+## Cargar tus propios datos
+
+El botón **Importar CSV** de la cabecera lee un fichero plano, el que ya tienes
+en Excel. Descarga la plantilla en
+[`/api/import/plantilla.csv`](http://localhost:45678/api/import/plantilla.csv) o
+escríbela a mano:
+
+```csv
+proyecto;nombre_proyecto;fase;tarea;dias;predecesoras;recurso;dedicacion;disciplina;deadline;no_antes_de
+CBTC-L3;CBTC Línea 3;Análisis;Plan RAMS;5;;Ana Müller;100;Plan;;2026-03-02
+CBTC-L3;CBTC Línea 3;Análisis;Hazard Log;10;Plan RAMS;Ana Müller;Marc Iglesias;50;Hazard Log;2026-05-29;
+CBTC-L3;CBTC Línea 3;Análisis;Revisión de concepto;0;Hazard Log;;;;;
+```
+
+- El separador se detecta solo: coma, punto y coma o tabulador, con o sin BOM.
+  Los decimales admiten coma y punto.
+- `dias` a **0** crea un hito.
+- `predecesoras` y `recurso` admiten varios valores separados por `;` o `|`.
+- Las personas que no existan **se crean** con jornada estándar y sin tarifa, y
+  la respuesta te dice cuáles para que las revises.
+- Un proyecto cuyo código ya exista **no se sobrescribe**: la importación entera
+  se rechaza nombrando el conflicto.
+- Cualquier fila ilegible aborta la importación y se te dice qué fila y por qué.
+  No hay importaciones a medias.
+
+El botón **Exportar** descarga la carga mensual en CSV con el `runId` en cada
+fila: el fichero sigue siendo auditable fuera de la herramienta.
+
 ## Cómo está hecho
 
 ```

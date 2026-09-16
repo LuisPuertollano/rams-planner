@@ -16,6 +16,10 @@ const app = Fastify({
 })
 
 await app.register(cors, { origin: true })
+// El CSV entra como texto plano: es lo que manda un formulario de fichero.
+app.addContentTypeParser(['text/csv', 'text/plain'], { parseAs: 'string' }, (_request, body, done) => {
+  done(null, body)
+})
 registerRoutes(app, pool)
 
 // En producción la API sirve también la interfaz compilada: un solo contenedor,

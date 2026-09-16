@@ -14,7 +14,7 @@ RUN pnpm prune --prod
 FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
-RUN corepack enable && addgroup -S planner && adduser -S planner -G planner
+RUN addgroup -S planner && adduser -S planner -G planner
 
 COPY --from=build --chown=planner:planner /app/node_modules ./node_modules
 COPY --from=build --chown=planner:planner /app/packages ./packages

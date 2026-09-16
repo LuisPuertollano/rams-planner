@@ -24,7 +24,9 @@ import {
   withTransaction,
   type Pool,
 } from '@planner/persistence'
+import { toCsv } from './csv.js'
 import { calculate, defaultScenarioId } from './engine.js'
+import { ImportError, importPlanCsv } from './import-plan.js'
 
 const bucketSchema = z.enum(['day', 'week', 'month', 'quarter']).default('month')
 
@@ -169,6 +171,88 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
       .object({ baseRunId: z.string().uuid(), targetRunId: z.string().uuid() })
       .parse(request.params)
     return { baseRunId, targetRunId, tasks: await withDb((db) => readDiff(db, baseRunId, targetRunId)) }
+  })
+
+  /**
+   * Importación de un plan desde un CSV plano, el que cualquiera ya tiene en
+   * Excel. Cualquier error aborta la transacción entera: no hay importaciones a
+   * medias que luego nadie sabe deshacer.
+   */
+  app.post('/api/import/plan', async (request, reply) => {
+    const text = typeof request.body === 'string' ? request.body : ''
+    if (text.trim() === '') return reply.status(400).send({ error: 'El cuerpo debe ser el CSV en texto plano' })
+
+    try {
+      const summary = await withTransaction(pool, (db) => importPlanCsv(db, text), {
+        comment: 'importación de plan desde CSV',
+      })
+      const scenarioId = await withDb((db) => defaultScenarioId(db))
+      const run = await calculate(pool, scenarioId, 'importación de plan')
+      return { ...summary, run }
+    } catch (error) {
+      if (error instanceof ImportError) {
+        return reply.status(422).send({ error: error.message, rows: error.rows })
+      }
+      throw error
+    }
+  })
+
+  /** Plantilla del CSV de importación, para no tener que adivinar las columnas. */
+  app.get('/api/import/plantilla.csv', async (_request, reply) => {
+    const columns = [
+      'proyecto', 'nombre_proyecto', 'fase', 'tarea', 'dias',
+      'predecesoras', 'recurso', 'dedicacion', 'disciplina', 'deadline', 'no_antes_de',
+    ]
+    const example = [
+      {
+        proyecto: 'EJEMPLO-1', nombre_proyecto: 'Proyecto de ejemplo', fase: 'Análisis',
+        tarea: 'Plan RAMS', dias: '5', predecesoras: '', recurso: 'Ana Müller',
+        dedicacion: '100', disciplina: 'Plan', deadline: '', no_antes_de: '2026-03-02',
+      },
+      {
+        proyecto: 'EJEMPLO-1', nombre_proyecto: 'Proyecto de ejemplo', fase: 'Análisis',
+        tarea: 'Hazard Log', dias: '10', predecesoras: 'Plan RAMS', recurso: 'Ana Müller;Marc Iglesias',
+        dedicacion: '50', disciplina: 'Hazard Log', deadline: '2026-05-29', no_antes_de: '',
+      },
+      {
+        proyecto: 'EJEMPLO-1', nombre_proyecto: 'Proyecto de ejemplo', fase: 'Análisis',
+        tarea: 'Revisión de concepto', dias: '0', predecesoras: 'Hazard Log', recurso: '',
+        dedicacion: '', disciplina: '', deadline: '', no_antes_de: '',
+      },
+    ]
+    return reply
+      .header('content-type', 'text/csv; charset=utf-8')
+      .header('content-disposition', 'attachment; filename="plantilla-plan.csv"')
+      .send(toCsv(example, columns))
+  })
+
+  /** Exportación de la carga. El fichero lleva el runId: sigue siendo auditable fuera. */
+  app.get('/api/runs/:runId/export.csv', async (request, reply) => {
+    const { runId } = z.object({ runId: z.string().uuid() }).parse(request.params)
+    const query = z.object({ bucket: bucketSchema }).parse(request.query)
+
+    const [cells, resources, projects] = [
+      await withDb((db) => readLoad(db, runId, query.bucket)),
+      await withDb((db) => readResources(db)),
+      await withDb((db) => readProjects(db)),
+    ]
+    const nameOfResource = new Map(resources.map((resource) => [resource.id, resource.displayName]))
+    const codeOfProject = new Map(projects.map((project) => [project.id, project.code]))
+
+    const columns = ['recurso', 'proyecto', 'periodo', 'horas', 'coste_eur', 'ejecucion']
+    const rows = cells.map((cell) => ({
+      recurso: nameOfResource.get(cell.resourceId) ?? cell.resourceId,
+      proyecto: codeOfProject.get(cell.projectId) ?? cell.projectId,
+      periodo: cell.period,
+      horas: (cell.plannedMinutes / 60).toFixed(2).replace('.', ','),
+      coste_eur: (cell.costCents / 100).toFixed(2).replace('.', ','),
+      ejecucion: runId,
+    }))
+
+    return reply
+      .header('content-type', 'text/csv; charset=utf-8')
+      .header('content-disposition', `attachment; filename="carga-${query.bucket}.csv"`)
+      .send(toCsv(rows, columns))
   })
 
   /** Historial de cambios de una entidad: quién, cuándo y con qué comentario. */

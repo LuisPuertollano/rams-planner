@@ -10,6 +10,7 @@ import {
 } from './api.js'
 import { hours, percent } from './format.js'
 import { activePeriods } from './periods.js'
+import { ImportButton } from './components/ImportButton.js'
 import { WhyPanel } from './components/WhyPanel.js'
 import { DiffView } from './views/DiffView.js'
 import { FindingsView } from './views/FindingsView.js'
@@ -143,6 +144,22 @@ export function App(): React.JSX.Element {
         >
           {theme === 'auto' ? '◐' : theme === 'light' ? '☀' : '☾'}
         </button>
+        <ImportButton
+          onImported={() => {
+            load().catch((cause: unknown) => {
+              setError(cause instanceof Error ? cause.message : 'Error al recargar')
+            })
+          }}
+        />
+        {state?.run == null ? null : (
+          <a
+            className="button"
+            href={`/api/runs/${state.run.id}/export.csv?bucket=month`}
+            title="Descargar la carga mensual en CSV, con el runId en cada fila"
+          >
+            Exportar
+          </a>
+        )}
         <button className="button" onClick={onFreeze} disabled={busy || state?.run == null} title="Congelar el plan actual como línea base">
           Línea base
         </button>

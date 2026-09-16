@@ -104,5 +104,6 @@ posteriores: la fase 1 mal cerrada contamina todo lo demás.
 | 3 | Carga diaria, capacidad, saturación y coste | ✅ |
 | 4 | Persistencia, API e interfaz (carga, saturación, plan, cronograma, hallazgos, «¿por qué?») | ✅ |
 | 5 | Edición en línea de datos declarados, líneas base y comparación | ✅ |
-| 6 | Realidad ejecutada, campos personalizados de extremo a extremo, import/export | ⬜ |
+| 6 | Import/export CSV y campos personalizados de extremo a extremo | ✅ |
+| 6b | Realidad ejecutada (imputaciones, plan vs. real, curva S) | ⬜ |
 | 7 | Nivelación heurística y pulido | ⬜ |
