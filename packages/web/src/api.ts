@@ -563,3 +563,45 @@ export async function fetchCapacity(runId: string, from: string, to: string): Pr
   )
   return body.days
 }
+
+// ---------------------------------------------------------------------------
+// Propuesta de reparto
+// ---------------------------------------------------------------------------
+
+export interface RebalanceProposal {
+  readonly assignmentId: string
+  readonly nodeId: string
+  readonly taskName: string
+  readonly projectId: string
+  readonly fromResourceId: string
+  readonly fromResourceName: string
+  readonly toResourceId: string
+  readonly toResourceName: string
+  readonly minutes: number
+  readonly firstDay: string
+  readonly lastDay: string
+  readonly fromBeforeBp: number
+  readonly fromAfterBp: number
+  readonly toBeforeBp: number
+  readonly toAfterBp: number
+  readonly relievedMinutes: number
+  readonly reason: string
+}
+
+export interface RebalanceResult {
+  readonly thresholdBp: number
+  readonly proposals: readonly RebalanceProposal[]
+  readonly findings: readonly FindingRow[]
+}
+
+export async function fetchRebalance(thresholdBp: number): Promise<RebalanceResult> {
+  return get<RebalanceResult>(`/api/rebalance?threshold=${String(thresholdBp)}`)
+}
+
+export async function applyRebalance(proposal: RebalanceProposal): Promise<void> {
+  return send('/api/rebalance/apply', 'POST', {
+    assignmentId: proposal.assignmentId,
+    nodeId: proposal.nodeId,
+    toResourceId: proposal.toResourceId,
+  })
+}

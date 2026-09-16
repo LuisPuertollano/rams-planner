@@ -33,7 +33,7 @@ export interface CalculationSummary {
 }
 
 /** Horizonte: un mes antes del proyecto más temprano y cuatro años en total. */
-export async function resolveHorizon(db: Queryable): Promise<Horizon> {
+export async function resolveHorizonFor(db: Queryable): Promise<Horizon> {
   const { rows } = await db.query<{ earliest: string | null }>(
     'SELECT MIN(status_start)::text AS earliest FROM project WHERE deleted_at IS NULL',
   )
@@ -52,7 +52,7 @@ export async function calculate(
   const collector = createDerivationCollector()
 
   return withTransaction(pool, async (db) => {
-    const horizon = await resolveHorizon(db)
+    const horizon = await resolveHorizonFor(db)
     const snapshot = await loadSnapshot(db, { horizon })
 
     // Nivelar produce su **propia ejecución**, no una columna más: así se

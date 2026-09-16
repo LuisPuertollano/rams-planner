@@ -7,6 +7,7 @@ import Fastify from 'fastify'
 import { createPool } from '@planner/persistence'
 import { readConfig } from './config.js'
 import { registerPlanRoutes } from './plan-routes.js'
+import { registerRebalanceRoutes } from './rebalance-routes.js'
 import { registerResourceRoutes } from './resources-routes.js'
 import { registerSkillRoutes } from './skills-routes.js'
 import { registerRoutes } from './routes.js'
@@ -27,6 +28,7 @@ registerRoutes(app, pool)
 registerResourceRoutes(app, pool)
 registerPlanRoutes(app, pool)
 registerSkillRoutes(app, pool)
+registerRebalanceRoutes(app, pool)
 
 // En producción la API sirve también la interfaz compilada: un solo contenedor,
 // un solo origen, cero configuración de CORS para el usuario.

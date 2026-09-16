@@ -42,12 +42,18 @@ pnpm dev:web                                 # opcional: Vite en :45677 con reca
 | **Saturación** | Quién se pasa de capacidad, cuándo y por cuánto. Escala divergente centrada en el 100 % |
 | **Plan** | El árbol de trabajo con las fechas que ha calculado el motor, la holgura y el camino crítico |
 | **Cronograma** | El plan en el tiempo, con hitos y camino crítico |
+| **Reparto** | Qué trabajo se podría mover, a quién y qué arreglaría. Propuestas con su justificación y su efecto, que se aplican de una en una |
 | **Calendario** | Quién está fuera, cuándo, y qué capacidad exacta le queda al equipo cada día y cada mes |
 | **Competencias** | Quién sabe hacer qué, en una matriz de personas × competencias, y dónde el equipo tiene un único especialista |
 | **Equipo** | De qué está hecha la capacidad: el calendario de cada persona, su dedicación, sus ausencias y su tarifa. Todo declarado, y cada cambio recalcula |
 | **Hallazgos** | Ciclos, conflictos de restricción, sobrecargas, deadlines incumplidos y desvíos de presupuesto |
 | **Comparar** | En qué se diferencia el plan de hoy de una línea base o de cualquier cálculo anterior |
 | **¿por qué?** | La traza de cada fecha: qué regla la produjo y con qué entradas, hasta el dato que alguien escribió |
+
+**Reparto** y **Nivelar** atacan la sobrecarga por los dos lados: el primero
+cambia **quién** hace el trabajo sin tocar las fechas, el segundo cambia
+**cuándo** se hace sin tocar a quién. El primero se usa cuando hay alguien libre
+que sabe hacerlo; el segundo cuando no lo hay y sólo cabe retrasar.
 
 El botón **Nivelar** retrasa tareas hasta que el plan cabe en la capacidad del
 equipo. Es una heurística, está declarada como tal y **no toca el plan
