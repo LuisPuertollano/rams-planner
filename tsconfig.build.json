@@ -6,6 +6,15 @@
     },
     {
       "path": "./packages/calendar/tsconfig.build.json"
+    },
+    {
+      "path": "./packages/explain/tsconfig.build.json"
+    },
+    {
+      "path": "./packages/scheduler/tsconfig.build.json"
+    },
+    {
+      "path": "./packages/workload/tsconfig.build.json"
     }
   ]
 }

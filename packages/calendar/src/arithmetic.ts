@@ -205,6 +205,38 @@ export function subtractWorkingMinutes(
 }
 
 /**
+ * Como `addWorkingMinutes`, pero si el trabajo no cabe en el horizonte devuelve
+ * su último instante en vez de fallar.
+ *
+ * El motor la usa donde un desbordamiento no es un error sino un candidato que
+ * va a perder una comparación (un desfase negativo enorme, un enlace SF).
+ */
+export function addWorkingMinutesClamped(
+  from: PlanInstant,
+  minutes: number,
+  calendar: CompiledCalendar,
+): PlanInstant {
+  const total = denseAt(calendar.prefixSum, calendar.dayCount)
+  const target = workingMinutesBefore(toAbsoluteMinute(from, calendar), calendar) + minutes
+  if (target >= total) return fromAbsoluteMinute(calendar.dayCount * MINUTES_PER_DAY, calendar)
+  return addWorkingMinutes(from, minutes, calendar)
+}
+
+/**
+ * Como `subtractWorkingMinutes`, pero si se sale del horizonte por el principio
+ * devuelve su primer instante en vez de fallar.
+ */
+export function subtractWorkingMinutesClamped(
+  from: PlanInstant,
+  minutes: number,
+  calendar: CompiledCalendar,
+): PlanInstant {
+  const target = workingMinutesBefore(toAbsoluteMinute(from, calendar), calendar) - minutes
+  if (target <= 0) return fromAbsoluteMinute(0, calendar)
+  return subtractWorkingMinutes(from, minutes, calendar)
+}
+
+/**
  * Lleva un instante al horario laboral.
  *
  * `forward` devuelve el principio del siguiente minuto laborable; `backward`,

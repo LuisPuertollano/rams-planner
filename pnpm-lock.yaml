@@ -44,6 +44,39 @@ importers:
 
   packages/domain: {}
 
+  packages/explain:
+    dependencies:
+      '@planner/domain':
+        specifier: workspace:*
+        version: link:../domain
+
+  packages/scheduler:
+    dependencies:
+      '@planner/calendar':
+        specifier: workspace:*
+        version: link:../calendar
+      '@planner/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@planner/explain':
+        specifier: workspace:*
+        version: link:../explain
+
+  packages/workload:
+    dependencies:
+      '@planner/calendar':
+        specifier: workspace:*
+        version: link:../calendar
+      '@planner/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@planner/explain':
+        specifier: workspace:*
+        version: link:../explain
+      '@planner/scheduler':
+        specifier: workspace:*
+        version: link:../scheduler
+
 packages:
 
   '@ampproject/remapping@2.3.0':

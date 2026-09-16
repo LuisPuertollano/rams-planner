@@ -105,3 +105,23 @@ const WEIGHT_SCALE = 1_000_000
 function toScaledBigInt(weight: number): bigint {
   return BigInt(Math.round(weight * WEIGHT_SCALE))
 }
+
+/**
+ * Inversa de `applyBasisPoints`: reparte un valor entre un porcentaje.
+ *
+ * `divideByBasisPoints(trabajo, unidades)` da la duración que ese trabajo ocupa
+ * a esa dedicación. Mismo redondeo: mitad hacia arriba en valor absoluto.
+ */
+export function divideByBasisPoints(value: number, bp: BasisPoints): number {
+  if (!Number.isSafeInteger(value)) {
+    throw new UnitError(`divideByBasisPoints espera un entero seguro, recibido ${String(value)}`)
+  }
+  if (bp === 0) {
+    throw new UnitError('No se puede dividir entre una dedicación del 0 %')
+  }
+  const sign = value < 0 ? -1n : 1n
+  const numerator = BigInt(Math.abs(value)) * BigInt(BASIS_POINTS_ONE)
+  const divisor = BigInt(bp)
+  const rounded = (numerator * 2n + divisor) / (divisor * 2n)
+  return Number(sign * rounded)
+}

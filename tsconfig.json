@@ -12,6 +12,15 @@
     },
     {
       "path": "./packages/calendar"
+    },
+    {
+      "path": "./packages/explain"
+    },
+    {
+      "path": "./packages/scheduler"
+    },
+    {
+      "path": "./packages/workload"
     }
   ]
 }
