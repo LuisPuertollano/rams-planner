@@ -9,6 +9,7 @@
 
 import { afterAll, describe, expect, it } from 'vitest'
 import { createPool, withTransaction } from './db.js'
+import { createNode, createProject, readAssignments, upsertAssignment } from './plan-edit.js'
 import {
   addAbsence,
   addAvailability,
@@ -129,6 +130,32 @@ describe.skipIf(pool === null)('ficha de recursos', () => {
       [id],
     )
     expect(rows[0]?.deleted_at).not.toBeNull()
+  })
+
+  it('la baja de una persona se lleva sus asignaciones', async () => {
+    if (pool === null) return
+    const code = uniqueCode('conasignaciones')
+
+    const { resourceId, nodeId } = await withTransaction(pool, async (db) => {
+      const project = await createProject(db, { code: uniqueCode('PROY'), name: 'Baja', statusStart: '2026-03-02' })
+      const fase = await createNode(db, { projectId: project, kind: 'phase', name: 'Fase' })
+      const node = await createNode(db, { projectId: project, parentId: fase, kind: 'task', name: 'Tarea' })
+      const resource = await createResource(db, { code, displayName: 'Se va' })
+      await upsertAssignment(db, node, resource, 10_000)
+      return { resourceId: resource, nodeId: node }
+    })
+
+    const retiradas = await withTransaction(pool, (db) => softDeleteResource(db, resourceId))
+    expect(retiradas).toBe(1)
+
+    // La tarea se queda visiblemente sin nadie, que es lo que hay que ver: si
+    // la asignación quedara viva pero el motor la ignorase por no encontrar a
+    // su persona, la carga bajaría en silencio.
+    expect(
+      await withTransaction(pool, async (db) =>
+        (await readAssignments(db)).filter((row) => row.nodeId === nodeId),
+      ),
+    ).toEqual([])
   })
 
   it('el cambio de calendario y de dedicación queda registrado en el historial', async () => {

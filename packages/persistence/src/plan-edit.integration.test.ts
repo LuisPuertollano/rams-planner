@@ -177,6 +177,36 @@ describe.skipIf(pool === null)('edición del plan', () => {
     expect(vacio).toEqual([])
   })
 
+  it('la baja de una rama se lleva también sus asignaciones', async () => {
+    if (pool === null) return
+    const code = unique('CASCADA')
+
+    const { fase, tarea } = await withTransaction(pool, async (db) => {
+      const project = await createProject(db, { code, name: 'Cascada', statusStart: '2026-03-02' })
+      const phase = await createNode(db, { projectId: project, kind: 'phase', name: 'Fase' })
+      const node = await createNode(db, { projectId: project, parentId: phase, kind: 'task', name: 'Con gente' })
+      const resource = await createResource(db, { code: unique('persona'), displayName: 'En la rama' })
+      await upsertAssignment(db, node, resource, 10_000)
+      return { fase: phase, tarea: node }
+    })
+
+    expect(
+      await withTransaction(pool, async (db) =>
+        (await readAssignments(db)).filter((row) => row.nodeId === tarea),
+      ),
+    ).toHaveLength(1)
+
+    await withTransaction(pool, async (db) => { await softDeleteNode(db, fase) })
+
+    // Si la asignación siguiera viva, la carga del proyecto bajaría sin que
+    // nada lo dijera y sin rastro de por qué.
+    expect(
+      await withTransaction(pool, async (db) =>
+        (await readAssignments(db)).filter((row) => row.nodeId === tarea),
+      ),
+    ).toEqual([])
+  })
+
   it('una tarea dada de baja sale del árbol pero no de la tabla (P7)', async () => {
     if (pool === null) return
     const code = unique('LECTURA')

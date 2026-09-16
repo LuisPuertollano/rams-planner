@@ -236,12 +236,21 @@ export async function updateResource(
 }
 
 /**
- * Baja lógica (P7): el recurso no se borra, se marca. Sus asignaciones dejan de
- * contar porque el snapshot sólo carga recursos vivos, pero las ejecuciones
- * pasadas siguen explicándose igual de bien.
+ * Baja lógica (P7): el recurso no se borra, se marca.
+ *
+ * Sus asignaciones se dan de baja **en la misma transacción**, a propósito. La
+ * alternativa —dejarlas y que el motor las ignore porque su persona ya no está
+ * en el snapshot— hace que la carga de un proyecto baje sin que nada lo diga y
+ * sin que quede rastro de por qué. Así el cambio es explícito, sale en el
+ * historial de cada asignación y la tarea se queda visiblemente sin nadie.
  */
-export async function softDeleteResource(db: Queryable, resourceId: string): Promise<void> {
+export async function softDeleteResource(db: Queryable, resourceId: string): Promise<number> {
   await db.query('UPDATE resource SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL', [resourceId])
+  const { rowCount } = await db.query(
+    'UPDATE assignment SET deleted_at = now() WHERE resource_id = $1 AND deleted_at IS NULL',
+    [resourceId],
+  )
+  return rowCount ?? 0
 }
 
 export async function addAvailability(

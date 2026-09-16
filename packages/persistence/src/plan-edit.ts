@@ -69,6 +69,12 @@ export async function updateProject(db: Queryable, projectId: string, changes: P
 
 export async function softDeleteProject(db: Queryable, projectId: string): Promise<void> {
   await db.query('UPDATE project SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL', [projectId])
+  await db.query(
+    `UPDATE assignment SET deleted_at = now()
+     WHERE deleted_at IS NULL
+       AND node_id IN (SELECT id FROM wbs_node WHERE project_id = $1)`,
+    [projectId],
+  )
   await db.query('UPDATE wbs_node SET deleted_at = now() WHERE project_id = $1 AND deleted_at IS NULL', [projectId])
 }
 
@@ -154,6 +160,13 @@ export async function softDeleteNode(db: Queryable, nodeId: string): Promise<num
        AND project_id = (SELECT project_id FROM wbs_node WHERE id = $1)
        AND (id = $1 OR path LIKE (SELECT path FROM wbs_node WHERE id = $1) || '.%')`,
     [nodeId],
+  )
+  // Y las asignaciones de esa rama, por la misma razón que en la baja de una
+  // persona: que la carga desaparezca sin dejar rastro sería peor que borrarla.
+  await db.query(
+    `UPDATE assignment SET deleted_at = now()
+     WHERE deleted_at IS NULL
+       AND node_id IN (SELECT id FROM wbs_node WHERE deleted_at IS NOT NULL)`,
   )
   return rowCount ?? 0
 }

@@ -233,7 +233,10 @@ las dos de ella.
 **«He dado de baja a alguien y sus tareas siguen ahí.»**
 Correcto. La baja es lógica: la persona deja de contar en los cálculos nuevos,
 pero nada se borra y los cálculos ya hechos se siguen explicando igual. Sus
-tareas se quedan sin asignar y aparecen como tales.
+asignaciones se retiran en el mismo momento, así que sus tareas se quedan
+visiblemente sin nadie y salen en **Hallazgos** como `TASK_UNASSIGNED`. Es a
+propósito: si las asignaciones se quedaran ahí y el motor las ignorase por no
+encontrar a su persona, la carga del proyecto bajaría en silencio.
 
 **«El número de la pantalla no coincide con el del Excel que exporté ayer.»**
 Mira el identificador de ejecución: la cabecera lo enseña y el CSV exportado lo
