@@ -18,6 +18,14 @@ export default defineConfig({
   },
   test: {
     include: ['packages/*/src/**/*.test.ts', 'tools/**/*.test.mjs'],
+    // Los ficheros de integración comparten UNA base de datos: si corren en
+    // paralelo se pisan, y la prueba que compara dos cargas del snapshot ve
+    // cómo otro fichero inserta entre medias. El síntoma es un hash distinto,
+    // que parece un fallo de determinismo del motor y no lo es.
+    //
+    // Sin DATABASE_URL esas pruebas se saltan y no hay nada que serializar, así
+    // que el bucle rápido de desarrollo mantiene el paralelismo.
+    fileParallelism: process.env['DATABASE_URL'] === undefined,
     coverage: {
       provider: 'v8',
       include: ['packages/*/src/**/*.ts'],

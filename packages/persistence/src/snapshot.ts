@@ -37,6 +37,18 @@ export interface LoadOptions {
   readonly defaultCalendarCode?: string
 }
 
+/**
+ * Carga el snapshot completo.
+ *
+ * **Toda consulta de este fichero lleva un `ORDER BY` total.** No es estilo: sin
+ * un orden completo PostgreSQL devuelve las filas como le conviene según el plan
+ * de ejecución, y entonces dos cargas idénticas producen snapshots con hash
+ * distinto. Eso rompe el principio P2 —mismo snapshot, mismo resultado, bit a
+ * bit— y con él la comparación contra una línea base congelada hace meses.
+ *
+ * «Total» quiere decir que los empates se rompen hasta la clave primaria: ni el
+ * nombre de una persona ni el código de un proyecto son únicos.
+ */
 export async function loadSnapshot(db: Queryable, options: LoadOptions): Promise<PlanSnapshot> {
   // En serie a propósito: `db` puede ser un cliente dentro de una transacción,
   // y un cliente de pg no admite consultas concurrentes.
@@ -114,7 +126,7 @@ async function resolveDefaultCalendar(db: Queryable, code: string): Promise<stri
 
 async function loadCalendars(db: Queryable): Promise<readonly CalendarDefinition[]> {
   const calendars = await db.query<{ id: string; code: string; parent_id: string | null }>(
-    'SELECT id, code, parent_id FROM calendar WHERE deleted_at IS NULL',
+    'SELECT id, code, parent_id FROM calendar WHERE deleted_at IS NULL ORDER BY id',
   )
   const slots = await db.query<{
     calendar_id: string
@@ -123,7 +135,8 @@ async function loadCalendars(db: Queryable): Promise<readonly CalendarDefinition
     weekday: number
     start_minute: number
     end_minute: number
-  }>('SELECT calendar_id, valid_from::text, valid_to::text, weekday, start_minute, end_minute FROM calendar_week_slot')
+  }>(`SELECT calendar_id, valid_from::text, valid_to::text, weekday, start_minute, end_minute
+     FROM calendar_week_slot ORDER BY calendar_id, valid_from, weekday, start_minute`)
   const exceptions = await db.query<{
     id: string
     calendar_id: string
@@ -133,10 +146,11 @@ async function loadCalendars(db: Queryable): Promise<readonly CalendarDefinition
     is_working: boolean
     recurrence_rule: string | null
   }>(
-    'SELECT id, calendar_id, name, date_from::text, date_to::text, is_working, recurrence_rule FROM calendar_exception',
+    `SELECT id, calendar_id, name, date_from::text, date_to::text, is_working, recurrence_rule
+     FROM calendar_exception ORDER BY calendar_id, date_from, id`,
   )
   const exceptionSlots = await db.query<{ exception_id: string; start_minute: number; end_minute: number }>(
-    'SELECT exception_id, start_minute, end_minute FROM calendar_exception_slot ORDER BY start_minute',
+    'SELECT exception_id, start_minute, end_minute FROM calendar_exception_slot ORDER BY exception_id, start_minute',
   )
 
   const slotsByCalendar = groupBy(slots.rows, (row) => row.calendar_id)
@@ -177,11 +191,11 @@ async function loadResources(db: Queryable): Promise<readonly ResourceDefinition
     calendar_id: string | null
     max_units_bp: number
   }>(
-    'SELECT id, code, display_name, resource_kind, calendar_id, max_units_bp FROM resource WHERE deleted_at IS NULL ORDER BY display_name',
+    'SELECT id, code, display_name, resource_kind, calendar_id, max_units_bp FROM resource WHERE deleted_at IS NULL ORDER BY display_name, id',
   )
   const availability = await db.query<{ resource_id: string; from: string; to: string; units_bp: number }>(
     `SELECT resource_id, lower(valid_period)::text AS from, (upper(valid_period) - 1)::text AS to, units_bp
-     FROM resource_availability ORDER BY lower(valid_period)`,
+     FROM resource_availability ORDER BY resource_id, lower(valid_period)`,
   )
   const absences = await db.query<{
     resource_id: string
@@ -189,10 +203,11 @@ async function loadResources(db: Queryable): Promise<readonly ResourceDefinition
     date_from: string
     date_to: string
     minutes_per_day: number | null
-  }>('SELECT resource_id, absence_kind, date_from::text, date_to::text, minutes_per_day FROM absence')
+  }>(`SELECT resource_id, absence_kind, date_from::text, date_to::text, minutes_per_day
+     FROM absence ORDER BY resource_id, date_from, absence_kind`)
   const rates = await db.query<{ resource_id: string; from: string; to: string; standard_cents_hour: string }>(
     `SELECT resource_id, lower(valid_period)::text AS from, (upper(valid_period) - 1)::text AS to, standard_cents_hour
-     FROM resource_cost_rate ORDER BY lower(valid_period)`,
+     FROM resource_cost_rate ORDER BY resource_id, lower(valid_period)`,
   )
   const skills = await db.query<{ resource_id: string; skill_id: string; level: number }>(
     'SELECT resource_id, skill_id, level FROM resource_skill ORDER BY resource_id, skill_id',
@@ -243,7 +258,7 @@ async function loadProjects(db: Queryable): Promise<readonly ProjectDefinition[]
     priority: number
   }>(
     `SELECT id, code, name, calendar_id, status_start::text, priority
-     FROM project WHERE deleted_at IS NULL AND NOT is_template ORDER BY code`,
+     FROM project WHERE deleted_at IS NULL AND NOT is_template ORDER BY code, id`,
   )
   return rows.map((row) => ({
     id: row.id,
@@ -268,7 +283,7 @@ async function loadNodes(db: Queryable): Promise<readonly WbsNodeDefinition[]> {
     `SELECT n.id, n.project_id, n.parent_id, n.node_kind, n.code, n.name, n.sort_key
      FROM wbs_node n JOIN project p ON p.id = n.project_id
      WHERE n.deleted_at IS NULL AND p.deleted_at IS NULL AND NOT p.is_template
-     ORDER BY n.path`,
+     ORDER BY n.path, n.id`,
   )
   return rows.map((row) => ({
     id: row.id,
@@ -301,7 +316,8 @@ async function loadTasks(db: Queryable): Promise<readonly TaskDefinition[]> {
             t.percent_complete_bp, t.standard_effort_minutes, t.is_milestone
      FROM task t
      JOIN wbs_node n ON n.id = t.node_id AND n.deleted_at IS NULL
-     JOIN project  p ON p.id = n.project_id AND p.deleted_at IS NULL AND NOT p.is_template`,
+     JOIN project  p ON p.id = n.project_id AND p.deleted_at IS NULL AND NOT p.is_template
+     ORDER BY t.node_id`,
   )
   return rows.map((row) => ({
     nodeId: row.node_id,
@@ -331,7 +347,8 @@ async function loadDependencies(db: Queryable): Promise<readonly DependencyDefin
      FROM dependency d
      JOIN wbs_node s ON s.id = d.successor_node_id   AND s.deleted_at IS NULL
      JOIN wbs_node q ON q.id = d.predecessor_node_id AND q.deleted_at IS NULL
-     JOIN project  p ON p.id = s.project_id AND p.deleted_at IS NULL AND NOT p.is_template`,
+     JOIN project  p ON p.id = s.project_id AND p.deleted_at IS NULL AND NOT p.is_template
+     ORDER BY d.id`,
   )
   return rows.map((row) => ({
     id: row.id,
@@ -358,10 +375,11 @@ async function loadAssignments(db: Queryable): Promise<readonly AssignmentDefini
      FROM assignment a
      JOIN wbs_node n ON n.id = a.node_id AND n.deleted_at IS NULL
      JOIN resource r ON r.id = a.resource_id AND r.deleted_at IS NULL
-     WHERE a.deleted_at IS NULL`,
+     WHERE a.deleted_at IS NULL
+     ORDER BY a.id`,
   )
   const contours = await db.query<{ assignment_id: string; work_date: string; minutes: number }>(
-    'SELECT assignment_id, work_date::text, minutes FROM assignment_manual_contour ORDER BY work_date',
+    'SELECT assignment_id, work_date::text, minutes FROM assignment_manual_contour ORDER BY assignment_id, work_date',
   )
   const contoursBy = groupBy(contours.rows, (row) => row.assignment_id)
 
