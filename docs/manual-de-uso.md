@@ -78,11 +78,19 @@ En la pestaña **Plan**:
 2. **+ Fase**, en la fila de cada proyecto, cuelga una fase de él.
 3. El botón **✎** de cualquier fila abre el panel de edición. Lo que ofrece
    depende de lo que sea la fila:
+   - En un **proyecto**: nombre, código, **fecha de referencia** y prioridad.
    - En una **fase**: colgar de ella una tarea, un hito u otra fase.
    - En una **tarea o un hito**: quién trabaja en ella y con qué dedicación, de
      qué depende, y quitarla del plan.
 4. La duración y el avance se escriben directamente en la tabla, en las columnas
    marcadas con **✎**.
+
+La **fecha de referencia** de un proyecto es la que ancla todas las tareas que
+no tienen ni predecesora ni restricción. Un proyecto nuevo arranca hoy; cámbiala
+en el panel del proyecto y se mueve entero. La **prioridad** sólo sirve para
+desempatar en la nivelación —cuando dos tareas se pelean por la misma persona el
+mismo día, cede la del número más alto— y por defecto todos los proyectos
+empatan en 500.
 
 El árbol tiene una regla que no se puede saltar: **el trabajo cuelga de fases,
 no de otras tareas**. Si intentas colgar algo de una tarea, la herramienta lo

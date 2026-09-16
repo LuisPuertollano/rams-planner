@@ -9,6 +9,8 @@ interface Props {
   readonly onExplain: (task: TaskRow) => void
   /** Abre el panel de edición de la rama: nombre, equipo, dependencias, baja. */
   readonly onEdit: (task: TaskRow) => void
+  /** Abre el panel del proyecto: identidad, fecha de referencia, prioridad, baja. */
+  readonly onEditProject: (project: Project) => void
   readonly onChanged: () => void
 }
 
@@ -19,7 +21,15 @@ interface Props {
  * Las demás son **derivadas**: fondo propio, candado y ni un solo `input`. Es el
  * principio P1 hecho algo que se ve, no una nota en un documento.
  */
-export function PlanView({ tasks, projects, fields, onExplain, onEdit, onChanged }: Props): React.JSX.Element {
+export function PlanView({
+  tasks,
+  projects,
+  fields,
+  onExplain,
+  onEdit,
+  onEditProject,
+  onChanged,
+}: Props): React.JSX.Element {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   const [saving, setSaving] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -118,6 +128,7 @@ export function PlanView({ tasks, projects, fields, onExplain, onEdit, onChanged
               onToggle={toggle}
               onExplain={onExplain}
               onEdit={onEdit}
+              onEditProject={onEditProject}
               onAddPhase={addPhase}
               onSave={save}
               saving={saving}
@@ -137,6 +148,7 @@ interface ProjectRowsProps {
   readonly onToggle: (nodeId: string) => void
   readonly onExplain: (task: TaskRow) => void
   readonly onEdit: (task: TaskRow) => void
+  readonly onEditProject: (project: Project) => void
   readonly onAddPhase: (project: Project) => void
   readonly onSave: (task: TaskRow, changes: Readonly<Record<string, number | string | null>>) => void
   readonly saving: string | null
@@ -150,6 +162,7 @@ function ProjectRows({
   onToggle,
   onExplain,
   onEdit,
+  onEditProject,
   onAddPhase,
   onSave,
   saving,
@@ -161,13 +174,20 @@ function ProjectRows({
         <td colSpan={8}>
           {project.code} · {project.name}
         </td>
-        <td>
+        <td style={{ whiteSpace: 'nowrap' }}>
           <button
             className="button"
             onClick={() => { onAddPhase(project) }}
             title="Añadir una fase a este proyecto"
           >
             + Fase
+          </button>{' '}
+          <button
+            className="button"
+            onClick={() => { onEditProject(project) }}
+            title="Fecha de referencia, prioridad, nombre y baja"
+          >
+            ✎
           </button>
         </td>
       </tr>

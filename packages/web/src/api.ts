@@ -21,7 +21,10 @@ export interface Project {
   readonly id: string
   readonly code: string
   readonly name: string
+  /** Fecha de referencia: ancla las tareas sin predecesora ni restricción. */
   readonly statusStart: string
+  /** Desempate determinista en la nivelación: el número más bajo gana. */
+  readonly priority: number
 }
 
 export interface Resource {
@@ -387,6 +390,13 @@ export async function createProject(input: {
   readonly statusStart: string
 }): Promise<void> {
   return send('/api/projects', 'POST', input)
+}
+
+export async function patchProject(
+  projectId: string,
+  changes: Readonly<Record<string, string | number>>,
+): Promise<void> {
+  return send(`/api/projects/${projectId}`, 'PATCH', changes)
 }
 
 export async function removeProject(projectId: string): Promise<void> {

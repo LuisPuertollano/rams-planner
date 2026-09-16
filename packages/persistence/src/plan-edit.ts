@@ -40,6 +40,33 @@ export async function createProject(db: Queryable, input: ProjectInput): Promise
   return id
 }
 
+export interface ProjectChanges {
+  readonly code?: string | undefined
+  readonly name?: string | undefined
+  readonly statusStart?: string | undefined
+  readonly priority?: number | undefined
+}
+
+/**
+ * La fecha de referencia de un proyecto es lo que ancla todas sus tareas sin
+ * predecesora ni restricción. Cambiarla mueve el proyecto entero, y por eso es
+ * un dato declarado que se edita, no una constante escondida en el alta.
+ */
+export async function updateProject(db: Queryable, projectId: string, changes: ProjectChanges): Promise<void> {
+  const columns: string[] = []
+  const values: unknown[] = [projectId]
+  const set = (column: string, value: unknown): void => {
+    values.push(value)
+    columns.push(`${column} = $${String(values.length)}`)
+  }
+  if (changes.code !== undefined) set('code', changes.code)
+  if (changes.name !== undefined) set('name', changes.name)
+  if (changes.statusStart !== undefined) set('status_start', changes.statusStart)
+  if (changes.priority !== undefined) set('priority', changes.priority)
+  if (columns.length === 0) throw new Error('No hay nada que cambiar')
+  await db.query(`UPDATE project SET ${columns.join(', ')} WHERE id = $1`, values)
+}
+
 export async function softDeleteProject(db: Queryable, projectId: string): Promise<void> {
   await db.query('UPDATE project SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL', [projectId])
   await db.query('UPDATE wbs_node SET deleted_at = now() WHERE project_id = $1 AND deleted_at IS NULL', [projectId])

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { Project } from './api.js'
 import {
   fetchRunData,
   fetchState,
@@ -12,6 +13,7 @@ import { hours, percent } from './format.js'
 import { activePeriods } from './periods.js'
 import { EditPanel } from './components/EditPanel.js'
 import { ImportButton } from './components/ImportButton.js'
+import { ProjectPanel } from './components/ProjectPanel.js'
 import { WhyPanel } from './components/WhyPanel.js'
 import { DiffView } from './views/DiffView.js'
 import { FindingsView } from './views/FindingsView.js'
@@ -42,6 +44,7 @@ export function App(): React.JSX.Element {
   const [notice, setNotice] = useState<string | null>(null)
   const [explaining, setExplaining] = useState<TaskRow | null>(null)
   const [editing, setEditing] = useState<TaskRow | null>(null)
+  const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [theme, setTheme] = useState<'auto' | 'light' | 'dark'>('auto')
 
   const load = useCallback(async () => {
@@ -253,10 +256,32 @@ export function App(): React.JSX.Element {
                   })
                 }}
               />
-            ) : state === null || data === null ? (
+            ) : state === null ? (
               <div className="empty">
-                <h3>Cargando el plan…</h3>
-                <p>Si es la primera vez, ejecuta <code>pnpm --filter @planner/api seed:demo</code>.</p>
+                <h3>Cargando…</h3>
+              </div>
+            ) : data === null ? (
+              // Base de datos vacía. Es la primera pantalla que ve alguien que
+              // instala esto, así que dice por dónde se empieza en vez de
+              // quedarse en blanco.
+              <div className="empty">
+                <h3>Aquí no hay nada todavía</h3>
+                <p style={{ maxWidth: '52ch', margin: '0 auto' }}>
+                  El orden que funciona es este: primero el <b>Equipo</b>, porque de ahí sale la capacidad y el
+                  coste; después el plan, importando un CSV o creándolo a mano.
+                </p>
+                <div className="stat-row" style={{ justifyContent: 'center', marginTop: 20 }}>
+                  <button className="button" onClick={() => { setTab('equipo') }}>
+                    Ir al equipo
+                  </button>
+                  <a className="button" href="/api/import/plantilla.csv">
+                    Descargar la plantilla CSV
+                  </a>
+                </div>
+                <p className="faint" style={{ marginTop: 20, fontSize: 12 }}>
+                  ¿Sólo quieres verla funcionar? <code>pnpm --filter @planner/api seed:demo</code> carga tres
+                  proyectos que se solapan.
+                </p>
               </div>
             ) : tab === 'matriz' ? (
               <MatrixView
@@ -275,6 +300,7 @@ export function App(): React.JSX.Element {
                 fields={state.fields}
                 onExplain={setExplaining}
                 onEdit={setEditing}
+                onEditProject={setEditingProject}
                 onChanged={() => {
                   load().catch((cause: unknown) => {
                     setError(cause instanceof Error ? cause.message : 'Error al recargar')
@@ -298,6 +324,18 @@ export function App(): React.JSX.Element {
 
       {explaining === null || state?.run == null ? null : (
         <WhyPanel runId={state.run.id} task={explaining} onClose={() => { setExplaining(null) }} />
+      )}
+
+      {editingProject === null ? null : (
+        <ProjectPanel
+          project={editingProject}
+          onClose={() => { setEditingProject(null) }}
+          onChanged={() => {
+            load().catch((cause: unknown) => {
+              setError(cause instanceof Error ? cause.message : 'Error al recargar')
+            })
+          }}
+        />
       )}
 
       {editing === null || state === null || data === null ? null : (
