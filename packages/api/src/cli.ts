@@ -6,7 +6,7 @@
  *   planner runs         lista las últimas ejecuciones
  */
 
-import { createPool, latestRun, withTransaction } from '@planner/persistence'
+import { createPool, recentRuns, withTransaction } from '@planner/persistence'
 import { readConfig } from './config.js'
 import { calculate, defaultScenarioId } from './engine.js'
 import { seedDemoData } from './demo-data.js'
@@ -41,8 +41,29 @@ try {
     }
 
     case 'runs': {
-      const run = await withTransaction(pool, (db) => latestRun(db))
-      console.log(run === undefined ? 'No hay ninguna ejecución todavía.' : JSON.stringify(run, null, 2))
+      // Una tabla, no un JSON: esto se mira desde una terminal, y lo que se
+      // busca aquí es el hash. Dos ejecuciones con el mismo hash tienen que dar
+      // el mismo resultado; si no, el motor ha dejado de ser determinista (P2).
+      const runs = await withTransaction(pool, (db) => recentRuns(db))
+      if (runs.length === 0) {
+        console.log('No hay ninguna ejecución todavía.')
+        break
+      }
+      console.log('ejecución  fecha             motor    ms   hash      congelada  motivo')
+      for (const run of runs) {
+        const started = run.startedAt.slice(0, 16).replace('T', ' ')
+        console.log(
+          [
+            run.id.slice(0, 8),
+            started,
+            run.engineVersion.padEnd(7),
+            String(run.durationMs ?? 0).padStart(5),
+            run.inputHash.slice(0, 8),
+            run.isFrozen ? '   sí     ' : '   no     ',
+            run.triggerReason ?? '',
+          ].join('  '),
+        )
+      }
       break
     }
 
