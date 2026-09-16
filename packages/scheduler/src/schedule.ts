@@ -306,6 +306,7 @@ export function schedulePlan(snapshot: PlanSnapshot, options: ScheduleOptions = 
 
     checkDeadline(leaf, scheduledFinish, findings, horizonFrom)
     checkWorkAndAssignments(leaf, assignmentsByNode.get(leaf.node.id) ?? [], findings)
+    checkSkills(leaf, assignmentsByNode.get(leaf.node.id) ?? [], snapshot, findings)
 
     results.push({
       nodeId: leaf.node.id,
@@ -497,6 +498,63 @@ function checkDeadline(
     message: `«${leaf.node.name}» termina el ${formatInstant(finish)}, después de su fecha objetivo ${deadline}.`,
     payload: { deadline, finish: formatInstant(finish) },
   })
+}
+
+/**
+ * Comprueba que quien hace una tarea sabe hacerla.
+ *
+ * No bloquea nada: la herramienta no está para decidir quién es capaz de qué,
+ * sino para que quien lo decide lo sepa. Por eso son avisos y no errores, y por
+ * eso distingue entre «no tiene la competencia» y «la tiene por debajo del
+ * nivel que la tarea pide»: la primera suele ser un error de asignación, la
+ * segunda es a menudo una decisión consciente de formar a alguien.
+ */
+function checkSkills(
+  leaf: Working,
+  assignments: readonly AssignmentDefinition[],
+  snapshot: PlanSnapshot,
+  findings: Finding[],
+): void {
+  const required = snapshot.skillRequirements.filter((item) => item.nodeId === leaf.node.id)
+  if (required.length === 0 || assignments.length === 0) return
+
+  for (const assignment of assignments) {
+    const resource = snapshot.resources.find((item) => item.id === assignment.resourceId)
+    if (resource === undefined) continue
+    for (const requirement of required) {
+      const skillName = snapshot.skillNames[requirement.skillId] ?? requirement.skillId
+      const owned = resource.skills.find((item) => item.skillId === requirement.skillId)
+      if (owned === undefined) {
+        findings.push({
+          severity: 'warning',
+          code: 'SKILL_MISSING',
+          entityType: 'assignment',
+          entityId: assignment.id,
+          message:
+            `«${resource.displayName}» está en «${leaf.node.name}», que pide ${skillName}, ` +
+            'y no la tiene declarada.',
+          payload: { resource: resource.displayName, task: leaf.node.name, skill: skillName },
+        })
+      } else if (owned.level < requirement.minLevel) {
+        findings.push({
+          severity: 'info',
+          code: 'SKILL_BELOW_LEVEL',
+          entityType: 'assignment',
+          entityId: assignment.id,
+          message:
+            `«${resource.displayName}» está en «${leaf.node.name}» con ${skillName} de nivel ` +
+            `${String(owned.level)}; la tarea pide ${String(requirement.minLevel)}.`,
+          payload: {
+            resource: resource.displayName,
+            task: leaf.node.name,
+            skill: skillName,
+            level: owned.level,
+            required: requirement.minLevel,
+          },
+        })
+      }
+    }
+  }
 }
 
 function checkWorkAndAssignments(

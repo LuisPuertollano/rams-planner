@@ -357,6 +357,58 @@ describe('ecuación de la tarea', () => {
   })
 })
 
+describe('competencias', () => {
+  it('avisa cuando quien hace la tarea no tiene la competencia que pide', () => {
+    const output = run(
+      new PlanBuilder()
+        .resource('ana', { skills: [{ skillId: 'fmeca', level: 4 }] })
+        .resource('jan', { skills: [] })
+        .task('analisis', { durationMinutes: 480 })
+        .requireSkill('analisis', 'fmeca', 3, 'FMECA')
+        .assign('analisis', 'ana')
+        .assign('analisis', 'jan')
+        .build(),
+    )
+
+    const faltan = output.findings.filter((finding) => finding.code === 'SKILL_MISSING')
+    expect(faltan).toHaveLength(1)
+    expect(faltan[0]?.message).toContain('FMECA')
+    // Ana la tiene de sobra: el hallazgo es de jan y sólo de jan. Se mira el
+    // payload y no el texto, que contiene «análisis» y daría un falso positivo.
+    expect(faltan[0]?.payload?.['resource']).toBe('jan')
+  })
+
+  it('distingue no tener la competencia de tenerla por debajo del nivel', () => {
+    const output = run(
+      new PlanBuilder()
+        .resource('novato', { skills: [{ skillId: 'sil', level: 1 }] })
+        .task('asignacion-sil', { durationMinutes: 480 })
+        .requireSkill('asignacion-sil', 'sil', 4, 'Asignación SIL')
+        .assign('asignacion-sil', 'novato')
+        .build(),
+    )
+
+    const codes = output.findings.map((finding) => finding.code)
+    expect(codes).toContain('SKILL_BELOW_LEVEL')
+    expect(codes).not.toContain('SKILL_MISSING')
+    // Formar a alguien es una decisión legítima: informa, no alarma.
+    const aviso = output.findings.find((finding) => finding.code === 'SKILL_BELOW_LEVEL')
+    expect(aviso?.severity).toBe('info')
+    expect(aviso?.message).toContain('nivel 1')
+  })
+
+  it('una tarea sin requisitos no genera ningún hallazgo de competencia', () => {
+    const output = run(
+      new PlanBuilder()
+        .resource('cualquiera')
+        .task('sin-requisitos', { durationMinutes: 480 })
+        .assign('sin-requisitos', 'cualquiera')
+        .build(),
+    )
+    expect(output.findings.filter((finding) => finding.code.startsWith('SKILL_'))).toEqual([])
+  })
+})
+
 describe('hallazgos informativos', () => {
   it('avisa de tareas sin recurso, sin trabajo y por encima del esfuerzo estándar', () => {
     const output = run(

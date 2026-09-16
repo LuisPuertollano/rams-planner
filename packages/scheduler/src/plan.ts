@@ -48,6 +48,13 @@ export interface CostRate extends DateRange {
   readonly standardCentsPerHour: number
 }
 
+/** Lo que alguien sabe hacer, y a qué nivel. */
+export interface SkillLevel {
+  readonly skillId: string
+  /** 1 en formación · 2 con apoyo · 3 autónomo · 4 referencia · 5 experto. */
+  readonly level: number
+}
+
 export interface ResourceDefinition {
   readonly id: string
   readonly code: string
@@ -58,6 +65,14 @@ export interface ResourceDefinition {
   readonly availability: readonly AvailabilityPeriod[]
   readonly absences: readonly AbsencePeriod[]
   readonly costRates: readonly CostRate[]
+  readonly skills: readonly SkillLevel[]
+}
+
+/** Lo que una tarea exige de quien la haga. */
+export interface SkillRequirement {
+  readonly nodeId: string
+  readonly skillId: string
+  readonly minLevel: number
 }
 
 export interface ProjectDefinition {
@@ -126,6 +141,9 @@ export interface PlanSnapshot {
   readonly tasks: readonly TaskDefinition[]
   readonly dependencies: readonly DependencyDefinition[]
   readonly assignments: readonly AssignmentDefinition[]
+  readonly skillRequirements: readonly SkillRequirement[]
+  /** Nombre legible de cada competencia, para que los hallazgos se entiendan. */
+  readonly skillNames: Readonly<Record<string, string>>
 }
 
 export interface TaskResult {

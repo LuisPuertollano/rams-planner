@@ -200,6 +200,37 @@ De qué está hecha la capacidad. Ver el paso 1.
 **Todo lo de esta pestaña recalcula el plan al guardarlo.** Es intencionado: una
 capacidad que cambia sin que cambie la carga sería una pantalla mintiendo.
 
+### Competencias
+
+La hoja del equipo: **personas en las filas, competencias en las columnas**. Es
+una matriz porque las preguntas que contesta son de matriz — «¿quién puede hacer
+esto?» se lee por columnas y «¿qué sabe hacer esta persona?» por filas.
+
+La escala tiene cinco niveles y cada uno significa algo concreto:
+
+| Nivel | Qué quiere decir |
+|-------|------------------|
+| **1** | En formación: necesita que le enseñen |
+| **2** | Con apoyo: puede hacerlo si alguien revisa |
+| **3** | Autónomo: lo saca adelante solo |
+| **4** | Referencia: los demás le preguntan |
+| **5** | Experto reconocido: defiende el trabajo fuera |
+
+La última fila, **Autónomos o más**, cuenta cuánta gente de nivel 3 o superior
+hay en cada competencia. Es la fila que hay que mirar:
+
+- **0** en rojo: hoy el equipo no cubre eso.
+- **1** en amarillo: un único especialista. Si se va de vacaciones o del equipo,
+  ese trabajo se para. Es el riesgo que nadie apunta hasta que ocurre.
+
+Lo que una tarea **exige** se declara en su panel **✎**, sección «Competencias
+que pide». Cuando alguien está en una tarea sin la competencia, sale un aviso en
+**Hallazgos**; si la tiene por debajo del nivel pedido, sale como información,
+porque formar a alguien es una decisión legítima y no un error.
+
+La herramienta **no impide** asignar a quien no sabe. Quién es capaz de qué lo
+decides tú; lo único que hace la herramienta es que no se te pase.
+
 ### Hallazgos
 
 Todo lo que el motor quiere decirte, ordenado por gravedad:
@@ -208,7 +239,7 @@ Todo lo que el motor quiere decirte, ordenado por gravedad:
 |----------|--------|-----------|
 | **Bloqueante** | El plan no se puede calcular: un ciclo de dependencias, por ejemplo | Arreglarlo ya; hasta entonces no hay plan |
 | **Error** | Una restricción imposible: una tarea que debe empezar antes de que termine su predecesora | Decidir cuál de las dos cosas cede |
-| **Aviso** | Una sobrecarga, un deadline que no se cumple, un desvío de presupuesto | Decidir si se acepta |
+| **Aviso** | Una sobrecarga, un deadline que no se cumple, un desvío de presupuesto, alguien en una tarea sin la competencia que pide | Decidir si se acepta |
 | **Información** | Contexto del cálculo | Leer y seguir |
 
 Un **deadline** no mueve nunca una tarea: avisa. Una **restricción** sí la mueve,

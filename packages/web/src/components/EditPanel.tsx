@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import {
   assign,
+  fetchSkills,
+  setNodeSkill,
   createNode,
   fetchStructure,
   link,
@@ -10,6 +12,7 @@ import {
   unlink,
   type PlanStructure,
   type Resource,
+  type SkillMatrix,
   type TaskRow,
 } from '../api.js'
 import { percent } from '../format.js'
@@ -41,11 +44,16 @@ const isContainer = (task: TaskRow): boolean => task.kind === 'phase' || task.ki
  */
 export function EditPanel({ task, tasks, resources, onClose, onChanged }: Props): React.JSX.Element {
   const [structure, setStructure] = useState<PlanStructure | null>(null)
+  const [skills, setSkills] = useState<SkillMatrix | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [name, setName] = useState(task.name)
 
-  const reload = async (): Promise<void> => { setStructure(await fetchStructure()) }
+  const reload = async (): Promise<void> => {
+    const [siguiente, matriz] = await Promise.all([fetchStructure(), fetchSkills()])
+    setStructure(siguiente)
+    setSkills(matriz)
+  }
 
   useEffect(() => {
     setName(task.name)
@@ -184,6 +192,49 @@ export function EditPanel({ task, tasks, resources, onClose, onChanged }: Props)
                       run(async () => { await assign(task.nodeId, resourceId, unitsBp) })
                     }}
                   />
+                )}
+              </div>
+
+              <div className="card">
+                <h3 className="card__title">Competencias que pide</h3>
+                <p className="card__note">
+                  El motor avisa cuando alguien está en esta tarea sin la competencia, o con ella por debajo del
+                  nivel. No impide nada: quién es capaz de qué lo decides tú, no la herramienta.
+                </p>
+                {skills === null ? null : (
+                  <table className="grid grid--inline">
+                    <thead><tr><th>Competencia</th><th>Nivel mínimo</th></tr></thead>
+                    <tbody>
+                      {skills.skills.map((skill) => {
+                        const actual =
+                          skills.requirements.find(
+                            (item) => item.nodeId === task.nodeId && item.skillId === skill.id,
+                          )?.minLevel ?? 0
+                        return (
+                          <tr key={skill.id}>
+                            <td title={skill.name}>{skill.code}</td>
+                            <td>
+                              <select
+                                className="level"
+                                value={actual}
+                                disabled={busy}
+                                data-level={actual}
+                                onChange={(event) => {
+                                  const siguiente = Number(event.target.value)
+                                  run(async () => { await setNodeSkill(task.nodeId, skill.id, siguiente) })
+                                }}
+                              >
+                                <option value={0}>no la pide</option>
+                                {[1, 2, 3, 4, 5].map((level) => (
+                                  <option key={level} value={level}>{level}</option>
+                                ))}
+                              </select>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
                 )}
               </div>
 

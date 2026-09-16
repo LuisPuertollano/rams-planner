@@ -480,3 +480,63 @@ export async function link(
 export async function unlink(id: string): Promise<void> {
   return send(`/api/dependencies/${id}`, 'DELETE')
 }
+
+// ---------------------------------------------------------------------------
+// Competencias
+// ---------------------------------------------------------------------------
+
+export interface Skill {
+  readonly id: string
+  readonly code: string
+  readonly name: string
+}
+
+export interface ResourceSkill {
+  readonly resourceId: string
+  readonly skillId: string
+  readonly level: number
+}
+
+export interface NodeSkillRequirement {
+  readonly nodeId: string
+  readonly skillId: string
+  readonly minLevel: number
+}
+
+export interface SkillMatrix {
+  readonly skills: readonly Skill[]
+  readonly resourceSkills: readonly ResourceSkill[]
+  readonly requirements: readonly NodeSkillRequirement[]
+}
+
+export async function fetchSkills(): Promise<SkillMatrix> {
+  return get<SkillMatrix>('/api/skills')
+}
+
+export async function createSkill(code: string, name: string): Promise<void> {
+  return send('/api/skills', 'POST', { code, name })
+}
+
+export async function removeSkill(skillId: string): Promise<void> {
+  return send(`/api/skills/${skillId}`, 'DELETE')
+}
+
+/** Nivel 0 retira la competencia de esa persona. */
+export async function setResourceSkill(resourceId: string, skillId: string, level: number): Promise<void> {
+  const response = await fetch(`/api/resources/${resourceId}/skills/${skillId}`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ level }),
+  })
+  if (!response.ok) throw new Error('No se pudo guardar el nivel')
+}
+
+/** Nivel 0 retira el requisito de esa tarea. */
+export async function setNodeSkill(nodeId: string, skillId: string, minLevel: number): Promise<void> {
+  const response = await fetch(`/api/nodes/${nodeId}/skills/${skillId}`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ minLevel }),
+  })
+  if (!response.ok) throw new Error('No se pudo guardar el requisito')
+}

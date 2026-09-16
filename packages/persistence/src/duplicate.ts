@@ -196,6 +196,17 @@ export async function duplicateProject(
     copiedDependencies += 1
   }
 
+  // Los requisitos de competencia viajan con la tarea por la misma razón que
+  // la duración: dicen qué trabajo es, no quién lo hizo la última vez.
+  for (const [oldId, newId] of newIdOf) {
+    await db.query(
+      `INSERT INTO node_skill_requirement (node_id, skill_id, min_level)
+       SELECT $2, skill_id, min_level FROM node_skill_requirement WHERE node_id = $1
+       ON CONFLICT (node_id, skill_id) DO NOTHING`,
+      [oldId, newId],
+    )
+  }
+
   // Los campos del dominio (la disciplina RAMS, por ejemplo) viajan con la
   // tarea: son parte de lo que describe el trabajo, no de su ejecución.
   for (const [oldId, newId] of newIdOf) {

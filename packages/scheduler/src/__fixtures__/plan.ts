@@ -10,6 +10,7 @@ import type {
   PlanSnapshot,
   ProjectDefinition,
   ResourceDefinition,
+  SkillRequirement,
   TaskDefinition,
   WbsNodeDefinition,
 } from '../plan.js'
@@ -45,6 +46,8 @@ export class PlanBuilder {
   private readonly dependencies: DependencyDefinition[] = []
   private readonly assignments: AssignmentDefinition[] = []
   private readonly resources: ResourceDefinition[] = []
+  private readonly skillRequirements: SkillRequirement[] = []
+  private readonly skillNames: Record<string, string> = {}
   private readonly projects: ProjectDefinition[] = [
     { id: 'p1', code: 'P1', name: 'Proyecto', statusStart: d('2026-03-02'), priority: 500 },
   ]
@@ -115,6 +118,13 @@ export class PlanBuilder {
     return this
   }
 
+  /** Una competencia que exige una tarea, con su nombre legible. */
+  requireSkill(nodeId: string, skillId: string, minLevel = 3, name = skillId): this {
+    this.skillRequirements.push({ nodeId, skillId, minLevel })
+    this.skillNames[skillId] = name
+    return this
+  }
+
   resource(id: string, options: Partial<ResourceDefinition> = {}): this {
     this.resources.push({
       id,
@@ -126,6 +136,7 @@ export class PlanBuilder {
       availability: [{ from: d('2026-01-01'), to: d('2027-12-31'), unitsBp: 10_000 }],
       absences: [],
       costRates: [{ from: d('2026-01-01'), to: d('2027-12-31'), standardCentsPerHour: 6_000 }],
+      skills: [],
       ...options,
     })
     return this
@@ -153,6 +164,8 @@ export class PlanBuilder {
       nodes: this.nodes,
       tasks: this.tasks,
       dependencies: this.dependencies,
+      skillRequirements: this.skillRequirements,
+      skillNames: this.skillNames,
       assignments: this.assignments,
     }
   }
