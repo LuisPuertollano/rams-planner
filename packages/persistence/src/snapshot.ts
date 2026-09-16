@@ -74,13 +74,18 @@ async function loadSkills(db: Queryable): Promise<{
   skillRequirements: readonly SkillRequirement[]
   skillNames: Record<string, string>
 }> {
+  // El ORDER BY no es cosmético: sin él PostgreSQL puede devolver las filas en
+  // cualquier orden, el hash del snapshot cambia entre dos cargas idénticas y
+  // el motor deja de ser determinista (P2). Cualquier consulta que alimente el
+  // snapshot lleva un orden total y explícito.
   const requirements = await db.query<{ node_id: string; skill_id: string; min_level: number }>(
     `SELECT r.node_id, r.skill_id, r.min_level
      FROM node_skill_requirement r
      JOIN wbs_node n ON n.id = r.node_id AND n.deleted_at IS NULL
-     JOIN project  p ON p.id = n.project_id AND p.deleted_at IS NULL AND NOT p.is_template`,
+     JOIN project  p ON p.id = n.project_id AND p.deleted_at IS NULL AND NOT p.is_template
+     ORDER BY r.node_id, r.skill_id`,
   )
-  const names = await db.query<{ id: string; name: string }>('SELECT id, name FROM skill')
+  const names = await db.query<{ id: string; name: string }>('SELECT id, name FROM skill ORDER BY id')
   const skillNames: Record<string, string> = {}
   for (const row of names.rows) skillNames[row.id] = row.name
   return {
@@ -190,7 +195,7 @@ async function loadResources(db: Queryable): Promise<readonly ResourceDefinition
      FROM resource_cost_rate ORDER BY lower(valid_period)`,
   )
   const skills = await db.query<{ resource_id: string; skill_id: string; level: number }>(
-    'SELECT resource_id, skill_id, level FROM resource_skill ORDER BY skill_id',
+    'SELECT resource_id, skill_id, level FROM resource_skill ORDER BY resource_id, skill_id',
   )
 
   const availabilityBy = groupBy(availability.rows, (row) => row.resource_id)

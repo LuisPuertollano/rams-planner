@@ -125,12 +125,28 @@ jobs:
           # viejo fallaría por razones que no tienen nada que ver con lo que
           # este paso comprueba. En una instalación real el esquema se migra
           # antes de que arranque la aplicación nueva, nunca al revés.
+          # Idempotente a propósito: qué haya creado ya una migración anterior
+          # cambia con el tiempo, y este paso comprueba la actualización, no
+          # quién puso cada fila.
           psql -h 127.0.0.1 -U planner -d planner_upgrade -v ON_ERROR_STOP=1 <<'SQL'
           INSERT INTO field_definition (entity_type, field_key, label, data_type, display_order)
-          VALUES ('wbs_node', 'rams_tag', 'Disciplina RAMS', 'single_select', 1);
-          INSERT INTO project (code, name, calendar_id, status_start, priority, currency)
-          VALUES ('YA-EXISTIA', 'Proyecto anterior a la actualización',
-                  '00000000-0000-4000-8000-000000000002', '2026-03-02', 500, 'EUR');
+          VALUES ('wbs_node', 'rams_tag', 'Disciplina RAMS', 'single_select', 1)
+          ON CONFLICT (entity_type, field_key) DO NOTHING;
+
+          INSERT INTO project (id, code, name, calendar_id, status_start, priority, currency)
+          VALUES ('00000000-0000-4000-9003-000000000001', 'YA-EXISTIA',
+                  'Proyecto anterior a la actualización',
+                  '00000000-0000-4000-8000-000000000002', '2026-03-02', 500, 'EUR')
+          ON CONFLICT (code) DO NOTHING;
+
+          INSERT INTO wbs_node (id, project_id, node_kind, code, path, sort_key, name)
+          VALUES ('00000000-0000-4000-9003-000000000002', '00000000-0000-4000-9003-000000000001',
+                  'task', '1', '001', 0, 'Tarea que ya estaba')
+          ON CONFLICT (id) DO NOTHING;
+
+          INSERT INTO task (node_id, duration_minutes) VALUES
+            ('00000000-0000-4000-9003-000000000002', 2400)
+          ON CONFLICT (node_id) DO NOTHING;
           SQL
 
           # Ahora la actualización. Si falla aquí, falla en producción.
