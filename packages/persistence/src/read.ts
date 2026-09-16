@@ -169,6 +169,10 @@ export interface TaskRow {
   readonly deadline: CalendarDate | null
   readonly taskType: string | null
   readonly assignees: readonly string[]
+  /** Datos DECLARADOS, los únicos editables. */
+  readonly declaredDurationMinutes: number | null
+  readonly declaredWorkMinutes: number | null
+  readonly declaredPercentCompleteBp: number | null
 }
 
 export async function readTasks(db: Queryable, runId: string): Promise<readonly TaskRow[]> {
@@ -191,11 +195,17 @@ export async function readTasks(db: Queryable, runId: string): Promise<readonly 
     deadline: string | null
     task_type: string | null
     assignees: string[] | null
+    declared_duration_minutes: number | null
+    declared_work_minutes: number | null
+    declared_percent_complete_bp: number | null
   }>(
     `SELECT n.id AS node_id, n.project_id, n.parent_id, n.node_kind, n.code, n.name, n.path,
             r.scheduled_start, r.scheduled_finish, r.duration_minutes, r.work_minutes,
             r.total_slack_minutes, r.is_critical, r.percent_complete_bp,
             t.constraint_kind, t.deadline::text, t.task_type,
+            t.duration_minutes AS declared_duration_minutes,
+            t.work_declared_minutes AS declared_work_minutes,
+            t.percent_complete_bp AS declared_percent_complete_bp,
             ARRAY(SELECT res.display_name FROM assignment a
                   JOIN resource res ON res.id = a.resource_id
                   WHERE a.node_id = n.id AND a.deleted_at IS NULL
@@ -226,6 +236,9 @@ export async function readTasks(db: Queryable, runId: string): Promise<readonly 
     deadline: (row.deadline as CalendarDate | null) ?? null,
     taskType: row.task_type,
     assignees: row.assignees ?? [],
+    declaredDurationMinutes: row.declared_duration_minutes,
+    declaredWorkMinutes: row.declared_work_minutes,
+    declaredPercentCompleteBp: row.declared_percent_complete_bp,
   }))
 }
 
@@ -318,4 +331,141 @@ function periodExpression(bucket: 'day' | 'week' | 'month' | 'quarter', column =
     case 'quarter':
       return `to_char(${column}, 'YYYY-"T"Q')`
   }
+}
+
+// ---------------------------------------------------------------------------
+// Líneas base y comparación de ejecuciones
+// ---------------------------------------------------------------------------
+
+export interface BaselineSummary {
+  readonly id: string
+  readonly runId: string
+  readonly name: string
+  readonly capturedAt: string
+  readonly note: string | null
+}
+
+export async function readBaselines(db: Queryable): Promise<readonly BaselineSummary[]> {
+  const { rows } = await db.query<{
+    id: string
+    calculation_run_id: string
+    name: string
+    captured_at: Date
+    note: string | null
+  }>('SELECT id, calculation_run_id, name, captured_at, note FROM baseline ORDER BY captured_at DESC')
+  return rows.map((row) => ({
+    id: row.id,
+    runId: row.calculation_run_id,
+    name: row.name,
+    capturedAt: row.captured_at.toISOString(),
+    note: row.note,
+  }))
+}
+
+/** Congelar una ejecución: es la única escritura de la API en la zona derivada. */
+export async function freezeRun(db: Queryable, runId: string, name: string, note?: string): Promise<BaselineSummary> {
+  await db.query('UPDATE calculation_run SET is_frozen = TRUE WHERE id = $1', [runId])
+  const { rows } = await db.query<{ id: string; captured_at: Date }>(
+    'INSERT INTO baseline (calculation_run_id, name, note) VALUES ($1, $2, $3) RETURNING id, captured_at',
+    [runId, name, note ?? null],
+  )
+  const row = rows[0]
+  if (row === undefined) throw new Error('No se pudo congelar la ejecución')
+  return { id: row.id, runId, name, capturedAt: row.captured_at.toISOString(), note: note ?? null }
+}
+
+export interface TaskDiffRow {
+  readonly nodeId: string
+  readonly name: string
+  readonly projectId: string
+  readonly startFrom: string | null
+  readonly startTo: string | null
+  readonly finishFrom: string | null
+  readonly finishTo: string | null
+  readonly startDeltaDays: number | null
+  readonly finishDeltaDays: number | null
+  readonly workFrom: number | null
+  readonly workTo: number | null
+  readonly workDeltaMinutes: number | null
+}
+
+/**
+ * Diff entre dos ejecuciones.
+ *
+ * Comparar el plan de hoy con la línea base es un `JOIN` entre dos `run_id`:
+ * eso es lo que se gana al no guardar los resultados pegados a los datos
+ * declarados.
+ */
+export async function readDiff(
+  db: Queryable,
+  baseRunId: string,
+  targetRunId: string,
+): Promise<readonly TaskDiffRow[]> {
+  const { rows } = await db.query<{
+    node_id: string
+    name: string
+    project_id: string
+    start_from: Date | null
+    start_to: Date | null
+    finish_from: Date | null
+    finish_to: Date | null
+    work_from: number | null
+    work_to: number | null
+  }>(
+    `SELECT n.id AS node_id, n.name, n.project_id,
+            a.scheduled_start AS start_from, b.scheduled_start AS start_to,
+            a.scheduled_finish AS finish_from, b.scheduled_finish AS finish_to,
+            a.work_minutes AS work_from, b.work_minutes AS work_to
+     FROM wbs_node n
+     LEFT JOIN task_result a ON a.node_id = n.id AND a.run_id = $1
+     LEFT JOIN task_result b ON b.node_id = n.id AND b.run_id = $2
+     WHERE n.deleted_at IS NULL AND (a.node_id IS NOT NULL OR b.node_id IS NOT NULL)
+     ORDER BY n.path`,
+    [baseRunId, targetRunId],
+  )
+
+  const days = (from: Date | null, to: Date | null): number | null =>
+    from === null || to === null ? null : Math.round((to.getTime() - from.getTime()) / 86_400_000)
+
+  return rows
+    .map((row) => ({
+      nodeId: row.node_id,
+      name: row.name,
+      projectId: row.project_id,
+      startFrom: row.start_from?.toISOString() ?? null,
+      startTo: row.start_to?.toISOString() ?? null,
+      finishFrom: row.finish_from?.toISOString() ?? null,
+      finishTo: row.finish_to?.toISOString() ?? null,
+      startDeltaDays: days(row.start_from, row.start_to),
+      finishDeltaDays: days(row.finish_from, row.finish_to),
+      workFrom: row.work_from,
+      workTo: row.work_to,
+      workDeltaMinutes: row.work_from === null || row.work_to === null ? null : row.work_to - row.work_from,
+    }))
+    .filter(
+      (row) =>
+        (row.startDeltaDays ?? 0) !== 0 ||
+        (row.finishDeltaDays ?? 0) !== 0 ||
+        (row.workDeltaMinutes ?? 0) !== 0 ||
+        row.startFrom === null ||
+        row.startTo === null,
+    )
+}
+
+/** Valores de los campos personalizados, por entidad y clave. */
+export async function readFieldValues(
+  db: Queryable,
+): Promise<readonly { entityId: string; fieldKey: string; label: string; value: string }[]> {
+  const { rows } = await db.query<{ entity_id: string; field_key: string; label: string; value: string | null }>(
+    `SELECT v.entity_id, d.field_key, d.label,
+            COALESCE(v.value_text, v.value_number::text, v.value_integer::text, v.value_date::text,
+                     v.value_boolean::text) AS value
+     FROM field_value v
+     JOIN field_definition d ON d.id = v.field_id
+     WHERE d.deleted_at IS NULL
+     ORDER BY d.display_order`,
+  )
+  return rows
+    .filter((row): row is typeof row & { value: string } => row.value !== null)
+    .map((row) => ({ entityId: row.entity_id, fieldKey: row.field_key, label: row.label, value: row.value }))
 }

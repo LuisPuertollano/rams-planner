@@ -49,6 +49,39 @@ export interface TaskRow {
   readonly deadline: string | null
   readonly taskType: string | null
   readonly assignees: readonly string[]
+  readonly declaredDurationMinutes: number | null
+  readonly declaredWorkMinutes: number | null
+  readonly declaredPercentCompleteBp: number | null
+}
+
+export interface Baseline {
+  readonly id: string
+  readonly runId: string
+  readonly name: string
+  readonly capturedAt: string
+  readonly note: string | null
+}
+
+export interface FieldValue {
+  readonly entityId: string
+  readonly fieldKey: string
+  readonly label: string
+  readonly value: string
+}
+
+export interface TaskDiff {
+  readonly nodeId: string
+  readonly name: string
+  readonly projectId: string
+  readonly startFrom: string | null
+  readonly startTo: string | null
+  readonly finishFrom: string | null
+  readonly finishTo: string | null
+  readonly startDeltaDays: number | null
+  readonly finishDeltaDays: number | null
+  readonly workFrom: number | null
+  readonly workTo: number | null
+  readonly workDeltaMinutes: number | null
 }
 
 export interface LoadCell {
@@ -89,6 +122,8 @@ export interface AppState {
   readonly run: RunSummary | null
   readonly projects: readonly Project[]
   readonly resources: readonly Resource[]
+  readonly baselines: readonly Baseline[]
+  readonly fields: readonly FieldValue[]
 }
 
 export interface RunData {
@@ -125,6 +160,38 @@ export async function fetchRunData(runId: string): Promise<RunData> {
 export async function fetchDerivations(runId: string, nodeId: string): Promise<readonly DerivationRow[]> {
   const body = await get<{ derivations: readonly DerivationRow[] }>(`/api/runs/${runId}/explain/${nodeId}`)
   return body.derivations
+}
+
+export async function updateTask(
+  nodeId: string,
+  changes: Readonly<Record<string, number | string | null>>,
+): Promise<void> {
+  const response = await fetch(`/api/tasks/${nodeId}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(changes),
+  })
+  if (!response.ok) {
+    const body: unknown = await response.json().catch(() => ({}))
+    throw new Error(
+      typeof body === 'object' && body !== null && 'error' in body ? String(body.error) : 'No se pudo guardar',
+    )
+  }
+}
+
+export async function freezeBaseline(runId: string, name: string): Promise<Baseline> {
+  const response = await fetch(`/api/runs/${runId}/freeze`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+  if (!response.ok) throw new Error('No se pudo congelar la línea base')
+  return response.json() as Promise<Baseline>
+}
+
+export async function fetchDiff(baseRunId: string, targetRunId: string): Promise<readonly TaskDiff[]> {
+  const body = await get<{ tasks: readonly TaskDiff[] }>(`/api/runs/${baseRunId}/diff/${targetRunId}`)
+  return body.tasks
 }
 
 export async function recalculate(reason: string): Promise<{ runId: string; durationMs: number }> {

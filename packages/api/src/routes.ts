@@ -9,8 +9,12 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import {
+  freezeRun,
   latestRun,
+  readBaselines,
   readDerivations,
+  readDiff,
+  readFieldValues,
   readFindings,
   readLoad,
   readProjects,
@@ -40,7 +44,9 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
       const run = await latestRun(db)
       const projects = await readProjects(db)
       const resources = await readResources(db)
-      return { run: run ?? null, projects, resources }
+      const baselines = await readBaselines(db)
+      const fields = await readFieldValues(db)
+      return { run: run ?? null, projects, resources, baselines, fields }
     }),
   )
 
@@ -142,6 +148,27 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
     // El cambio es de datos declarados: el plan que hay en pantalla ya no vale.
     const scenarioId = await withDb((db) => defaultScenarioId(db))
     return calculate(pool, scenarioId, `edición de la tarea ${nodeId}`)
+  })
+
+  /** Congelar la ejecución como línea base. Le pone nombre a una foto del plan. */
+  app.post('/api/runs/:runId/freeze', async (request) => {
+    const { runId } = z.object({ runId: z.string().uuid() }).parse(request.params)
+    const body = z
+      .object({ name: z.string().min(1).max(120), note: z.string().max(500).optional() })
+      .parse(request.body)
+    return withTransaction(
+      pool,
+      (db) => freezeRun(db, runId, body.name, body.note),
+      { comment: `línea base «${body.name}»` },
+    )
+  })
+
+  /** Diff entre dos ejecuciones: es un JOIN entre dos run_id, nada más. */
+  app.get('/api/runs/:baseRunId/diff/:targetRunId', async (request) => {
+    const { baseRunId, targetRunId } = z
+      .object({ baseRunId: z.string().uuid(), targetRunId: z.string().uuid() })
+      .parse(request.params)
+    return { baseRunId, targetRunId, tasks: await withDb((db) => readDiff(db, baseRunId, targetRunId)) }
   })
 
   /** Historial de cambios de una entidad: quién, cuándo y con qué comentario. */

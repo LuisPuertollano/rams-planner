@@ -100,6 +100,9 @@ jobs:
             console.log('Cálculo correcto:', JSON.stringify(run));
           "
 
+      - name: Pruebas de integración contra la base de datos real
+        run: pnpm vitest run packages/persistence
+
       - name: Las migraciones son reversibles
         run: |
           for _ in 1 2 3 4; do dbmate --migrations-dir ./db/migrations --no-dump-schema down; done

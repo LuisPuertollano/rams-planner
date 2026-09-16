@@ -1,15 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { fetchRunData, fetchState, recalculate, type AppState, type RunData, type TaskRow } from './api.js'
+import {
+  fetchRunData,
+  fetchState,
+  freezeBaseline,
+  recalculate,
+  type AppState,
+  type RunData,
+  type TaskRow,
+} from './api.js'
 import { hours, percent } from './format.js'
 import { activePeriods } from './periods.js'
 import { WhyPanel } from './components/WhyPanel.js'
+import { DiffView } from './views/DiffView.js'
 import { FindingsView } from './views/FindingsView.js'
 import { GanttView } from './views/GanttView.js'
 import { HeatmapView } from './views/HeatmapView.js'
 import { MatrixView } from './views/MatrixView.js'
 import { PlanView } from './views/PlanView.js'
 
-type Tab = 'matriz' | 'saturacion' | 'plan' | 'cronograma' | 'hallazgos'
+type Tab = 'matriz' | 'saturacion' | 'plan' | 'cronograma' | 'hallazgos' | 'comparar'
 
 const TABS: readonly { id: Tab; label: string; hint: string }[] = [
   { id: 'matriz', label: 'Carga', hint: 'Cuántas horas tiene comprometida cada persona, cada mes, en cada proyecto' },
@@ -17,6 +26,7 @@ const TABS: readonly { id: Tab; label: string; hint: string }[] = [
   { id: 'plan', label: 'Plan', hint: 'El árbol de trabajo con sus fechas calculadas' },
   { id: 'cronograma', label: 'Cronograma', hint: 'El plan en el tiempo, con el camino crítico' },
   { id: 'hallazgos', label: 'Hallazgos', hint: 'Todo lo que el motor quiere decirte' },
+  { id: 'comparar', label: 'Comparar', hint: 'En qué se diferencia el plan de hoy del que congelaste' },
 ]
 
 export function App(): React.JSX.Element {
@@ -56,6 +66,17 @@ export function App(): React.JSX.Element {
       // Da igual: es una comodidad, no un dato del plan.
     }
   }, [theme])
+
+  const onFreeze = (): void => {
+    if (state?.run == null) return
+    const name = window.prompt('Nombre de la línea base', `Plan ${new Date().toLocaleDateString('es-ES')}`)
+    if (name === null || name.trim() === '') return
+    setBusy(true)
+    freezeBaseline(state.run.id, name.trim())
+      .then(load)
+      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : 'No se pudo congelar') })
+      .finally(() => { setBusy(false) })
+  }
 
   const onRecalculate = (): void => {
     setBusy(true)
@@ -122,6 +143,9 @@ export function App(): React.JSX.Element {
         >
           {theme === 'auto' ? '◐' : theme === 'light' ? '☀' : '☾'}
         </button>
+        <button className="button" onClick={onFreeze} disabled={busy || state?.run == null} title="Congelar el plan actual como línea base">
+          Línea base
+        </button>
         <button className="button button--primary" onClick={onRecalculate} disabled={busy}>
           {busy ? 'Calculando…' : 'Recalcular'}
         </button>
@@ -161,11 +185,9 @@ export function App(): React.JSX.Element {
           <div className="panel__head">
             <h2>{activeTab?.label}</h2>
             <p>{activeTab?.hint}</p>
-            {state?.run === null || state === null ? null : (
-              <span className="spacer faint" style={{ fontSize: 12 }}>
-                🔒 columnas derivadas · no editables
-              </span>
-            )}
+            <span className="spacer faint" style={{ fontSize: 12 }}>
+              {tab === 'plan' ? '✎ declarado · 🔒 derivado, no editable' : '🔒 columnas derivadas · no editables'}
+            </span>
           </div>
           <div className={tab === 'hallazgos' ? 'panel__body panel__body--flush' : 'panel__body panel__body--flush'}>
             {state === null || data === null ? (
@@ -184,9 +206,25 @@ export function App(): React.JSX.Element {
             ) : tab === 'saturacion' ? (
               <HeatmapView resources={state.resources} utilization={data.utilization} />
             ) : tab === 'plan' ? (
-              <PlanView tasks={data.tasks} projects={state.projects} onExplain={setExplaining} />
+              <PlanView
+                tasks={data.tasks}
+                projects={state.projects}
+                fields={state.fields}
+                onExplain={setExplaining}
+                onChanged={() => {
+                  load().catch((cause: unknown) => {
+                    setError(cause instanceof Error ? cause.message : 'Error al recargar')
+                  })
+                }}
+              />
             ) : tab === 'cronograma' ? (
               <GanttView tasks={data.tasks} projects={state.projects} />
+            ) : tab === 'comparar' ? (
+              <DiffView
+                baselines={state.baselines}
+                currentRunId={state.run?.id ?? ''}
+                projects={state.projects}
+              />
             ) : (
               <FindingsView findings={data.findings} />
             )}

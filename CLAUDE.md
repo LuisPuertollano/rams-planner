@@ -103,6 +103,6 @@ posteriores: la fase 1 mal cerrada contamina todo lo demás.
 | 2 | CPM con restricciones, holguras y explicaciones | ✅ |
 | 3 | Carga diaria, capacidad, saturación y coste | ✅ |
 | 4 | Persistencia, API e interfaz (carga, saturación, plan, cronograma, hallazgos, «¿por qué?») | ✅ |
-| 5 | Edición completa desde la interfaz, escenarios y líneas base | ⬜ |
+| 5 | Edición en línea de datos declarados, líneas base y comparación | ✅ |
 | 6 | Realidad ejecutada, campos personalizados de extremo a extremo, import/export | ⬜ |
 | 7 | Nivelación heurística y pulido | ⬜ |

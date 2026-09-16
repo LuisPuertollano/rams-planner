@@ -250,6 +250,30 @@ button { font: inherit; color: inherit; }
 .severity-warning { background: var(--severity-warning); }
 .severity-info { background: var(--severity-info); }
 
+/* --------------------------------------------------------------- editable -- */
+
+/* Lo declarado se edita y se nota que se edita. Lo derivado, ni se intenta. */
+.editable { display: inline-flex; align-items: baseline; gap: 4px; }
+.editable__input {
+  width: 62px;
+  text-align: right;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 3px 6px;
+}
+.editable__input:hover:not(:disabled) { border-color: var(--border-strong); }
+.editable__input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+.editable__input:disabled { opacity: 0.5; }
+.editable__suffix { color: var(--text-faint); font-size: 12px; }
+
+.grid td.cell--derived { background-image: linear-gradient(var(--bg-sunken), var(--bg-sunken)); }
+
+select.button { padding: 6px 10px; }
+
 /* ------------------------------------------------------------------ why --- */
 
 .why {

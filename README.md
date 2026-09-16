@@ -43,7 +43,14 @@ pnpm dev:web                                 # opcional: Vite en :45677 con reca
 | **Plan** | El árbol de trabajo con las fechas que ha calculado el motor, la holgura y el camino crítico |
 | **Cronograma** | El plan en el tiempo, con hitos y camino crítico |
 | **Hallazgos** | Ciclos, conflictos de restricción, sobrecargas, deadlines incumplidos y desvíos de presupuesto |
+| **Comparar** | En qué se diferencia el plan de hoy del que se congeló como línea base |
 | **¿por qué?** | La traza de cada fecha: qué regla la produjo y con qué entradas, hasta el dato que alguien escribió |
+
+En la vista **Plan** las dos primeras columnas de datos son declaradas y se
+editan en línea: al confirmar un cambio, el plan se recalcula entero y el
+resultado queda guardado como una ejecución nueva. Las demás columnas llevan
+candado. Congelar el plan con el botón **Línea base** y volver a la pestaña
+**Comparar** enseña la cascada completa de un cambio.
 
 ## Cómo está hecho
 

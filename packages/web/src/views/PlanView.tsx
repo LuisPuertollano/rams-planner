@@ -1,16 +1,32 @@
 import { useMemo, useState } from 'react'
-import type { Project, TaskRow } from '../api.js'
+import { updateTask, type FieldValue, type Project, type TaskRow } from '../api.js'
 import { days, fullDate, hours, percent } from '../format.js'
 
 interface Props {
   readonly tasks: readonly TaskRow[]
   readonly projects: readonly Project[]
+  readonly fields: readonly FieldValue[]
   readonly onExplain: (task: TaskRow) => void
+  readonly onChanged: () => void
 }
 
-/** El plan, como árbol WBS. Todas las columnas de la derecha son derivadas. */
-export function PlanView({ tasks, projects, onExplain }: Props): React.JSX.Element {
+/**
+ * El plan, como árbol WBS.
+ *
+ * Las dos primeras columnas de datos son **declaradas** y se editan en línea.
+ * Las demás son **derivadas**: fondo propio, candado y ni un solo `input`. Es el
+ * principio P1 hecho algo que se ve, no una nota en un documento.
+ */
+export function PlanView({ tasks, projects, fields, onExplain, onChanged }: Props): React.JSX.Element {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
+  const [saving, setSaving] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const tagOf = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const field of fields) if (field.fieldKey === 'rams_tag') map.set(field.entityId, field.value)
+    return map
+  }, [fields])
 
   const byProject = useMemo(() => {
     const map = new Map<string, TaskRow[]>()
@@ -33,85 +49,206 @@ export function PlanView({ tasks, projects, onExplain }: Props): React.JSX.Eleme
 
   const isHidden = (task: TaskRow): boolean => task.parentId !== null && collapsed.has(task.parentId)
 
+  const save = (task: TaskRow, changes: Readonly<Record<string, number | string | null>>): void => {
+    setSaving(task.nodeId)
+    setError(null)
+    updateTask(task.nodeId, { ...changes, comment: 'edición desde la vista de plan' })
+      .then(onChanged)
+      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : 'No se pudo guardar') })
+      .finally(() => { setSaving(null) })
+  }
+
   return (
-    <table className="grid">
-      <thead>
-        <tr>
-          <th style={{ minWidth: 320 }}>Tarea</th>
-          <th>Inicio</th>
-          <th>Fin</th>
-          <th>Duración</th>
-          <th>Trabajo</th>
-          <th>Holgura</th>
-          <th>Avance</th>
-          <th>Equipo</th>
-          <th />
-        </tr>
-      </thead>
-      <tbody>
-        {projects.map((project) => {
-          const rows = byProject.get(project.id) ?? []
-          return (
-            <>
-              <tr key={project.id} className="row--total">
-                <td colSpan={9}>
-                  {project.code} · {project.name}
-                </td>
-              </tr>
-              {rows.filter((task) => !isHidden(task)).map((task) => (
-                <tr key={task.nodeId}>
-                  <td>
-                    <span className="wbs__name" style={{ paddingLeft: task.parentId === null ? 0 : 18 }}>
-                      {task.kind === 'phase' || task.kind === 'work_package' ? (
-                        <button
-                          className="disclosure"
-                          onClick={() => { toggle(task.nodeId) }}
-                          aria-expanded={!collapsed.has(task.nodeId)}
-                          aria-label="Plegar"
-                        >
-                          {collapsed.has(task.nodeId) ? '▸' : '▾'}
-                        </button>
-                      ) : null}
-                      <span className={task.isCritical === true ? 'critical' : ''}>{task.name}</span>
-                      {task.kind === 'milestone' ? <span className="wbs__kind">hito</span> : null}
-                      {task.deadline === null ? null : (
-                        <span className="wbs__kind" title="Fecha objetivo (blanda)">
-                          ⚑ {fullDate(task.deadline)}
-                        </span>
-                      )}
-                      {task.constraintKind !== null && task.constraintKind !== 'asap' ? (
-                        <span className="wbs__kind" title="Restricción declarada">
-                          {task.constraintKind.replaceAll('_', ' ')}
-                        </span>
-                      ) : null}
-                    </span>
-                  </td>
-                  <td className="cell--derived">{fullDate(task.scheduledStart)}</td>
-                  <td className="cell--derived">{fullDate(task.scheduledFinish)}</td>
-                  <td className="cell--derived">{days(task.durationMinutes)}</td>
-                  <td className="cell--derived">
-                    {task.workMinutes === null || task.workMinutes === 0 ? '—' : `${hours(task.workMinutes)} h`}
-                  </td>
-                  <td className={`cell--derived ${task.isCritical === true ? 'critical' : ''}`}>
-                    {task.totalSlackMinutes === null ? '—' : days(task.totalSlackMinutes)}
-                  </td>
-                  <td className="cell--derived">{task.percentCompleteBp === 0 ? '—' : percent(task.percentCompleteBp)}</td>
-                  <td className="muted" style={{ textAlign: 'left' }}>
-                    {task.assignees.join(', ') || '—'}
-                  </td>
-                  <td>
-                    {task.kind === 'task' || task.kind === 'milestone' ? (
-                      <button className="button" onClick={() => { onExplain(task) }}>
-                        ¿por qué?
-                      </button>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
-            </>
-          )
-        })}
-      </tbody>
-    </table>
+    <>
+      {error === null ? null : <div className="error-banner" style={{ margin: 12 }}>{error}</div>}
+      <table className="grid">
+        <thead>
+          <tr>
+            <th style={{ minWidth: 300 }}>Tarea</th>
+            <th title="Dato declarado: lo escribes tú">Duración ✎</th>
+            <th title="Dato declarado: lo escribes tú">Avance ✎</th>
+            <th title="Derivado del cálculo">Inicio 🔒</th>
+            <th title="Derivado del cálculo">Fin 🔒</th>
+            <th title="Derivado del cálculo">Trabajo 🔒</th>
+            <th title="Derivado del cálculo">Holgura 🔒</th>
+            <th>Equipo</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {projects.map((project) => (
+            <ProjectRows
+              key={project.id}
+              project={project}
+              rows={(byProject.get(project.id) ?? []).filter((task) => !isHidden(task))}
+              collapsed={collapsed}
+              onToggle={toggle}
+              onExplain={onExplain}
+              onSave={save}
+              saving={saving}
+              tagOf={tagOf}
+            />
+          ))}
+        </tbody>
+      </table>
+    </>
+  )
+}
+
+interface ProjectRowsProps {
+  readonly project: Project
+  readonly rows: readonly TaskRow[]
+  readonly collapsed: ReadonlySet<string>
+  readonly onToggle: (nodeId: string) => void
+  readonly onExplain: (task: TaskRow) => void
+  readonly onSave: (task: TaskRow, changes: Readonly<Record<string, number | string | null>>) => void
+  readonly saving: string | null
+  readonly tagOf: ReadonlyMap<string, string>
+}
+
+function ProjectRows({
+  project,
+  rows,
+  collapsed,
+  onToggle,
+  onExplain,
+  onSave,
+  saving,
+  tagOf,
+}: ProjectRowsProps): React.JSX.Element {
+  return (
+    <>
+      <tr className="row--total">
+        <td colSpan={9}>
+          {project.code} · {project.name}
+        </td>
+      </tr>
+      {rows.map((task) => {
+        const isContainer = task.kind === 'phase' || task.kind === 'work_package'
+        const isBusy = saving === task.nodeId
+        return (
+          <tr key={task.nodeId} style={isBusy ? { opacity: 0.55 } : undefined}>
+            <td>
+              <span className="wbs__name" style={{ paddingLeft: task.parentId === null ? 0 : 18 }}>
+                {isContainer ? (
+                  <button
+                    className="disclosure"
+                    onClick={() => { onToggle(task.nodeId) }}
+                    aria-expanded={!collapsed.has(task.nodeId)}
+                    aria-label="Plegar"
+                  >
+                    {collapsed.has(task.nodeId) ? '▸' : '▾'}
+                  </button>
+                ) : null}
+                <span className={task.isCritical === true && !isContainer ? 'critical' : ''}>{task.name}</span>
+                {task.kind === 'milestone' ? <span className="wbs__kind">hito</span> : null}
+                {tagOf.get(task.nodeId) === undefined ? null : <span className="tag">{tagOf.get(task.nodeId)}</span>}
+                {task.deadline === null ? null : (
+                  <span className="wbs__kind" title="Fecha objetivo: no mueve la tarea, sólo avisa">
+                    ⚑ {fullDate(task.deadline)}
+                  </span>
+                )}
+                {task.constraintKind !== null && task.constraintKind !== 'asap' ? (
+                  <span className="wbs__kind" title="Restricción declarada">
+                    {task.constraintKind.replaceAll('_', ' ')}
+                  </span>
+                ) : null}
+              </span>
+            </td>
+
+            <td>
+              {isContainer || task.kind === 'milestone' ? (
+                <span className="faint">—</span>
+              ) : (
+                <NumberCell
+                  value={(task.declaredDurationMinutes ?? 0) / 480}
+                  suffix="d"
+                  step={0.5}
+                  disabled={isBusy}
+                  onCommit={(value) => { onSave(task, { durationMinutes: Math.round(value * 480) }) }}
+                />
+              )}
+            </td>
+
+            <td>
+              {isContainer ? (
+                <span className="cell--derived">{percent(task.percentCompleteBp)}</span>
+              ) : (
+                <NumberCell
+                  value={(task.declaredPercentCompleteBp ?? 0) / 100}
+                  suffix="%"
+                  step={5}
+                  disabled={isBusy}
+                  onCommit={(value) => {
+                    onSave(task, { percentCompleteBp: Math.max(0, Math.min(10_000, Math.round(value * 100))) })
+                  }}
+                />
+              )}
+            </td>
+
+            <td className="cell--derived">{fullDate(task.scheduledStart)}</td>
+            <td className="cell--derived">{fullDate(task.scheduledFinish)}</td>
+            <td className="cell--derived">
+              {task.workMinutes === null || task.workMinutes === 0 ? '—' : `${hours(task.workMinutes)} h`}
+            </td>
+            <td className={`cell--derived ${task.isCritical === true && !isContainer ? 'critical' : ''}`}>
+              {isContainer ? '—' : days(task.totalSlackMinutes)}
+            </td>
+            <td className="muted" style={{ textAlign: 'left' }}>
+              {task.assignees.join(', ') || '—'}
+            </td>
+            <td>
+              {isContainer ? null : (
+                <button className="button" onClick={() => { onExplain(task) }}>
+                  ¿por qué?
+                </button>
+              )}
+            </td>
+          </tr>
+        )
+      })}
+    </>
+  )
+}
+
+interface NumberCellProps {
+  readonly value: number
+  readonly suffix: string
+  readonly step: number
+  readonly disabled: boolean
+  readonly onCommit: (value: number) => void
+}
+
+/** Celda declarada: se edita, y al confirmar dispara el recálculo del plan. */
+function NumberCell({ value, suffix, step, disabled, onCommit }: NumberCellProps): React.JSX.Element {
+  const [draft, setDraft] = useState<string | null>(null)
+  const shown = draft ?? String(value).replace('.', ',')
+
+  const commit = (): void => {
+    if (draft === null) return
+    const parsed = Number(draft.replace(',', '.'))
+    setDraft(null)
+    if (!Number.isFinite(parsed) || parsed === value) return
+    onCommit(parsed)
+  }
+
+  return (
+    <span className="editable">
+      <input
+        className="editable__input"
+        value={shown}
+        inputMode="decimal"
+        step={step}
+        disabled={disabled}
+        onChange={(event) => { setDraft(event.target.value) }}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') event.currentTarget.blur()
+          if (event.key === 'Escape') setDraft(null)
+        }}
+        aria-label={`Valor declarado en ${suffix}`}
+      />
+      <span className="editable__suffix">{suffix}</span>
+    </span>
   )
 }
