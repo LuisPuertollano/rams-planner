@@ -91,6 +91,44 @@ describe('reparto diario', () => {
   })
 })
 
+describe('reparto sensible a la hora, no sólo al día', () => {
+  it('una tarea que empieza al cierre de la jornada no carga ese día', () => {
+    // «b» arranca justo cuando «a» termina: el viernes a las 17:00. Contar el
+    // viernes entero inflaría su carga y con ella la saturación.
+    const snapshot = new PlanBuilder()
+      .resource('ana')
+      .task('a', { durationMinutes: 2400 })
+      .task('b', { durationMinutes: 480 })
+      .link('a', 'b')
+      .assign('a', 'ana')
+      .assign('b', 'ana')
+      .build()
+    const { timephased } = runWorkload(snapshot)
+
+    const viernes = timephased.filter((cell) => cell.date === '2026-03-06')
+    expect(viernes).toHaveLength(1)
+    expect(viernes[0]?.plannedMinutes).toBe(480)
+    expect(minutesOn(timephased, '2026-03-09')).toBe(480)
+  })
+
+  it('la suma diaria de un recurso no pasa de su capacidad sin motivo', () => {
+    const snapshot = new PlanBuilder()
+      .resource('ana')
+      .task('a', { durationMinutes: 960 })
+      .task('b', { durationMinutes: 960 })
+      .link('a', 'b')
+      .assign('a', 'ana')
+      .assign('b', 'ana')
+      .build()
+    const { timephased, capacity } = runWorkload(snapshot)
+    const perDay = new Map<string, number>()
+    for (const cell of timephased) perDay.set(cell.date, (perDay.get(cell.date) ?? 0) + cell.plannedMinutes)
+    for (const [date, minutes] of perDay) {
+      expect(minutes).toBeLessThanOrEqual(capacity.capacityOf('ana', d(date)))
+    }
+  })
+})
+
 describe('capacidad', () => {
   it('descuenta la disponibilidad parcial', () => {
     const snapshot = new PlanBuilder()

@@ -10,7 +10,7 @@
 import { addDays, calendarDate } from '@planner/domain'
 import { createDerivationCollector } from '@planner/explain'
 import { schedulePlan } from '@planner/scheduler'
-import { computeWorkload } from '@planner/workload'
+import { computeWorkload, levelPlan } from '@planner/workload'
 import {
   loadSnapshot,
   saveRun,
@@ -27,6 +27,9 @@ export interface CalculationSummary {
   readonly timephasedCells: number
   readonly findings: number
   readonly completed: boolean
+  /** Sólo en ejecuciones niveladas. */
+  readonly leveledTasks?: number
+  readonly converged?: boolean
 }
 
 /** Horizonte: un mes antes del proyecto más temprano y cuatro años en total. */
@@ -39,7 +42,12 @@ export async function resolveHorizon(db: Queryable): Promise<Horizon> {
   return { from, to: addDays(from, 365 * 4) }
 }
 
-export async function calculate(pool: Pool, scenarioId: string, reason: string): Promise<CalculationSummary> {
+export async function calculate(
+  pool: Pool,
+  scenarioId: string,
+  reason: string,
+  options: { readonly level?: boolean } = {},
+): Promise<CalculationSummary> {
   const started = Date.now()
   const collector = createDerivationCollector()
 
@@ -47,18 +55,28 @@ export async function calculate(pool: Pool, scenarioId: string, reason: string):
     const horizon = await resolveHorizon(db)
     const snapshot = await loadSnapshot(db, { horizon })
 
-    const schedule = schedulePlan(snapshot, { derivations: collector.sink })
-    const workload = computeWorkload(snapshot, schedule, { derivations: collector.sink })
+    // Nivelar produce su **propia ejecución**, no una columna más: así se
+    // compara con la vista que ya existe y se ve qué ha costado que quepa.
+    const leveled = options.level === true ? levelPlan(snapshot) : null
+    const schedule =
+      leveled?.schedule ??
+      schedulePlan(snapshot, { derivations: collector.sink })
+    const workload =
+      leveled?.workload ??
+      computeWorkload(snapshot, schedule, { derivations: collector.sink })
     const durationMs = Date.now() - started
 
     const runId = await saveRun(db, {
       scenarioId,
       snapshot,
-      schedule,
+      schedule: leveled === null ? schedule : { ...schedule, findings: [...schedule.findings, ...leveled.findings] },
       workload,
       derivations: collector.derivations,
       triggerReason: reason,
       durationMs,
+      ...(leveled === null
+        ? {}
+        : { leveling: { delayedTasks: leveled.delays.size, converged: leveled.converged } }),
     })
 
     return {
@@ -66,8 +84,9 @@ export async function calculate(pool: Pool, scenarioId: string, reason: string):
       durationMs,
       tasks: schedule.taskResults.length,
       timephasedCells: workload.timephased.length,
-      findings: schedule.findings.length + workload.findings.length,
+      findings: schedule.findings.length + workload.findings.length + (leveled?.findings.length ?? 0),
       completed: schedule.completed,
+      ...(leveled === null ? {} : { leveledTasks: leveled.delays.size, converged: leveled.converged }),
     }
   })
 }

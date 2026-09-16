@@ -35,6 +35,12 @@ export interface ScheduleOptions {
   /** Holgura por debajo de la cual una tarea se considera crítica. Por defecto 0. */
   readonly criticalSlackMinutes?: number
   readonly derivations?: DerivationSink
+  /**
+   * Retrasos de nivelación por tarea, en minutos laborables. Los calcula
+   * `@planner/workload`; el motor sólo los aplica, después de las dependencias
+   * y antes de las restricciones, para que una restricción dura siga ganando.
+   */
+  readonly levelingDelays?: ReadonlyMap<string, number>
 }
 
 interface Working {
@@ -178,6 +184,20 @@ export function schedulePlan(snapshot: PlanSnapshot, options: ScheduleOptions = 
     }
 
     earlyStart = snapToWorkingTime(earlyStart, leaf.calendar, 'forward')
+
+    const levelingDelay = options.levelingDelays?.get(nodeId) ?? 0
+    if (levelingDelay > 0) {
+      earlyStart = addWorkingMinutesClamped(earlyStart, levelingDelay, leaf.calendar)
+      reason = 'LEVELING_DELAY'
+      sink.record({
+        targetType: 'task.levelingDelay',
+        targetId: nodeId,
+        rule: 'LEVELING_DELAY',
+        inputs: { delayMinutes: levelingDelay },
+        output: formatInstant(earlyStart),
+      })
+    }
+
     const constrained = applyConstraint(leaf, earlyStart, findings, sink, horizonFrom)
     leaf.earlyStart = constrained.start
     leaf.earlyFinish = constrained.finish
@@ -301,6 +321,7 @@ export function schedulePlan(snapshot: PlanSnapshot, options: ScheduleOptions = 
       totalSlackMinutes: totalSlack,
       freeSlackMinutes: freeSlack,
       isCritical: totalSlack <= criticalSlack,
+      levelingDelayMinutes: options.levelingDelays?.get(leaf.node.id) ?? 0,
       percentCompleteBp: leaf.task.percentCompleteBp,
       calendarUsedId: leaf.calendar.calendarId,
       isContainer: false,
@@ -612,6 +633,7 @@ function aggregate(
     totalSlackMinutes: 0,
     freeSlackMinutes: 0,
     isCritical: critical,
+    levelingDelayMinutes: 0,
     // Avance ponderado por trabajo: la media aritmética de porcentajes deja que
     // una tarea de 2 h al 100 % compense a una de 200 h al 0 %.
     percentCompleteBp: work === 0 ? 0 : Math.round(weightedProgress / work),

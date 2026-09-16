@@ -137,7 +137,18 @@ button { font: inherit; color: inherit; }
 .brand h1 { font-size: 16px; font-weight: 650; margin: 0; letter-spacing: -0.01em; }
 .brand span { font-size: 12px; color: var(--text-faint); }
 
-.tabs { display: flex; gap: 2px; background: var(--bg-sunken); padding: 3px; border-radius: var(--radius); }
+.tabs {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-sunken);
+  padding: 3px;
+  border-radius: var(--radius);
+  /* En pantallas estrechas las pestañas se deslizan en vez de desbordar. */
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
 
 .tab {
   border: 0;
@@ -330,6 +341,18 @@ a.button { text-decoration: none; display: inline-block; }
 
 .error-banner { background: var(--severity-error); color: #fff; padding: 10px 16px; border-radius: var(--radius-sm); }
 
+.notice {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.notice .button { margin-left: auto; white-space: nowrap; }
+
 @media (max-width: 1280px) {
   .brand span { display: none; }
   .run-chip { font-size: 10px; }
@@ -337,6 +360,9 @@ a.button { text-decoration: none; display: inline-block; }
 
 @media (max-width: 720px) {
   .content { padding: 12px; }
+  .topbar { padding: 10px 12px; gap: 10px; }
+  .run-chip { order: 10; width: 100%; }
+  .panel__head { padding: 12px; }
   .gantt__row, .gantt__head { grid-template-columns: 150px 1fr; }
   .why { width: 100%; }
 }

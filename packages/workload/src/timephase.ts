@@ -20,7 +20,7 @@ import {
   type CalendarDate,
   type Finding,
 } from '@planner/domain'
-import type { CompiledCalendar } from '@planner/calendar'
+import { planInstant, workingMinutesBetween, type CompiledCalendar, type PlanInstant } from '@planner/calendar'
 import { NOOP_SINK, type DerivationSink } from '@planner/explain'
 import type { PlanSnapshot, ScheduleOutput, TaskResult } from '@planner/scheduler'
 import { calendarFor, computeCapacity, rateOn, type CapacityIndex } from './capacity.js'
@@ -152,7 +152,14 @@ interface AvailableDay {
   readonly availableMinutes: number
 }
 
-/** Días laborables del recurso dentro del tramo de la tarea y de la ventana. */
+/**
+ * Días laborables del recurso dentro del tramo de la tarea y de la ventana.
+ *
+ * Cuenta los minutos **dentro del tramo**, no los del día entero: una tarea que
+ * empieza el viernes a las 17:00 no trabaja el viernes, y una que acaba el
+ * martes a mediodía no trabaja el martes por la tarde. Dar el día completo por
+ * bueno infla la carga del primer y del último día, y con ella la saturación.
+ */
 function workingDaysWithin(
   calendar: CompiledCalendar,
   horizonFrom: CalendarDate,
@@ -167,10 +174,22 @@ function workingDaysWithin(
   for (let date = from; date <= to; date = addDays(date, 1)) {
     const dayIndex = daysBetween(horizonFrom, date)
     if (dayIndex < 0 || dayIndex >= calendar.dayCount) continue
-    const availableMinutes = calendar.dayMinutes[dayIndex] ?? 0
+    if ((calendar.dayMinutes[dayIndex] ?? 0) === 0) continue
+
+    const dayFrom = date === result.scheduledStart.date ? result.scheduledStart : planInstant(date, 0)
+    const dayTo = date === result.scheduledFinish.date ? result.scheduledFinish : planInstant(date, MINUTES_PER_DAY)
+    if (toComparable(dayFrom) >= toComparable(dayTo)) continue
+
+    const availableMinutes = workingMinutesBetween(dayFrom, dayTo, calendar)
     if (availableMinutes > 0) days.push({ date, availableMinutes })
   }
   return days
+}
+
+const MINUTES_PER_DAY = 1440
+
+function toComparable(instant: PlanInstant): string {
+  return `${instant.date}T${String(instant.minuteOfDay).padStart(4, '0')}`
 }
 
 function cellFor(

@@ -36,6 +36,7 @@ export function App(): React.JSX.Element {
   const [tab, setTab] = useState<Tab>('matriz')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [explaining, setExplaining] = useState<TaskRow | null>(null)
   const [theme, setTheme] = useState<'auto' | 'light' | 'dark'>('auto')
 
@@ -79,11 +80,21 @@ export function App(): React.JSX.Element {
       .finally(() => { setBusy(false) })
   }
 
-  const onRecalculate = (): void => {
+  const onRecalculate = (level = false): void => {
     setBusy(true)
     setError(null)
-    recalculate('recálculo desde la interfaz')
-      .then(load)
+    setNotice(null)
+    recalculate(level ? 'nivelación de recursos' : 'recálculo desde la interfaz', level)
+      .then(async (summary) => {
+        if (level) {
+          setNotice(
+            summary.converged === true
+              ? `Nivelado: ${String(summary.leveledTasks ?? 0)} tarea(s) retrasadas para que el plan quepa en la capacidad del equipo. Compara con la ejecución anterior para ver qué ha costado.`
+              : `Nivelación parcial: ${String(summary.leveledTasks ?? 0)} tarea(s) retrasadas, pero quedan sobrecargas que ningún retraso arregla. Mira los hallazgos.`,
+          )
+        }
+        await load()
+      })
       .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : 'No se pudo recalcular') })
       .finally(() => { setBusy(false) })
   }
@@ -163,13 +174,29 @@ export function App(): React.JSX.Element {
         <button className="button" onClick={onFreeze} disabled={busy || state?.run == null} title="Congelar el plan actual como línea base">
           Línea base
         </button>
-        <button className="button button--primary" onClick={onRecalculate} disabled={busy}>
+        <button
+          className="button"
+          onClick={() => { onRecalculate(true) }}
+          disabled={busy}
+          title="Retrasar tareas hasta que el plan quepa en la capacidad del equipo. Crea una ejecución nueva; el plan original no se toca"
+        >
+          Nivelar
+        </button>
+        <button className="button button--primary" onClick={() => { onRecalculate(false) }} disabled={busy}>
           {busy ? 'Calculando…' : 'Recalcular'}
         </button>
       </header>
 
       <main className="content">
         {error === null ? null : <div className="error-banner">{error}</div>}
+        {notice === null ? null : (
+          <div className="notice">
+            {notice}
+            <button className="button" onClick={() => { setNotice(null) }}>
+              Entendido
+            </button>
+          </div>
+        )}
 
         {totals === null ? null : (
           <div className="stat-row">

@@ -14,6 +14,7 @@ export interface RunSummary {
   readonly durationMs: number | null
   readonly isFrozen: boolean
   readonly stats: Readonly<Record<string, number>>
+  readonly triggerReason?: string | null
 }
 
 export interface Project {
@@ -194,12 +195,24 @@ export async function fetchDiff(baseRunId: string, targetRunId: string): Promise
   return body.tasks
 }
 
-export async function recalculate(reason: string): Promise<{ runId: string; durationMs: number }> {
+export interface CalculationSummary {
+  readonly runId: string
+  readonly durationMs: number
+  readonly leveledTasks?: number
+  readonly converged?: boolean
+}
+
+export async function recalculate(reason: string, level = false): Promise<CalculationSummary> {
   const response = await fetch('/api/calculate', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ reason }),
+    body: JSON.stringify({ reason, level }),
   })
   if (!response.ok) throw new Error('No se pudo recalcular')
-  return response.json() as Promise<{ runId: string; durationMs: number }>
+  return response.json() as Promise<CalculationSummary>
+}
+
+export async function fetchRuns(): Promise<readonly RunSummary[]> {
+  const body = await get<{ runs: readonly RunSummary[] }>('/api/runs')
+  return body.runs
 }

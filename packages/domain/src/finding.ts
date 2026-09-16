@@ -16,6 +16,7 @@ export type FindingCode =
   | 'ORPHAN_TASK'
   | 'CONTOUR_MISMATCH'
   | 'LEVELING_IMPOSSIBLE'
+  | 'LEVELING_DELAYED'
 
 export interface Finding {
   readonly severity: FindingSeverity

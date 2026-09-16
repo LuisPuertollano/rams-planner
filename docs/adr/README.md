@@ -18,6 +18,7 @@ parece una mala idea, aquí está el razonamiento que había detrás.
 | [0011](0011-campos-personalizados-como-datos.md) | Los campos del dominio son datos, no columnas | P6 |
 | [0012](0012-sin-escritura-de-mpp.md) | No se escribe el formato .mpp | — |
 | [0013](0013-historial-append-only.md) | Historial append-only con borrado lógico | P7 |
+| [0014](0014-nivelacion-por-retraso.md) | La nivelación empuja fechas, y dice cuándo eso no basta | P2 |
 
 ## Decisiones tomadas por defecto
 

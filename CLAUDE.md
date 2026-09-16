@@ -106,4 +106,4 @@ posteriores: la fase 1 mal cerrada contamina todo lo demás.
 | 5 | Edición en línea de datos declarados, líneas base y comparación | ✅ |
 | 6 | Import/export CSV y campos personalizados de extremo a extremo | ✅ |
 | 6b | Realidad ejecutada (imputaciones, plan vs. real, curva S) | ⬜ |
-| 7 | Nivelación heurística y pulido | ⬜ |
+| 7 | Nivelación heurística determinista, opcional | ✅ |

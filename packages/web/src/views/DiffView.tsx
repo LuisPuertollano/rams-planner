@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fetchDiff, type Baseline, type Project, type TaskDiff } from '../api.js'
+import { fetchDiff, fetchRuns, type Baseline, type Project, type RunSummary, type TaskDiff } from '../api.js'
 import { fullDate, hours } from '../format.js'
 
 interface Props {
@@ -17,7 +17,20 @@ interface Props {
 export function DiffView({ baselines, currentRunId, projects }: Props): React.JSX.Element {
   const [selected, setSelected] = useState<string>(baselines[0]?.runId ?? '')
   const [rows, setRows] = useState<readonly TaskDiff[] | null>(null)
+  const [runs, setRuns] = useState<readonly RunSummary[]>([])
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetchRuns()
+      .then((result) => {
+        setRuns(result)
+        if (baselines.length === 0) {
+          const previous = result.find((run) => run.id !== currentRunId)
+          if (previous !== undefined) setSelected((current) => (current === '' ? previous.id : current))
+        }
+      })
+      .catch(() => { /* la comparación puede vivir sólo con las líneas base */ })
+  }, [baselines.length, currentRunId])
 
   useEffect(() => {
     if (selected === '' || selected === currentRunId) {
@@ -31,13 +44,28 @@ export function DiffView({ baselines, currentRunId, projects }: Props): React.JS
     return () => { cancelled = true }
   }, [selected, currentRunId])
 
-  if (baselines.length === 0) {
+  const options = [
+    ...baselines.map((baseline) => ({
+      value: baseline.runId,
+      label: `⭑ ${baseline.name} · ${new Date(baseline.capturedAt).toLocaleDateString('es-ES')}`,
+    })),
+    ...runs
+      .filter((run) => run.id !== currentRunId && !baselines.some((baseline) => baseline.runId === run.id))
+      .map((run) => ({
+        value: run.id,
+        label: `${new Date(run.startedAt).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })} · ${
+          run.triggerReason ?? 'cálculo'
+        }`,
+      })),
+  ]
+
+  if (options.length === 0) {
     return (
       <div className="empty">
-        <h3>Todavía no hay ninguna línea base</h3>
+        <h3>Todavía no hay nada con lo que comparar</h3>
         <p>
-          Congela el plan actual con el botón «Línea base» de la cabecera. Una línea base no es un tipo de dato
-          especial: es esta misma ejecución, marcada como inmutable y con un nombre.
+          Congela el plan actual con el botón «Línea base», o recalcula tras un cambio. Una línea base no es un tipo
+          de dato especial: es esta misma ejecución, marcada como inmutable y con un nombre.
         </p>
       </div>
     )
@@ -51,9 +79,9 @@ export function DiffView({ baselines, currentRunId, projects }: Props): React.JS
         <label>
           Comparar el plan actual con{' '}
           <select className="button" value={selected} onChange={(event) => { setSelected(event.target.value) }}>
-            {baselines.map((baseline) => (
-              <option key={baseline.id} value={baseline.runId}>
-                {baseline.name} · {new Date(baseline.capturedAt).toLocaleDateString('es-ES')}
+            {options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
               </option>
             ))}
           </select>

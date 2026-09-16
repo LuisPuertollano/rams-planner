@@ -12,6 +12,7 @@ import {
   freezeRun,
   latestRun,
   readBaselines,
+  recentRuns,
   readDerivations,
   readDiff,
   readFieldValues,
@@ -53,10 +54,17 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
   )
 
   app.post('/api/calculate', async (request) => {
-    const body = z.object({ reason: z.string().max(200).optional() }).parse(request.body ?? {})
+    const body = z
+      .object({ reason: z.string().max(200).optional(), level: z.boolean().default(false) })
+      .parse(request.body ?? {})
     const scenarioId = await withDb((db) => defaultScenarioId(db))
-    return calculate(pool, scenarioId, body.reason ?? 'recálculo manual')
+    return calculate(pool, scenarioId, body.reason ?? (body.level ? 'nivelación de recursos' : 'recálculo manual'), {
+      level: body.level,
+    })
   })
+
+  /** Las últimas ejecuciones, para poder compararlas entre sí. */
+  app.get('/api/runs', async () => ({ runs: await withDb((db) => recentRuns(db)) }))
 
   app.get('/api/runs/:runId/tasks', async (request) => {
     const { runId } = z.object({ runId: z.string().uuid() }).parse(request.params)

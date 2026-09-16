@@ -18,6 +18,7 @@ export interface RunSummary {
   readonly durationMs: number | null
   readonly isFrozen: boolean
   readonly stats: Record<string, number>
+  readonly triggerReason?: string | null
 }
 
 export async function latestRun(db: Queryable, scenarioId?: string): Promise<RunSummary | undefined> {
@@ -51,6 +52,37 @@ export async function latestRun(db: Queryable, scenarioId?: string): Promise<Run
     isFrozen: row.is_frozen,
     stats: row.stats ?? {},
   }
+}
+
+export async function recentRuns(db: Queryable, limit = 12): Promise<readonly RunSummary[]> {
+  const { rows } = await db.query<{
+    id: string
+    scenario_id: string
+    engine_version: string
+    input_hash: string
+    status: string
+    started_at: Date
+    duration_ms: number | null
+    is_frozen: boolean
+    stats: Record<string, number> | null
+    trigger_reason: string | null
+  }>(
+    `SELECT id, scenario_id, engine_version, input_hash, status, started_at, duration_ms, is_frozen, stats, trigger_reason
+     FROM calculation_run WHERE status = 'succeeded' ORDER BY started_at DESC LIMIT $1`,
+    [limit],
+  )
+  return rows.map((row) => ({
+    id: row.id,
+    scenarioId: row.scenario_id,
+    engineVersion: row.engine_version,
+    inputHash: row.input_hash,
+    status: row.status,
+    startedAt: row.started_at.toISOString(),
+    durationMs: row.duration_ms,
+    isFrozen: row.is_frozen,
+    stats: row.stats ?? {},
+    triggerReason: row.trigger_reason,
+  }))
 }
 
 export interface LoadCell {

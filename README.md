@@ -43,8 +43,16 @@ pnpm dev:web                                 # opcional: Vite en :45677 con reca
 | **Plan** | El árbol de trabajo con las fechas que ha calculado el motor, la holgura y el camino crítico |
 | **Cronograma** | El plan en el tiempo, con hitos y camino crítico |
 | **Hallazgos** | Ciclos, conflictos de restricción, sobrecargas, deadlines incumplidos y desvíos de presupuesto |
-| **Comparar** | En qué se diferencia el plan de hoy del que se congeló como línea base |
+| **Comparar** | En qué se diferencia el plan de hoy de una línea base o de cualquier cálculo anterior |
 | **¿por qué?** | La traza de cada fecha: qué regla la produjo y con qué entradas, hasta el dato que alguien escribió |
+
+El botón **Nivelar** retrasa tareas hasta que el plan cabe en la capacidad del
+equipo. Es una heurística, está declarada como tal y **no toca el plan
+original**: crea una ejecución nueva que se compara con la anterior en la
+pestaña **Comparar**, para ver qué ha costado que quepa. Cuando una asignación
+no cabe ni sola en la jornada de la persona, lo dice en vez de retrasarla
+eternamente: ahí lo que hay que cambiar es la dedicación, la duración o el
+calendario, no la fecha.
 
 En la vista **Plan** las dos primeras columnas de datos son declaradas y se
 editan en línea: al confirmar un cambio, el plan se recalcula entero y el

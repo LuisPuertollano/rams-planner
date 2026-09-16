@@ -24,6 +24,8 @@ export interface SaveRunInput {
   readonly derivations: readonly Derivation[]
   readonly triggerReason?: string
   readonly durationMs: number
+  /** Marca la ejecución como nivelada, con el número de retrasos aplicados. */
+  readonly leveling?: { readonly delayedTasks: number; readonly converged: boolean }
 }
 
 /**
@@ -59,6 +61,9 @@ export async function saveRun(db: Queryable, input: SaveRunInput): Promise<strin
         tasks: schedule.taskResults.length,
         timephasedCells: workload.timephased.length,
         findings: schedule.findings.length + workload.findings.length,
+        ...(input.leveling === undefined
+          ? {}
+          : { leveled: 1, delayedTasks: input.leveling.delayedTasks, converged: input.leveling.converged ? 1 : 0 }),
       }),
     ],
   )
@@ -100,7 +105,7 @@ async function insertTaskResults(db: Queryable, runId: string, schedule: Schedul
       'run_id', 'node_id', 'early_start', 'early_finish', 'late_start', 'late_finish',
       'scheduled_start', 'scheduled_finish', 'duration_minutes', 'work_minutes',
       'total_slack_minutes', 'free_slack_minutes', 'is_critical', 'cost_cents',
-      'calendar_used_id', 'percent_complete_bp',
+      'calendar_used_id', 'percent_complete_bp', 'leveling_delay_min',
     ],
     schedule.taskResults.map((result) => [
       runId,
@@ -119,6 +124,7 @@ async function insertTaskResults(db: Queryable, runId: string, schedule: Schedul
       0,
       result.calendarUsedId,
       result.percentCompleteBp,
+      result.levelingDelayMinutes,
     ]),
   )
 }

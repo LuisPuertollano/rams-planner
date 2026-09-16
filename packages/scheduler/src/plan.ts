@@ -142,6 +142,8 @@ export interface TaskResult {
   readonly totalSlackMinutes: number
   readonly freeSlackMinutes: number
   readonly isCritical: boolean
+  /** Retraso aplicado por la nivelación, en minutos laborables. */
+  readonly levelingDelayMinutes: number
   readonly percentCompleteBp: number
   /** Calendario que se usó de verdad, para poder explicarlo. */
   readonly calendarUsedId: string
