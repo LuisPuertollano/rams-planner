@@ -13,6 +13,7 @@ import {
   addDependency,
   createNode,
   createProject,
+  duplicateProject,
   deleteDependency,
   readAssignments,
   readDependencies,
@@ -79,10 +80,34 @@ export function registerPlanRoutes(app: FastifyInstance, pool: Pool): void {
         name: z.string().min(1).max(200),
         statusStart: isoDate,
         calendarCode: z.string().max(60).optional(),
+        asTemplate: z.boolean().optional(),
       })
       .parse(request.body)
     return write(reply, `alta del proyecto ${body.code}`, `alta del proyecto ${body.code}`, (db) =>
       createProject(db, body),
+    )
+  })
+
+  /**
+   * Copia un proyecto entero. Las tres cosas que se piden en la práctica son
+   * esta misma llamada con distinto destino: guardar como plantilla, crear a
+   * partir de una plantilla, y duplicar un proyecto.
+   */
+  app.post('/api/projects/:projectId/duplicate', async (request, reply) => {
+    const { projectId } = z.object({ projectId: z.string().uuid() }).parse(request.params)
+    const body = z
+      .object({
+        code: z.string().min(1).max(60),
+        name: z.string().min(1).max(200),
+        statusStart: isoDate,
+        asTemplate: z.boolean().optional(),
+      })
+      .parse(request.body)
+    return write(
+      reply,
+      body.asTemplate === true ? `plantilla «${body.name}»` : `proyecto «${body.code}» a partir de otro`,
+      `copia del proyecto ${projectId}`,
+      (db) => duplicateProject(db, projectId, body),
     )
   })
 
@@ -94,6 +119,7 @@ export function registerPlanRoutes(app: FastifyInstance, pool: Pool): void {
         name: z.string().min(1).max(200).optional(),
         statusStart: isoDate.optional(),
         priority: z.number().int().min(0).max(10_000).optional(),
+        isTemplate: z.boolean().optional(),
       })
       .parse(request.body)
     if (Object.keys(body).length === 0) return reply.status(400).send({ error: 'No hay nada que cambiar' })

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { patchProject, removeProject, type Project } from '../api.js'
+import { duplicateProject, patchProject, removeProject, type Project } from '../api.js'
 
 interface Props {
   readonly project: Project
@@ -38,7 +38,7 @@ export function ProjectPanel({ project, onClose, onChanged }: Props): React.JSX.
       .finally(() => { setBusy(false) })
   }
 
-  const save = (changes: Readonly<Record<string, string | number>>): void => {
+  const save = (changes: Readonly<Record<string, string | number | boolean>>): void => {
     run(async () => { await patchProject(project.id, changes) })
   }
 
@@ -128,6 +128,78 @@ export function ProjectPanel({ project, onClose, onChanged }: Props): React.JSX.
                 }}
               />
             </label>
+          </div>
+
+          <div className="card">
+            <h3 className="card__title">Copiar</h3>
+            <p className="card__note">
+              Se copia el árbol entero con sus duraciones, dependencias y disciplinas. Lo que nunca viaja es
+              la gente: el equipo de un proyecto se decide mirando quién tiene hueco, no copiándolo del
+              anterior. Las restricciones y las fechas objetivo se desplazan con la fecha de arranque nueva.
+            </p>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+              <button
+                className="button"
+                disabled={busy}
+                title="Guarda este proyecto como molde para los siguientes"
+                onClick={() => {
+                  const nombre = window.prompt('Nombre de la plantilla', `Plantilla · ${project.name}`)
+                  if (nombre === null || nombre.trim() === '') return
+                  const codigo = window.prompt('Código de la plantilla', `PLANTILLA-${project.code}`)
+                  if (codigo === null || codigo.trim() === '') return
+                  run(async () => {
+                    await duplicateProject(project.id, {
+                      code: codigo.trim(),
+                      name: nombre.trim(),
+                      statusStart: project.statusStart,
+                      asTemplate: true,
+                    })
+                  }, true)
+                }}
+              >
+                Guardar como plantilla
+              </button>
+              <button
+                className="button"
+                disabled={busy}
+                title="Crea otro proyecto con la misma estructura"
+                onClick={() => {
+                  const nombre = window.prompt('Nombre del proyecto nuevo', `${project.name} (copia)`)
+                  if (nombre === null || nombre.trim() === '') return
+                  const codigo = window.prompt('Código del proyecto nuevo', `${project.code}-2`)
+                  if (codigo === null || codigo.trim() === '') return
+                  const inicio = window.prompt('Fecha de arranque (AAAA-MM-DD)', project.statusStart)
+                  if (inicio === null || !/^\d{4}-\d{2}-\d{2}$/.test(inicio.trim())) return
+                  run(async () => {
+                    await duplicateProject(project.id, {
+                      code: codigo.trim(),
+                      name: nombre.trim(),
+                      statusStart: inicio.trim(),
+                    })
+                  }, true)
+                }}
+              >
+                Duplicar el proyecto
+              </button>
+              <button
+                className="button"
+                disabled={busy}
+                title={
+                  project.isTemplate
+                    ? 'Vuelve a ser un proyecto normal: se calculará y generará carga'
+                    : 'Conviértelo en molde: dejará de calcularse y de generar carga'
+                }
+                onClick={() => {
+                  const aPlantilla = !project.isTemplate
+                  const aviso = aPlantilla
+                    ? `¿Convertir «${project.code}» en plantilla? Dejará de calcularse y sus asignaciones se perderán.`
+                    : `¿Convertir la plantilla «${project.code}» en un proyecto normal? Pasará a calcularse.`
+                  if (window.confirm(aviso)) save({ isTemplate: aPlantilla })
+                }}
+              >
+                {project.isTemplate ? 'Convertir en proyecto' : 'Convertir en plantilla'}
+              </button>
+            </div>
           </div>
 
           <div className="card">

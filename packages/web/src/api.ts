@@ -25,6 +25,8 @@ export interface Project {
   readonly statusStart: string
   /** Desempate determinista en la nivelación: el número más bajo gana. */
   readonly priority: number
+  /** Una plantilla es un molde: no se calcula y no genera carga. */
+  readonly isTemplate: boolean
 }
 
 export interface Resource {
@@ -392,9 +394,46 @@ export async function createProject(input: {
   return send('/api/projects', 'POST', input)
 }
 
+export interface DuplicateResult {
+  readonly projectId: string
+  readonly nodes: number
+  readonly dependencies: number
+  readonly shiftedDates: number
+}
+
+/**
+ * Copia un proyecto entero. Es la misma llamada para las tres cosas que se
+ * piden: guardar como plantilla, crear a partir de una plantilla y duplicar.
+ */
+export async function duplicateProject(
+  projectId: string,
+  input: {
+    readonly code: string
+    readonly name: string
+    readonly statusStart: string
+    readonly asTemplate?: boolean
+  },
+): Promise<DuplicateResult> {
+  const response = await fetch(`/api/projects/${projectId}/duplicate`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  if (!response.ok) {
+    const payload: unknown = await response.json().catch(() => ({}))
+    throw new Error(
+      typeof payload === 'object' && payload !== null && 'error' in payload
+        ? String(payload.error)
+        : 'No se pudo copiar el proyecto',
+    )
+  }
+  const body = (await response.json()) as { result: DuplicateResult }
+  return body.result
+}
+
 export async function patchProject(
   projectId: string,
-  changes: Readonly<Record<string, string | number>>,
+  changes: Readonly<Record<string, string | number | boolean>>,
 ): Promise<void> {
   return send(`/api/projects/${projectId}`, 'PATCH', changes)
 }

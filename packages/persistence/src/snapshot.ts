@@ -197,7 +197,8 @@ async function loadProjects(db: Queryable): Promise<readonly ProjectDefinition[]
     status_start: string
     priority: number
   }>(
-    'SELECT id, code, name, calendar_id, status_start::text, priority FROM project WHERE deleted_at IS NULL ORDER BY code',
+    `SELECT id, code, name, calendar_id, status_start::text, priority
+     FROM project WHERE deleted_at IS NULL AND NOT is_template ORDER BY code`,
   )
   return rows.map((row) => ({
     id: row.id,
@@ -219,7 +220,10 @@ async function loadNodes(db: Queryable): Promise<readonly WbsNodeDefinition[]> {
     name: string
     sort_key: number
   }>(
-    'SELECT id, project_id, parent_id, node_kind, code, name, sort_key FROM wbs_node WHERE deleted_at IS NULL ORDER BY path',
+    `SELECT n.id, n.project_id, n.parent_id, n.node_kind, n.code, n.name, n.sort_key
+     FROM wbs_node n JOIN project p ON p.id = n.project_id
+     WHERE n.deleted_at IS NULL AND p.deleted_at IS NULL AND NOT p.is_template
+     ORDER BY n.path`,
   )
   return rows.map((row) => ({
     id: row.id,
@@ -247,10 +251,12 @@ async function loadTasks(db: Queryable): Promise<readonly TaskDefinition[]> {
     standard_effort_minutes: number | null
     is_milestone: boolean
   }>(
-    `SELECT node_id, task_type, is_effort_driven, duration_minutes, work_declared_minutes, calendar_id,
-            constraint_kind, constraint_date::text, deadline::text, percent_complete_bp,
-            standard_effort_minutes, is_milestone
-     FROM task`,
+    `SELECT t.node_id, t.task_type, t.is_effort_driven, t.duration_minutes, t.work_declared_minutes,
+            t.calendar_id, t.constraint_kind, t.constraint_date::text, t.deadline::text,
+            t.percent_complete_bp, t.standard_effort_minutes, t.is_milestone
+     FROM task t
+     JOIN wbs_node n ON n.id = t.node_id AND n.deleted_at IS NULL
+     JOIN project  p ON p.id = n.project_id AND p.deleted_at IS NULL AND NOT p.is_template`,
   )
   return rows.map((row) => ({
     nodeId: row.node_id,
@@ -275,7 +281,13 @@ async function loadDependencies(db: Queryable): Promise<readonly DependencyDefin
     successor_node_id: string
     dependency_kind: string
     lag_minutes: number
-  }>('SELECT id, predecessor_node_id, successor_node_id, dependency_kind, lag_minutes FROM dependency')
+  }>(
+    `SELECT d.id, d.predecessor_node_id, d.successor_node_id, d.dependency_kind, d.lag_minutes
+     FROM dependency d
+     JOIN wbs_node s ON s.id = d.successor_node_id   AND s.deleted_at IS NULL
+     JOIN wbs_node q ON q.id = d.predecessor_node_id AND q.deleted_at IS NULL
+     JOIN project  p ON p.id = s.project_id AND p.deleted_at IS NULL AND NOT p.is_template`,
+  )
   return rows.map((row) => ({
     id: row.id,
     predecessorNodeId: row.predecessor_node_id,
