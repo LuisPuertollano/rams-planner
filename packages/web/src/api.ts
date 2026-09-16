@@ -21,7 +21,10 @@ export interface Project {
   readonly id: string
   readonly code: string
   readonly name: string
+  /** Fecha de referencia: ancla las tareas sin predecesora ni restricción. */
   readonly statusStart: string
+  /** Desempate determinista en la nivelación: el número más bajo gana. */
+  readonly priority: number
 }
 
 export interface Resource {
@@ -215,4 +218,226 @@ export async function recalculate(reason: string, level = false): Promise<Calcul
 export async function fetchRuns(): Promise<readonly RunSummary[]> {
   const body = await get<{ runs: readonly RunSummary[] }>('/api/runs')
   return body.runs
+}
+
+// ---------------------------------------------------------------------------
+// Ficha de recursos
+//
+// Todo lo de esta sección es dato DECLARADO: no lleva `runId` porque no
+// pertenece a ninguna ejecución. Lo que sí devuelve cada escritura es la
+// ejecución nueva que ha provocado, para que la pantalla no se quede mirando
+// números viejos.
+// ---------------------------------------------------------------------------
+
+export interface CalendarOption {
+  readonly id: string
+  readonly code: string
+  readonly name: string
+  readonly parentCode: string | null
+}
+
+export interface AvailabilityPeriod {
+  readonly id: string
+  readonly from: string
+  readonly to: string
+  readonly unitsBp: number
+  readonly reason: string | null
+}
+
+export interface AbsencePeriod {
+  readonly id: string
+  readonly kind: string
+  readonly from: string
+  readonly to: string
+  readonly minutesPerDay: number | null
+  readonly note: string | null
+}
+
+export interface CostRatePeriod {
+  readonly id: string
+  readonly from: string
+  readonly to: string
+  readonly currency: string
+  readonly standardCentsHour: number
+}
+
+export interface ResourceDetail {
+  readonly id: string
+  readonly code: string
+  readonly displayName: string
+  readonly kind: string
+  readonly calendarId: string | null
+  readonly calendarCode: string | null
+  readonly maxUnitsBp: number
+  readonly activeFrom: string | null
+  readonly activeTo: string | null
+  readonly availability: readonly AvailabilityPeriod[]
+  readonly absences: readonly AbsencePeriod[]
+  readonly costRates: readonly CostRatePeriod[]
+}
+
+export interface TeamState {
+  readonly resources: readonly ResourceDetail[]
+  readonly calendars: readonly CalendarOption[]
+}
+
+export async function fetchTeam(): Promise<TeamState> {
+  return get<TeamState>('/api/resources')
+}
+
+async function send(path: string, method: 'POST' | 'PATCH' | 'DELETE', body?: unknown): Promise<void> {
+  const response = await fetch(path, {
+    method,
+    ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
+  })
+  if (!response.ok) {
+    const payload: unknown = await response.json().catch(() => ({}))
+    throw new Error(
+      typeof payload === 'object' && payload !== null && 'error' in payload
+        ? String(payload.error)
+        : 'No se pudo guardar',
+    )
+  }
+}
+
+export async function createResource(input: {
+  readonly code: string
+  readonly displayName: string
+  readonly calendarId: string | null
+  readonly maxUnitsBp: number
+}): Promise<void> {
+  return send('/api/resources', 'POST', input)
+}
+
+export async function patchResource(
+  resourceId: string,
+  changes: Readonly<Record<string, string | number | null>>,
+): Promise<void> {
+  return send(`/api/resources/${resourceId}`, 'PATCH', changes)
+}
+
+export async function removeResource(resourceId: string): Promise<void> {
+  return send(`/api/resources/${resourceId}`, 'DELETE')
+}
+
+export async function addAvailability(
+  resourceId: string,
+  period: { readonly from: string; readonly to: string; readonly unitsBp: number; readonly reason: string | null },
+): Promise<void> {
+  return send(`/api/resources/${resourceId}/availability`, 'POST', period)
+}
+
+export async function removeAvailability(id: string): Promise<void> {
+  return send(`/api/availability/${id}`, 'DELETE')
+}
+
+export async function addAbsence(
+  resourceId: string,
+  absence: { readonly kind: string; readonly from: string; readonly to: string; readonly note: string | null },
+): Promise<void> {
+  return send(`/api/resources/${resourceId}/absences`, 'POST', absence)
+}
+
+export async function removeAbsence(id: string): Promise<void> {
+  return send(`/api/absences/${id}`, 'DELETE')
+}
+
+export async function addCostRate(
+  resourceId: string,
+  rate: { readonly from: string; readonly to: string; readonly standardCentsHour: number },
+): Promise<void> {
+  return send(`/api/resources/${resourceId}/rates`, 'POST', rate)
+}
+
+export async function removeCostRate(id: string): Promise<void> {
+  return send(`/api/rates/${id}`, 'DELETE')
+}
+
+// ---------------------------------------------------------------------------
+// Edición de la estructura del plan
+//
+// Lo mismo que hace la importación de CSV, pero de uno en uno. Cada escritura
+// recalcula en el servidor; quien llama sólo tiene que recargar.
+// ---------------------------------------------------------------------------
+
+export interface AssignmentRow {
+  readonly id: string
+  readonly nodeId: string
+  readonly resourceId: string
+  readonly unitsBp: number
+}
+
+export interface DependencyRow {
+  readonly id: string
+  readonly predecessorNodeId: string
+  readonly successorNodeId: string
+  readonly kind: string
+  readonly lagMinutes: number
+}
+
+export interface PlanStructure {
+  readonly assignments: readonly AssignmentRow[]
+  readonly dependencies: readonly DependencyRow[]
+}
+
+export async function fetchStructure(): Promise<PlanStructure> {
+  return get<PlanStructure>('/api/plan/structure')
+}
+
+export async function createProject(input: {
+  readonly code: string
+  readonly name: string
+  readonly statusStart: string
+}): Promise<void> {
+  return send('/api/projects', 'POST', input)
+}
+
+export async function patchProject(
+  projectId: string,
+  changes: Readonly<Record<string, string | number>>,
+): Promise<void> {
+  return send(`/api/projects/${projectId}`, 'PATCH', changes)
+}
+
+export async function removeProject(projectId: string): Promise<void> {
+  return send(`/api/projects/${projectId}`, 'DELETE')
+}
+
+export async function createNode(input: {
+  readonly projectId: string
+  readonly parentId: string | null
+  readonly kind: 'phase' | 'task' | 'milestone'
+  readonly name: string
+  readonly durationMinutes?: number
+}): Promise<void> {
+  return send('/api/nodes', 'POST', input)
+}
+
+export async function renameNode(nodeId: string, name: string): Promise<void> {
+  return send(`/api/nodes/${nodeId}`, 'PATCH', { name })
+}
+
+export async function removeNode(nodeId: string): Promise<void> {
+  return send(`/api/nodes/${nodeId}`, 'DELETE')
+}
+
+export async function assign(nodeId: string, resourceId: string, unitsBp: number): Promise<void> {
+  return send('/api/assignments', 'POST', { nodeId, resourceId, unitsBp })
+}
+
+export async function unassign(assignmentId: string): Promise<void> {
+  return send(`/api/assignments/${assignmentId}`, 'DELETE')
+}
+
+export async function link(
+  predecessorNodeId: string,
+  successorNodeId: string,
+  kind: string,
+  lagMinutes: number,
+): Promise<void> {
+  return send('/api/dependencies', 'POST', { predecessorNodeId, successorNodeId, kind, lagMinutes })
+}
+
+export async function unlink(id: string): Promise<void> {
+  return send(`/api/dependencies/${id}`, 'DELETE')
 }

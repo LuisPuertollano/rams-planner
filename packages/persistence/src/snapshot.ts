@@ -296,7 +296,12 @@ async function loadAssignments(db: Queryable): Promise<readonly AssignmentDefini
     window_from: string | null
     window_to: string | null
   }>(
-    'SELECT id, node_id, resource_id, units_bp, work_declared_minutes, contour_kind, window_from::text, window_to::text FROM assignment WHERE deleted_at IS NULL',
+    `SELECT a.id, a.node_id, a.resource_id, a.units_bp, a.work_declared_minutes, a.contour_kind,
+            a.window_from::text, a.window_to::text
+     FROM assignment a
+     JOIN wbs_node n ON n.id = a.node_id AND n.deleted_at IS NULL
+     JOIN resource r ON r.id = a.resource_id AND r.deleted_at IS NULL
+     WHERE a.deleted_at IS NULL`,
   )
   const contours = await db.query<{ assignment_id: string; work_date: string; minutes: number }>(
     'SELECT assignment_id, work_date::text, minutes FROM assignment_manual_contour ORDER BY work_date',

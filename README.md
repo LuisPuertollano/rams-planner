@@ -42,6 +42,7 @@ pnpm dev:web                                 # opcional: Vite en :45677 con reca
 | **Saturación** | Quién se pasa de capacidad, cuándo y por cuánto. Escala divergente centrada en el 100 % |
 | **Plan** | El árbol de trabajo con las fechas que ha calculado el motor, la holgura y el camino crítico |
 | **Cronograma** | El plan en el tiempo, con hitos y camino crítico |
+| **Equipo** | De qué está hecha la capacidad: el calendario de cada persona, su dedicación, sus ausencias y su tarifa. Todo declarado, y cada cambio recalcula |
 | **Hallazgos** | Ciclos, conflictos de restricción, sobrecargas, deadlines incumplidos y desvíos de presupuesto |
 | **Comparar** | En qué se diferencia el plan de hoy de una línea base o de cualquier cálculo anterior |
 | **¿por qué?** | La traza de cada fecha: qué regla la produjo y con qué entradas, hasta el dato que alguien escribió |
@@ -54,7 +55,13 @@ no cabe ni sola en la jornada de la persona, lo dice en vez de retrasarla
 eternamente: ahí lo que hay que cambiar es la dedicación, la duración o el
 calendario, no la fecha.
 
-En la vista **Plan** las dos primeras columnas de datos son declaradas y se
+La vista **Plan** también se edita: **+ Proyecto** y **+ Fase** crean la
+estructura, y el botón **✎** de cada fila abre el panel donde se pone el nombre,
+se asigna a quién trabaja en la tarea y con qué dedicación, se declara de qué
+depende y se da de baja lo que sobra. En ese panel no hay ni una fecha: las
+fechas las calcula el motor.
+
+En esa misma vista las dos primeras columnas de datos son declaradas y se
 editan en línea: al confirmar un cambio, el plan se recalcula entero y el
 resultado queda guardado como una ejecución nueva. Las demás columnas llevan
 candado. Congelar el plan con el botón **Línea base** y volver a la pestaña
@@ -79,7 +86,8 @@ CBTC-L3;CBTC Línea 3;Análisis;Revisión de concepto;0;Hazard Log;;;;;
 - `dias` a **0** crea un hito.
 - `predecesoras` y `recurso` admiten varios valores separados por `;` o `|`.
 - Las personas que no existan **se crean** con jornada estándar y sin tarifa, y
-  la respuesta te dice cuáles para que las revises.
+  la respuesta te dice cuáles. Complétalas en la pestaña **Equipo**: sin tarifa,
+  el coste de sus tareas sale a cero y la lista se lo marca con un ⚠.
 - Un proyecto cuyo código ya exista **no se sobrescribe**: la importación entera
   se rechaza nombrando el conflicto.
 - Cualquier fila ilegible aborta la importación y se te dice qué fila y por qué.
@@ -152,6 +160,10 @@ en [`docs/diseno/01-objetivos-y-principios.md`](docs/diseno/01-objetivos-y-princ
 
 ## Documentación
 
+- [`docs/manual-de-uso.md`](docs/manual-de-uso.md) — para quien planifica: qué
+  hacer, en qué orden, y cómo leer lo que sale.
+- [`docs/operacion.md`](docs/operacion.md) — levantar, copiar, actualizar,
+  volver atrás y qué mirar cuando algo va mal.
 - [`docs/diseno/`](docs/diseno/) — la especificación completa. Si vas a tocar el
   motor, la lista de 40 casos límite de
   [`04-motor-de-calculo.md`](docs/diseno/04-motor-de-calculo.md) es el contrato de pruebas.

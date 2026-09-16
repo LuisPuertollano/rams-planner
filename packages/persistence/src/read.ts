@@ -345,11 +345,21 @@ export async function readResources(
 
 export async function readProjects(
   db: Queryable,
-): Promise<readonly { id: string; code: string; name: string; statusStart: string }[]> {
-  const { rows } = await db.query<{ id: string; code: string; name: string; status_start: string }>(
-    'SELECT id, code, name, status_start::text FROM project WHERE deleted_at IS NULL ORDER BY code',
-  )
-  return rows.map((row) => ({ id: row.id, code: row.code, name: row.name, statusStart: row.status_start }))
+): Promise<readonly { id: string; code: string; name: string; statusStart: string; priority: number }[]> {
+  const { rows } = await db.query<{
+    id: string
+    code: string
+    name: string
+    status_start: string
+    priority: number
+  }>('SELECT id, code, name, status_start::text, priority FROM project WHERE deleted_at IS NULL ORDER BY code')
+  return rows.map((row) => ({
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    statusStart: row.status_start,
+    priority: row.priority,
+  }))
 }
 
 function periodExpression(bucket: 'day' | 'week' | 'month' | 'quarter', column = 'tp.work_date'): string {
