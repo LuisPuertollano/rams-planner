@@ -21,6 +21,12 @@
     },
     {
       "path": "./packages/workload"
+    },
+    {
+      "path": "./packages/persistence"
+    },
+    {
+      "path": "./packages/api"
     }
   ]
 }

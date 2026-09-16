@@ -12,92 +12,105 @@ Y la de segundo orden, que es la que decide contratos:
 
 > Si acepto este proyecto nuevo, ¿quién se satura, cuándo, y cuánto?
 
-## Estado
-
-**Fase 0 — Cimientos.** Monorepo, tipos estrictos, CI, esquema de base de datos
-completo con sus invariantes y datos semilla. Todavía no hay motor de cálculo ni
-interfaz: eso son las fases 1 a 3.
-
-| Fase | Contenido | Estado |
-|------|-----------|--------|
-| 0 | Cimientos: monorepo, CI, esquema, semilla | ✅ |
-| 1 | `@planner/calendar`: aritmética de tiempo laborable | ⬜ |
-| 2 | `@planner/scheduler`: CPM, restricciones, explicaciones | ⬜ |
-| 3 | `@planner/workload`: carga, capacidad, matriz y mapa de calor | ⬜ |
-
-## Arranque
+## Arrancar
 
 ```bash
 cp .env.example .env
-docker compose up -d          # levanta Postgres y aplica las migraciones
-pnpm install
-pnpm verify                   # lint + tipos + regla de dependencia + tests
+docker compose up -d --build
 ```
 
-`docker compose up` deja la base de datos migrada y sembrada. Las migraciones las
-aplica un servicio `migrate` de un solo uso, **nunca** el arranque de un servidor:
-una migración a medias durante un despliegue es imposible de auditar.
+Y abrir **http://localhost:45678**. Compose levanta PostgreSQL, aplica las
+migraciones con un job separado, carga un juego de datos de demostración con
+tres proyectos que se solapan y sirve la aplicación. No hay más pasos.
+
+Para trabajar sin Docker, con una base de datos propia:
+
+```bash
+pnpm install
+pnpm build
+dbmate --migrations-dir ./db/migrations up   # esquema y calendarios base
+pnpm db:demo                                 # datos de ejemplo (opcional)
+pnpm dev:api                                 # API + interfaz en :45678
+pnpm dev:web                                 # opcional: Vite en :45677 con recarga
+```
+
+## Qué hace
+
+| Vista | Qué contesta |
+|-------|--------------|
+| **Carga** | Cuántas horas tiene comprometida cada persona, cada mes, en cada proyecto, con su capacidad y su saturación |
+| **Saturación** | Quién se pasa de capacidad, cuándo y por cuánto. Escala divergente centrada en el 100 % |
+| **Plan** | El árbol de trabajo con las fechas que ha calculado el motor, la holgura y el camino crítico |
+| **Cronograma** | El plan en el tiempo, con hitos y camino crítico |
+| **Hallazgos** | Ciclos, conflictos de restricción, sobrecargas, deadlines incumplidos y desvíos de presupuesto |
+| **¿por qué?** | La traza de cada fecha: qué regla la produjo y con qué entradas, hasta el dato que alguien escribió |
+
+## Cómo está hecho
+
+```
+packages/
+  domain/        unidades (minutos, puntos base, céntimos), aritmética entera exacta,
+                 fechas sin `Date`, serialización canónica, hallazgos
+  calendar/      calendarios jerárquicos con vigencia y las tres primitivas de
+                 tiempo laborable, todas O(log n)
+  explain/       derivaciones: la respuesta a «¿por qué este número?»
+  scheduler/     CPM con restricciones, holguras y camino crítico por proyecto
+  workload/      reparto diario, capacidad efectiva, saturación y coste
+  persistence/   SQL explícito contra PostgreSQL; carga del snapshot y guardado
+                 de las ejecuciones
+  api/           Fastify; sirve también la interfaz compilada. Y la CLI
+  web/           React + Vite
+db/
+  migrations/    esquema, roles, auditoría y calendarios base (dbmate)
+  tests/         invariantes que hace cumplir la base de datos
+docs/            diseño completo y decisiones de arquitectura
+```
+
+Los cinco primeros paquetes son el **núcleo puro**: sin I/O, sin framework, sin
+base de datos y sin reloj. `tools/check-dependency-rule.mjs` lo verifica en cada
+PR, y ESLint impide que alguien meta `fetch`, `process`, `Date.now()` o
+`Math.random()` dentro de ellos.
 
 ## Comandos
 
 | Comando | Qué hace |
 |---------|----------|
 | `pnpm verify` | Todo lo que CI verifica del código, en orden |
-| `pnpm test` | Tests |
-| `pnpm test:coverage` | Tests con cobertura (umbral: 95 % de ramas en el núcleo) |
-| `pnpm lint` | ESLint, incluidas las reglas que impiden `eval` y el I/O en el núcleo |
-| `pnpm typecheck` | TypeScript estricto en todos los paquetes |
-| `pnpm check:deps` | Verifica que el núcleo no conoce a los adaptadores |
-| `pnpm db:up` | Aplica las migraciones contra `DATABASE_URL` |
+| `pnpm test` · `pnpm test:coverage` | Tests · con cobertura (umbral por paquete) |
+| `pnpm lint` · `pnpm typecheck` | ESLint · TypeScript estricto |
+| `pnpm check:deps` | El núcleo no conoce a los adaptadores |
+| `pnpm db:demo` · `pnpm db:calculate` | Datos de ejemplo · recalcular desde la CLI |
 
-Los invariantes de la base de datos se comprueban con:
+Los invariantes de la base de datos:
 
 ```bash
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/tests/invariants.sql
 ```
 
-## Cómo está organizado
-
-```
-packages/          núcleo puro: sin I/O, sin framework, sin base de datos
-  domain/            unidades (minutos, puntos base, céntimos), aritmética exacta
-                     serialización canónica, borde de presentación
-db/
-  migrations/      esquema, roles, auditoría y datos semilla (dbmate)
-  tests/           invariantes que hace cumplir la base de datos
-tools/             verificación de la regla de dependencia
-docs/
-  diseno/          la especificación completa: objetivos, dominio, esquema,
-                   motor, arquitectura, auditoría, vistas y plan de fases
-  adr/             decisiones de arquitectura, con sus alternativas descartadas
-  prompt-inicial.md  el enunciado con el que nació el proyecto
-```
-
-Arquitectura hexagonal: las dependencias apuntan hacia dentro y CI lo verifica.
-El núcleo se empaquetará también para el navegador, de modo que la
-previsualización interactiva use el mismo motor que el servidor y no un segundo
-motor aproximado que dé números distintos.
-
-## Documentación
-
-- [`docs/diseno/`](docs/diseno/) — la especificación completa. Empieza por
-  [objetivos y principios](docs/diseno/01-objetivos-y-principios.md); si vas a tocar
-  el motor, la lista de 40 casos límite de
-  [`04-motor-de-calculo.md`](docs/diseno/04-motor-de-calculo.md) es el contrato de pruebas.
-- [`docs/adr/`](docs/adr/) — las decisiones estructurales, una por fichero, con lo que
-  se descartó y por qué.
-- [`CLAUDE.md`](CLAUDE.md) — las convenciones de trabajo: unidades, reglas y puertas de fase.
-
 ## Los principios
 
 Tienen prioridad sobre cualquier conveniencia de implementación. En conflicto,
-gana el de número más bajo. Están desarrollados en [`CLAUDE.md`](CLAUDE.md) y
-razonados en [`docs/diseno/01-objetivos-y-principios.md`](docs/diseno/01-objetivos-y-principios.md).
+gana el de número más bajo. Desarrollados en [`CLAUDE.md`](CLAUDE.md) y razonados
+en [`docs/diseno/01-objetivos-y-principios.md`](docs/diseno/01-objetivos-y-principios.md).
 
-1. **Lo declarado y lo derivado no se tocan** — tablas distintas, roles distintos.
-2. **El motor es una función pura y determinista** — mismo snapshot, mismo resultado.
-3. **Todo resultado pertenece a una ejecución identificada** — con versión y hash.
-4. **Todo número derivado sabe explicarse** — hasta el dato que alguien escribió.
-5. **Aritmética entera** — minutos, céntimos, puntos base. Nunca horas decimales.
-6. **El esquema modela conceptos, no pantallas** — árbol WBS, campos como datos.
-7. **El historial es inmutable y de sólo añadir** — `DELETE` es `deleted_at`.
+1. **Lo declarado y lo derivado no se tocan.** Tablas distintas y roles de base
+   de datos distintos: `planner_api` no puede escribir resultados y
+   `planner_engine` no puede escribir datos del usuario.
+2. **El motor es una función pura y determinista.** Mismo snapshot, mismo
+   resultado, bit a bit, hoy y dentro de tres años.
+3. **Todo resultado pertenece a una ejecución identificada,** con versión de
+   motor y hash de entradas. Una línea base es una ejecución congelada.
+4. **Todo número derivado sabe explicarse,** hasta el dato que alguien escribió.
+5. **Aritmética entera:** minutos laborables, céntimos, puntos base. Nunca horas
+   decimales.
+6. **El esquema modela conceptos, no pantallas:** árbol WBS recursivo y campos
+   del dominio definidos como datos.
+7. **El historial es inmutable y de sólo añadir.** `DELETE` es `deleted_at`.
+
+## Documentación
+
+- [`docs/diseno/`](docs/diseno/) — la especificación completa. Si vas a tocar el
+  motor, la lista de 40 casos límite de
+  [`04-motor-de-calculo.md`](docs/diseno/04-motor-de-calculo.md) es el contrato de pruebas.
+- [`docs/adr/`](docs/adr/) — las decisiones estructurales, con lo que se descartó.
+- [`CLAUDE.md`](CLAUDE.md) — convenciones: unidades, reglas y puertas de fase.

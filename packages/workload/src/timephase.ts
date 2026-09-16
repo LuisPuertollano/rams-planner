@@ -14,6 +14,8 @@ import {
   basisPoints,
   daysBetween,
   distributeInteger,
+  formatWorkMinutesAsHours,
+  workMinutes as asWorkMinutes,
   sortFindings,
   type CalendarDate,
   type Finding,
@@ -81,8 +83,8 @@ export function computeWorkload(
           entityType: 'assignment',
           entityId: assignment.id,
           message:
-            `El reparto manual suma ${String(declared)} minutos y la asignación declara ` +
-            `${String(workMinutes)}. Se respeta el reparto manual.`,
+            `El reparto manual suma ${formatWorkMinutesAsHours(asWorkMinutes(declared))} h y la asignación ` +
+            `declara ${formatWorkMinutesAsHours(asWorkMinutes(workMinutes))} h. Se respeta el reparto manual.`,
           payload: { declared, expected: workMinutes },
         })
       }

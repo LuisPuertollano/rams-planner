@@ -38,6 +38,11 @@ jobs:
       - name: Tests y cobertura
         run: pnpm test:coverage
 
+      - name: Compilación completa, interfaz incluida
+        run: |
+          pnpm build
+          pnpm --filter @planner/web build
+
   database:
     name: Base de datos (migraciones e invariantes)
     runs-on: ubuntu-latest
@@ -60,6 +65,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
       - name: Instalar dbmate
         run: |
           curl -fsSL -o /usr/local/bin/dbmate \
@@ -72,6 +84,21 @@ jobs:
       - name: Invariantes que hace cumplir la base de datos
         run: |
           psql -h 127.0.0.1 -U planner -d planner -v ON_ERROR_STOP=1 -f db/tests/invariants.sql
+
+      - name: El motor calcula de punta a punta contra datos reales
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm build
+          node packages/api/dist/cli.js seed-demo
+          node packages/api/dist/cli.js calculate | tee /tmp/run.json
+          node -e "
+            const run = require('/tmp/run.json');
+            if (!run.completed) { console.error('El cálculo no terminó'); process.exit(1); }
+            if (run.tasks < 20) { console.error('Se esperaban al menos 20 tareas'); process.exit(1); }
+            if (run.timephasedCells < 100) { console.error('Se esperaba carga repartida'); process.exit(1); }
+            console.log('Cálculo correcto:', JSON.stringify(run));
+          "
 
       - name: Las migraciones son reversibles
         run: |

@@ -6,7 +6,7 @@
  * regla que la produjo y de la entrada responsable (P4).
  */
 
-import { sortFindings, type CalendarDate, type Finding } from '@planner/domain'
+import { formatWorkMinutesAsHours, sortFindings, workMinutes, type CalendarDate, type Finding } from '@planner/domain'
 import {
   addWorkingMinutes,
   addWorkingMinutesClamped,
@@ -63,6 +63,10 @@ export function schedulePlan(snapshot: PlanSnapshot, options: ScheduleOptions = 
     return fresh
   }
 
+  const calendarCodeById = new Map(snapshot.calendars.map((calendar) => [calendar.id, calendar.code]))
+  const codeOf = (calendarId: string | undefined): string | null =>
+    calendarId === undefined ? null : (calendarCodeById.get(calendarId) ?? calendarId)
+
   const nodesById = new Map(snapshot.nodes.map((node) => [node.id, node]))
   const projectsById = new Map(snapshot.projects.map((project) => [project.id, project]))
   const resourcesById = new Map(snapshot.resources.map((resource) => [resource.id, resource]))
@@ -85,11 +89,14 @@ export function schedulePlan(snapshot: PlanSnapshot, options: ScheduleOptions = 
       targetId: node.id,
       rule: 'CALENDAR_RESOLUTION',
       inputs: {
-        taskCalendarId: task.calendarId ?? null,
-        projectCalendarId: projectsById.get(node.projectId)?.calendarId ?? null,
-        defaultCalendarId: snapshot.defaultCalendarId,
+        taskCalendar: codeOf(task.calendarId),
+        resourceCalendar: assignments.length === 1
+          ? codeOf(resourcesById.get(assignments[0]?.resourceId ?? '')?.calendarId)
+          : null,
+        projectCalendar: codeOf(projectsById.get(node.projectId)?.calendarId),
+        defaultCalendar: codeOf(snapshot.defaultCalendarId),
       },
-      output: calendarId,
+      output: codeOf(calendarId),
     })
     const origin = startOfDay(horizonFrom)
     leaves.push({
@@ -153,7 +160,9 @@ export function schedulePlan(snapshot: PlanSnapshot, options: ScheduleOptions = 
 
     let earlyStart = projectStart
     let reason = 'PROJECT_START'
-    let reasonInput: string | null = project?.id ?? null
+    let reasonInput: string | null = null
+    let reasonProject: string | null = project?.code ?? null
+    let reasonLag: number | null = null
 
     for (const link of predecessorsOf.get(nodeId) ?? []) {
       const predecessor = leafById.get(link.predecessorNodeId)
@@ -162,7 +171,9 @@ export function schedulePlan(snapshot: PlanSnapshot, options: ScheduleOptions = 
       if (absoluteOf(candidate, horizonFrom) > absoluteOf(earlyStart, horizonFrom)) {
         earlyStart = candidate
         reason = `${link.kind}_LINK`
-        reasonInput = link.predecessorNodeId
+        reasonInput = nodesById.get(link.predecessorNodeId)?.name ?? link.predecessorNodeId
+        reasonProject = null
+        reasonLag = link.lagMinutes === 0 ? null : link.lagMinutes
       }
     }
 
@@ -177,9 +188,11 @@ export function schedulePlan(snapshot: PlanSnapshot, options: ScheduleOptions = 
       rule: constrained.rule ?? reason,
       inputs: {
         predecessor: reasonInput,
+        project: reasonProject,
+        lagMinutes: reasonLag,
         constraintKind: leaf.task.constraintKind,
         constraintDate: leaf.task.constraintDate ?? null,
-        calendarId: leaf.calendar.calendarId,
+        calendar: codeOf(leaf.calendar.calendarId),
       },
       output: formatInstant(leaf.earlyStart),
     })
@@ -201,16 +214,23 @@ export function schedulePlan(snapshot: PlanSnapshot, options: ScheduleOptions = 
   }
 
   // --- Paso atrás -----------------------------------------------------------
-  const planFinish = leaves.reduce<PlanInstant>(
-    (latest, leaf) => laterOf(latest, leaf.earlyFinish, horizonFrom),
-    startOfDay(horizonFrom),
-  )
+  // El fin de referencia es el de CADA proyecto, no el del plan entero: con el
+  // global, un proyecto que acaba en junio tendría medio año de holgura sólo
+  // porque otro acaba en diciembre, y su camino crítico desaparecería.
+  const projectFinish = new Map<string, PlanInstant>()
+  for (const leaf of leaves) {
+    const current = projectFinish.get(leaf.node.projectId)
+    projectFinish.set(
+      leaf.node.projectId,
+      current === undefined ? leaf.earlyFinish : laterOf(current, leaf.earlyFinish, horizonFrom),
+    )
+  }
 
   for (const nodeId of [...order].reverse()) {
     const leaf = leafById.get(nodeId)
     if (leaf === undefined) continue
 
-    let lateFinish = planFinish
+    let lateFinish = projectFinish.get(leaf.node.projectId) ?? leaf.earlyFinish
     for (const link of successorsOf.get(nodeId) ?? []) {
       const successor = leafById.get(link.successorNodeId)
       if (successor === undefined) continue
@@ -479,7 +499,9 @@ function checkWorkAndAssignments(
       code: 'TASK_NO_WORK',
       entityType: 'task',
       entityId: leaf.node.id,
-      message: `«${leaf.node.name}» dura ${String(leaf.metrics.durationMinutes)} minutos pero no consume trabajo.`,
+      message:
+        `«${leaf.node.name}» ocupa ${formatWorkMinutesAsHours(workMinutes(leaf.metrics.durationMinutes))} h ` +
+        'de calendario pero no consume trabajo de nadie.',
     })
   }
   const standard = leaf.task.standardEffortMinutes
@@ -490,8 +512,8 @@ function checkWorkAndAssignments(
       entityType: 'task',
       entityId: leaf.node.id,
       message:
-        `«${leaf.node.name}» planifica ${String(leaf.metrics.workMinutes)} minutos frente a los ` +
-        `${String(standard)} del esfuerzo estándar.`,
+        `«${leaf.node.name}» planifica ${formatWorkMinutesAsHours(workMinutes(leaf.metrics.workMinutes))} h ` +
+        `frente a las ${formatWorkMinutesAsHours(workMinutes(standard))} h del esfuerzo estándar.`,
       payload: { planned: leaf.metrics.workMinutes, standard },
     })
   }

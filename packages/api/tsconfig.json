@@ -1,0 +1,29 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "src/**/*.ts"
+  ],
+  "references": [
+    {
+      "path": "../domain/tsconfig.build.json"
+    },
+    {
+      "path": "../calendar/tsconfig.build.json"
+    },
+    {
+      "path": "../explain/tsconfig.build.json"
+    },
+    {
+      "path": "../scheduler/tsconfig.build.json"
+    },
+    {
+      "path": "../workload/tsconfig.build.json"
+    },
+    {
+      "path": "../persistence/tsconfig.build.json"
+    }
+  ]
+}

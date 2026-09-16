@@ -17,18 +17,39 @@ services:
       timeout: 3s
       retries: 30
 
-  # Job de un solo uso. El esquema NUNCA lo aplica el arranque de la API:
-  # una migración a medias durante un despliegue es imposible de auditar.
+  # Job de un solo uso. El esquema NUNCA lo aplica el arranque de la API: una
+  # migración a medias durante un despliegue es imposible de auditar.
   migrate:
     image: ghcr.io/amacneil/dbmate:2.27.0
     depends_on:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-planner}:${POSTGRES_PASSWORD:-planner_dev_only}@db:5432/${POSTGRES_DB:-planner}?sslmode=disable
+      DATABASE_URL: &db_url postgres://${POSTGRES_USER:-planner}:${POSTGRES_PASSWORD:-planner_dev_only}@db:5432/${POSTGRES_DB:-planner}?sslmode=disable
     volumes:
       - ./db:/db
-    command: ["--wait", "up"]
+    command: ["--wait", "--no-dump-schema", "up"]
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: *db_url
+      PORT: 45678
+      # Carga el juego de datos de demostración la primera vez. Ponlo a "false"
+      # para arrancar con la base vacía.
+      SEED_DEMO: ${SEED_DEMO:-true}
+    ports:
+      - "${API_PORT:-45678}:45678"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:45678/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
 volumes:
   pgdata:

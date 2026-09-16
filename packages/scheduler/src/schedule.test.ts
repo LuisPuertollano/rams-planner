@@ -393,3 +393,41 @@ describe('derivaciones', () => {
     expect(JSON.stringify(run(snapshot).taskResults)).toBe(JSON.stringify(run(snapshot).taskResults))
   })
 })
+
+describe('planes con varios proyectos', () => {
+  it('cada proyecto tiene su propio camino crítico', () => {
+    const output = run(
+      new PlanBuilder()
+        .project({ id: 'p2', code: 'P2' })
+        .task('corta-a', { durationMinutes: 480 })
+        .task('corta-b', { durationMinutes: 480 })
+        .link('corta-a', 'corta-b')
+        .task('larga', { projectId: 'p2', durationMinutes: 9600 })
+        .build(),
+    )
+    // Con un fin de referencia global, las tareas del proyecto corto tendrían
+    // semanas de holgura sólo porque otro proyecto acaba mucho más tarde.
+    expect(get(output, 'corta-a').isCritical).toBe(true)
+    expect(get(output, 'corta-b').isCritical).toBe(true)
+    expect(get(output, 'corta-a').totalSlackMinutes).toBe(0)
+    expect(get(output, 'larga').isCritical).toBe(true)
+  })
+
+  it('una rama corta dentro del mismo proyecto sí tiene holgura', () => {
+    const output = run(
+      new PlanBuilder()
+        .task('inicio')
+        .task('rama-larga', { durationMinutes: 2400 })
+        .task('rama-corta', { durationMinutes: 480 })
+        .task('fin')
+        .link('inicio', 'rama-larga')
+        .link('inicio', 'rama-corta')
+        .link('rama-larga', 'fin')
+        .link('rama-corta', 'fin')
+        .build(),
+    )
+    expect(get(output, 'rama-larga').isCritical).toBe(true)
+    expect(get(output, 'rama-corta').isCritical).toBe(false)
+    expect(get(output, 'rama-corta').totalSlackMinutes).toBe(1920)
+  })
+})
