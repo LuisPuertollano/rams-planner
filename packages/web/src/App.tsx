@@ -10,6 +10,7 @@ import {
 } from './api.js'
 import { hours, percent } from './format.js'
 import { activePeriods } from './periods.js'
+import { EditPanel } from './components/EditPanel.js'
 import { ImportButton } from './components/ImportButton.js'
 import { WhyPanel } from './components/WhyPanel.js'
 import { DiffView } from './views/DiffView.js'
@@ -40,6 +41,7 @@ export function App(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [explaining, setExplaining] = useState<TaskRow | null>(null)
+  const [editing, setEditing] = useState<TaskRow | null>(null)
   const [theme, setTheme] = useState<'auto' | 'light' | 'dark'>('auto')
 
   const load = useCallback(async () => {
@@ -272,6 +274,7 @@ export function App(): React.JSX.Element {
                 projects={state.projects}
                 fields={state.fields}
                 onExplain={setExplaining}
+                onEdit={setEditing}
                 onChanged={() => {
                   load().catch((cause: unknown) => {
                     setError(cause instanceof Error ? cause.message : 'Error al recargar')
@@ -295,6 +298,20 @@ export function App(): React.JSX.Element {
 
       {explaining === null || state?.run == null ? null : (
         <WhyPanel runId={state.run.id} task={explaining} onClose={() => { setExplaining(null) }} />
+      )}
+
+      {editing === null || state === null || data === null ? null : (
+        <EditPanel
+          task={editing}
+          tasks={data.tasks}
+          resources={state.resources}
+          onClose={() => { setEditing(null) }}
+          onChanged={() => {
+            load().catch((cause: unknown) => {
+              setError(cause instanceof Error ? cause.message : 'Error al recargar')
+            })
+          }}
+        />
       )}
     </div>
   )

@@ -349,3 +349,85 @@ export async function addCostRate(
 export async function removeCostRate(id: string): Promise<void> {
   return send(`/api/rates/${id}`, 'DELETE')
 }
+
+// ---------------------------------------------------------------------------
+// Edición de la estructura del plan
+//
+// Lo mismo que hace la importación de CSV, pero de uno en uno. Cada escritura
+// recalcula en el servidor; quien llama sólo tiene que recargar.
+// ---------------------------------------------------------------------------
+
+export interface AssignmentRow {
+  readonly id: string
+  readonly nodeId: string
+  readonly resourceId: string
+  readonly unitsBp: number
+}
+
+export interface DependencyRow {
+  readonly id: string
+  readonly predecessorNodeId: string
+  readonly successorNodeId: string
+  readonly kind: string
+  readonly lagMinutes: number
+}
+
+export interface PlanStructure {
+  readonly assignments: readonly AssignmentRow[]
+  readonly dependencies: readonly DependencyRow[]
+}
+
+export async function fetchStructure(): Promise<PlanStructure> {
+  return get<PlanStructure>('/api/plan/structure')
+}
+
+export async function createProject(input: {
+  readonly code: string
+  readonly name: string
+  readonly statusStart: string
+}): Promise<void> {
+  return send('/api/projects', 'POST', input)
+}
+
+export async function removeProject(projectId: string): Promise<void> {
+  return send(`/api/projects/${projectId}`, 'DELETE')
+}
+
+export async function createNode(input: {
+  readonly projectId: string
+  readonly parentId: string | null
+  readonly kind: 'phase' | 'task' | 'milestone'
+  readonly name: string
+  readonly durationMinutes?: number
+}): Promise<void> {
+  return send('/api/nodes', 'POST', input)
+}
+
+export async function renameNode(nodeId: string, name: string): Promise<void> {
+  return send(`/api/nodes/${nodeId}`, 'PATCH', { name })
+}
+
+export async function removeNode(nodeId: string): Promise<void> {
+  return send(`/api/nodes/${nodeId}`, 'DELETE')
+}
+
+export async function assign(nodeId: string, resourceId: string, unitsBp: number): Promise<void> {
+  return send('/api/assignments', 'POST', { nodeId, resourceId, unitsBp })
+}
+
+export async function unassign(assignmentId: string): Promise<void> {
+  return send(`/api/assignments/${assignmentId}`, 'DELETE')
+}
+
+export async function link(
+  predecessorNodeId: string,
+  successorNodeId: string,
+  kind: string,
+  lagMinutes: number,
+): Promise<void> {
+  return send('/api/dependencies', 'POST', { predecessorNodeId, successorNodeId, kind, lagMinutes })
+}
+
+export async function unlink(id: string): Promise<void> {
+  return send(`/api/dependencies/${id}`, 'DELETE')
+}

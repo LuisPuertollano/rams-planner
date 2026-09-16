@@ -55,7 +55,13 @@ no cabe ni sola en la jornada de la persona, lo dice en vez de retrasarla
 eternamente: ahí lo que hay que cambiar es la dedicación, la duración o el
 calendario, no la fecha.
 
-En la vista **Plan** las dos primeras columnas de datos son declaradas y se
+La vista **Plan** también se edita: **+ Proyecto** y **+ Fase** crean la
+estructura, y el botón **✎** de cada fila abre el panel donde se pone el nombre,
+se asigna a quién trabaja en la tarea y con qué dedicación, se declara de qué
+depende y se da de baja lo que sobra. En ese panel no hay ni una fecha: las
+fechas las calcula el motor.
+
+En esa misma vista las dos primeras columnas de datos son declaradas y se
 editan en línea: al confirmar un cambio, el plan se recalcula entero y el
 resultado queda guardado como una ejecución nueva. Las demás columnas llevan
 candado. Congelar el plan con el botón **Línea base** y volver a la pestaña

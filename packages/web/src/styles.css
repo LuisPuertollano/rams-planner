@@ -367,6 +367,8 @@ a.button { text-decoration: none; display: inline-block; }
 }
 .inline-form .field { min-width: 140px; flex: 1 1 140px; }
 
+.toolbar { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 12px; }
+
 .grid--inline { margin-top: 10px; width: auto; min-width: 60%; }
 .grid--inline th, .grid--inline td { text-align: left; padding: 6px 18px 6px 0; }
 .grid--inline th:last-child, .grid--inline td:last-child { text-align: right; padding-right: 0; width: 1%; }

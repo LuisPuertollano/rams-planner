@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { updateTask, type FieldValue, type Project, type TaskRow } from '../api.js'
+import { createNode, createProject, updateTask, type FieldValue, type Project, type TaskRow } from '../api.js'
 import { days, fullDate, hours, percent } from '../format.js'
 
 interface Props {
@@ -7,6 +7,8 @@ interface Props {
   readonly projects: readonly Project[]
   readonly fields: readonly FieldValue[]
   readonly onExplain: (task: TaskRow) => void
+  /** Abre el panel de edición de la rama: nombre, equipo, dependencias, baja. */
+  readonly onEdit: (task: TaskRow) => void
   readonly onChanged: () => void
 }
 
@@ -17,7 +19,7 @@ interface Props {
  * Las demás son **derivadas**: fondo propio, candado y ni un solo `input`. Es el
  * principio P1 hecho algo que se ve, no una nota en un documento.
  */
-export function PlanView({ tasks, projects, fields, onExplain, onChanged }: Props): React.JSX.Element {
+export function PlanView({ tasks, projects, fields, onExplain, onEdit, onChanged }: Props): React.JSX.Element {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   const [saving, setSaving] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -58,9 +60,40 @@ export function PlanView({ tasks, projects, fields, onExplain, onChanged }: Prop
       .finally(() => { setSaving(null) })
   }
 
+  /** Un proyecto nuevo arranca hoy; la fecha de referencia se ajusta después. */
+  const addProject = (): void => {
+    const name = window.prompt('Nombre del proyecto nuevo')
+    if (name === null || name.trim() === '') return
+    const code = window.prompt('Código del proyecto (corto y único)', name.trim().slice(0, 12).toUpperCase())
+    if (code === null || code.trim() === '') return
+    setSaving('nuevo-proyecto')
+    setError(null)
+    createProject({ code: code.trim(), name: name.trim(), statusStart: new Date().toISOString().slice(0, 10) })
+      .then(onChanged)
+      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : 'No se pudo crear') })
+      .finally(() => { setSaving(null) })
+  }
+
+  const addPhase = (project: Project): void => {
+    const name = window.prompt(`Nombre de la fase nueva en ${project.code}`)
+    if (name === null || name.trim() === '') return
+    setSaving(project.id)
+    setError(null)
+    createNode({ projectId: project.id, parentId: null, kind: 'phase', name: name.trim() })
+      .then(onChanged)
+      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : 'No se pudo crear') })
+      .finally(() => { setSaving(null) })
+  }
+
   return (
     <>
       {error === null ? null : <div className="error-banner" style={{ margin: 12 }}>{error}</div>}
+      <div className="toolbar">
+        <button className="button" onClick={addProject} disabled={saving !== null}>+ Proyecto</button>
+        <span className="faint">
+          Todo lo que se añade aquí es dato declarado. Las fechas las sigue calculando el motor.
+        </span>
+      </div>
       <table className="grid">
         <thead>
           <tr>
@@ -84,6 +117,8 @@ export function PlanView({ tasks, projects, fields, onExplain, onChanged }: Prop
               collapsed={collapsed}
               onToggle={toggle}
               onExplain={onExplain}
+              onEdit={onEdit}
+              onAddPhase={addPhase}
               onSave={save}
               saving={saving}
               tagOf={tagOf}
@@ -101,6 +136,8 @@ interface ProjectRowsProps {
   readonly collapsed: ReadonlySet<string>
   readonly onToggle: (nodeId: string) => void
   readonly onExplain: (task: TaskRow) => void
+  readonly onEdit: (task: TaskRow) => void
+  readonly onAddPhase: (project: Project) => void
   readonly onSave: (task: TaskRow, changes: Readonly<Record<string, number | string | null>>) => void
   readonly saving: string | null
   readonly tagOf: ReadonlyMap<string, string>
@@ -112,6 +149,8 @@ function ProjectRows({
   collapsed,
   onToggle,
   onExplain,
+  onEdit,
+  onAddPhase,
   onSave,
   saving,
   tagOf,
@@ -119,8 +158,17 @@ function ProjectRows({
   return (
     <>
       <tr className="row--total">
-        <td colSpan={9}>
+        <td colSpan={8}>
           {project.code} · {project.name}
+        </td>
+        <td>
+          <button
+            className="button"
+            onClick={() => { onAddPhase(project) }}
+            title="Añadir una fase a este proyecto"
+          >
+            + Fase
+          </button>
         </td>
       </tr>
       {rows.map((task) => {
@@ -197,12 +245,19 @@ function ProjectRows({
             <td className="muted" style={{ textAlign: 'left' }}>
               {task.assignees.join(', ') || '—'}
             </td>
-            <td>
+            <td style={{ whiteSpace: 'nowrap' }}>
               {isContainer ? null : (
                 <button className="button" onClick={() => { onExplain(task) }}>
                   ¿por qué?
                 </button>
-              )}
+              )}{' '}
+              <button
+                className="button"
+                onClick={() => { onEdit(task) }}
+                title="Equipo, dependencias, nombre y baja"
+              >
+                ✎
+              </button>
             </td>
           </tr>
         )

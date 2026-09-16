@@ -50,6 +50,12 @@ tener de que sus horas no cuestan nada.
 
 ### Paso 2 — El plan
 
+Hay dos caminos, y se pueden mezclar: **importar un CSV** para cargar de golpe
+lo que ya tienes en Excel, o **construirlo a mano** en la pestaña Plan. Lo
+normal es importar el grueso y retocar a mano lo que cambia cada semana.
+
+#### Importar
+
 Botón **Importar CSV** de la cabecera. El formato está en el
 [README](../README.md#cargar-tus-propios-datos) y la plantilla se descarga desde
 la propia herramienta.
@@ -63,6 +69,27 @@ Lo importante de la importación:
   o borra el proyecto anterior.
 - Las personas que no existan **se crean solas**, con jornada estándar y **sin
   tarifa**. La respuesta te dice cuáles. Vuelve a la pestaña Equipo y complétalas.
+
+#### A mano
+
+En la pestaña **Plan**:
+
+1. **+ Proyecto** (arriba del todo) pide nombre y código.
+2. **+ Fase**, en la fila de cada proyecto, cuelga una fase de él.
+3. El botón **✎** de cualquier fila abre el panel de edición. Lo que ofrece
+   depende de lo que sea la fila:
+   - En una **fase**: colgar de ella una tarea, un hito u otra fase.
+   - En una **tarea o un hito**: quién trabaja en ella y con qué dedicación, de
+     qué depende, y quitarla del plan.
+4. La duración y el avance se escriben directamente en la tabla, en las columnas
+   marcadas con **✎**.
+
+El árbol tiene una regla que no se puede saltar: **el trabajo cuelga de fases,
+no de otras tareas**. Si intentas colgar algo de una tarea, la herramienta lo
+rechaza y te dice por qué. Es lo que mantiene el plan legible cuando crece.
+
+Quitar algo del plan da de baja también todo lo que cuelgue de ello. No se borra
+nada: los cálculos ya hechos se siguen explicando igual.
 
 ### Paso 3 — Mirar
 
@@ -106,6 +133,9 @@ El árbol de trabajo con las fechas calculadas.
   una fecha no te gusta, se cambia lo que la produce, no la fecha.
 - El botón **¿por qué?** de cada tarea abre la traza completa: qué regla produjo
   cada fecha, con qué entradas, hasta el dato que alguien escribió.
+- El botón **✎** de cada fila abre el panel de edición: nombre, equipo,
+  dependencias y baja. Ahí no hay ni una sola fecha, a propósito: las fechas se
+  calculan, no se escriben.
 
 En rojo, las tareas del **camino crítico**: las que no tienen holgura. Retrasar
 una de ellas retrasa el proyecto entero. El camino crítico se calcula **por
@@ -188,6 +218,10 @@ cualquier tarea movida enseña la cadena completa.
 Una persona no puede estar al 50 % y al 80 % el mismo día. Borra el tramo
 anterior o ajusta las fechas. Lo mismo con las tarifas.
 
+**«Sólo se puede colgar trabajo de una fase o de un paquete de trabajo.»**
+Estás intentando meter una tarea debajo de otra tarea. Crea una fase y cuelga
+las dos de ella.
+
 **«He dado de baja a alguien y sus tareas siguen ahí.»**
 Correcto. La baja es lógica: la persona deja de contar en los cálculos nuevos,
 pero nada se borra y los cálculos ya hechos se siguen explicando igual. Sus
@@ -205,5 +239,8 @@ lleva en cada fila. Si son distintos, son dos cálculos distintos, y la pestaña
 - **No escribe ficheros `.mpp`.** Exporta CSV, que es lo que de verdad se usa.
 - **No reasigna trabajo sola.** Nivelar retrasa; no decide quién hace qué. Esa
   decisión es tuya.
+- **No deja escribir una fecha calculada.** Ni en la tabla ni en el panel de
+  edición. Una fecha que se pueda sobreescribir a mano deja de explicar nada, y
+  la mitad del valor de esta herramienta es que cada fecha se explica.
 - **No adivina.** Un dato que no has declarado no se inventa: se queda vacío y,
   si afecta a un resultado, sale un hallazgo.

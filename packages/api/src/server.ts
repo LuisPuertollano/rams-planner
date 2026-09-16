@@ -6,6 +6,7 @@ import fastifyStatic from '@fastify/static'
 import Fastify from 'fastify'
 import { createPool } from '@planner/persistence'
 import { readConfig } from './config.js'
+import { registerPlanRoutes } from './plan-routes.js'
 import { registerResourceRoutes } from './resources-routes.js'
 import { registerRoutes } from './routes.js'
 
@@ -23,6 +24,7 @@ app.addContentTypeParser(['text/csv', 'text/plain'], { parseAs: 'string' }, (_re
 })
 registerRoutes(app, pool)
 registerResourceRoutes(app, pool)
+registerPlanRoutes(app, pool)
 
 // En producción la API sirve también la interfaz compilada: un solo contenedor,
 // un solo origen, cero configuración de CORS para el usuario.
