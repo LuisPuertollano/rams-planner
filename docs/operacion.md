@@ -183,9 +183,37 @@ alarma barata.
 
 ## 7. Cuando algo va mal
 
+**`api-1` aparece parado nada más levantar compose, en Windows.**
+Casi siempre son los finales de línea. Git para Windows convierte a CRLF al
+clonar (`core.autocrlf=true` es su valor por defecto), `docker/entrypoint.sh`
+entra en la imagen con `\r` al final de cada línea y el contenedor muere al
+instante: el núcleo busca un intérprete llamado `/bin/sh\r`, que no existe. En
+el log se ve un `$'\r': command not found` o un `exec format error`.
+
+El repositorio trae un `.gitattributes` que fuerza LF y el `Dockerfile` limpia
+los `\r` al construir, así que en un clon nuevo no pasa. Si el clon es anterior:
+
+```bash
+git rm --cached -r .
+git reset --hard
+docker compose build --no-cache api
+docker compose up -d
+```
+
 **La API no arranca y dice que falta `DATABASE_URL`.**
 No has copiado `.env.example` a `.env`, o la ejecutas fuera de compose sin
 exportarla.
+
+**Lo primero que hay que mirar cuando algo no arranca.**
+
+```bash
+docker compose ps           # quién está vivo y quién no
+docker compose logs migrate # el job del esquema
+docker compose logs api     # la aplicación
+```
+
+`migrate` en `Exited (0)` es lo correcto. `api` parado es siempre un error, y
+su log lo nombra.
 
 **La API arranca pero todo sale vacío.**
 El job `migrate` ha fallado. `docker compose logs migrate` lo dice. Casi siempre
