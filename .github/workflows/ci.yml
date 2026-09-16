@@ -38,6 +38,11 @@ jobs:
       - name: Tests y cobertura
         run: pnpm test:coverage
 
+      - name: Compilación completa, interfaz incluida
+        run: |
+          pnpm build
+          pnpm --filter @planner/web build
+
   database:
     name: Base de datos (migraciones e invariantes)
     runs-on: ubuntu-latest
@@ -60,6 +65,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
       - name: Instalar dbmate
         run: |
           curl -fsSL -o /usr/local/bin/dbmate \
@@ -73,10 +85,42 @@ jobs:
         run: |
           psql -h 127.0.0.1 -U planner -d planner -v ON_ERROR_STOP=1 -f db/tests/invariants.sql
 
-      - name: Las migraciones son reversibles
+      - name: El motor calcula de punta a punta contra datos reales
         run: |
-          for _ in 1 2 3 4; do dbmate --migrations-dir ./db/migrations --no-dump-schema down; done
-          remaining=$(psql -h 127.0.0.1 -U planner -d planner -tAc \
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm build
+          node packages/api/dist/cli.js seed-demo
+          node packages/api/dist/cli.js calculate | tee /tmp/run.json
+          node -e "
+            const run = require('/tmp/run.json');
+            if (!run.completed) { console.error('El cálculo no terminó'); process.exit(1); }
+            if (run.tasks < 20) { console.error('Se esperaban al menos 20 tareas'); process.exit(1); }
+            if (run.timephasedCells < 100) { console.error('Se esperaba carga repartida'); process.exit(1); }
+            console.log('Cálculo correcto:', JSON.stringify(run));
+          "
+
+      - name: Pruebas de integración contra la base de datos real
+        run: pnpm vitest run packages/persistence
+
+      # En una base LIMPIA a propósito: los datos de demostración referencian
+      # los calendarios base, así que revertir su migración sobre ellos falla
+      # por clave ajena. Eso no es un fallo de la migración, es que hay datos.
+      - name: Las migraciones son reversibles
+        env:
+          DATABASE_URL: postgres://planner:planner_ci@127.0.0.1:5432/planner_rollback?sslmode=disable
+        run: |
+          psql -h 127.0.0.1 -U planner -d planner -c 'CREATE DATABASE planner_rollback'
+          dbmate --migrations-dir ./db/migrations --no-dump-schema up
+
+          # Tantas vueltas como migraciones haya: fijar el número a mano hace
+          # que este paso empiece a fallar en cuanto se añade una.
+          total=$(find db/migrations -name '*.sql' | wc -l)
+          for _ in $(seq 1 "$total"); do
+            dbmate --migrations-dir ./db/migrations --no-dump-schema down
+          done
+
+          remaining=$(psql -h 127.0.0.1 -U planner -d planner_rollback -tAc \
             "select count(*) from information_schema.tables where table_schema='public'")
           if [ "$remaining" != "1" ]; then
             echo "El rollback dejó $remaining tablas; debería quedar sólo schema_migrations."

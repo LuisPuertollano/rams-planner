@@ -1,0 +1,6 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "noEmit": true },
+  "include": ["src/**/*.ts"],
+  "references": [{ "path": "../domain/tsconfig.build.json" }, { "path": "../calendar/tsconfig.build.json" }, { "path": "../explain/tsconfig.build.json" }]
+}

@@ -68,8 +68,12 @@ Los tipos son nominales: el compilador impide mezclarlos. No los conviertas con
 ## Antes de dar algo por terminado
 
 ```bash
-pnpm verify     # lint + tipos + regla de dependencia + tests
+pnpm verify     # lint + tipos + regla de dependencia + tests con cobertura
 ```
+
+`verify` ejecuta **exactamente** lo que verifica CI del código, cobertura
+incluida. Si alguna vez dejan de coincidir, CI encontrará cosas que en local
+pasaban, que es la peor forma de perder el tiempo.
 
 Y si tocaste la base de datos:
 
@@ -96,9 +100,14 @@ Un ADR que ya no se cumple es peor que no tenerlo.
 Se trabaja por fases y **se para en cada puerta**. No adelantes trabajo de fases
 posteriores: la fase 1 mal cerrada contamina todo lo demás.
 
-| Fase | Contenido | Puerta |
+| Fase | Contenido | Estado |
 |------|-----------|--------|
-| 0 | Cimientos | `pnpm verify` verde y base de datos migrada |
-| 1 | Calendarios | ≥ 10 propiedades, ramas ≥ 95 %, golden files de calendario |
-| 2 | Planificación | `planner calc snapshot.json` y árbol de explicación |
-| 3 | Carga de trabajo | La matriz contesta las preguntas 1, 2 y 6 |
+| 0 | Cimientos: monorepo, CI, esquema, invariantes, semilla | ✅ |
+| 1 | Calendarios jerárquicos y las tres primitivas | ✅ |
+| 2 | CPM con restricciones, holguras y explicaciones | ✅ |
+| 3 | Carga diaria, capacidad, saturación y coste | ✅ |
+| 4 | Persistencia, API e interfaz (carga, saturación, plan, cronograma, hallazgos, «¿por qué?») | ✅ |
+| 5 | Edición en línea de datos declarados, líneas base y comparación | ✅ |
+| 6 | Import/export CSV y campos personalizados de extremo a extremo | ✅ |
+| 6b | Realidad ejecutada (imputaciones, plan vs. real, curva S) | ⬜ |
+| 7 | Nivelación heurística determinista, opcional | ✅ |

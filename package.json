@@ -16,7 +16,11 @@
     "check:deps": "node tools/check-dependency-rule.mjs",
     "db:up": "dbmate --migrations-dir ./db/migrations up",
     "db:status": "dbmate --migrations-dir ./db/migrations status",
-    "verify": "pnpm lint && pnpm typecheck && pnpm check:deps && pnpm test"
+    "verify": "pnpm lint && pnpm typecheck && pnpm check:deps && pnpm test:coverage",
+    "dev:api": "node --env-file=.env packages/api/dist/server.js",
+    "dev:web": "pnpm --filter @planner/web dev",
+    "db:demo": "node --env-file=.env packages/api/dist/cli.js seed-demo",
+    "db:calculate": "node --env-file=.env packages/api/dist/cli.js calculate"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

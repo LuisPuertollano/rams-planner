@@ -5,6 +5,8 @@ import {
   basisPoints,
   calendarDate,
   cents,
+  daysInMonth,
+  isLeapYear,
   UnitError,
   workMinutes,
 } from './units.js'
@@ -78,5 +80,33 @@ describe('sumas tipadas', () => {
 
   it('una suma que se sale del rango entero seguro falla al sumarse, no después', () => {
     expect(() => addCents(cents(Number.MAX_SAFE_INTEGER), cents(1))).toThrow(UnitError)
+  })
+})
+
+describe('daysInMonth e isLeapYear', () => {
+  it('aplica la regla gregoriana completa, no sólo el múltiplo de 4', () => {
+    expect(isLeapYear(2024)).toBe(true)
+    expect(isLeapYear(2025)).toBe(false)
+    expect(isLeapYear(1900)).toBe(false)
+    expect(isLeapYear(2000)).toBe(true)
+  })
+
+  it('devuelve los días de cada mes', () => {
+    expect(daysInMonth(2026, 1)).toBe(31)
+    expect(daysInMonth(2026, 2)).toBe(28)
+    expect(daysInMonth(2028, 2)).toBe(29)
+    expect(daysInMonth(2026, 4)).toBe(30)
+    expect(daysInMonth(2026, 12)).toBe(31)
+  })
+
+  it('devuelve 0 para un mes fuera de rango en vez de indefinido', () => {
+    expect(daysInMonth(2026, 13)).toBe(0)
+  })
+})
+
+describe('calendarDate en los años de dos dígitos', () => {
+  it('acepta años anteriores a 1900, que Date.UTC reinterpretaría', () => {
+    expect(calendarDate('0000-03-01')).toBe('0000-03-01')
+    expect(calendarDate('0099-12-31')).toBe('0099-12-31')
   })
 })

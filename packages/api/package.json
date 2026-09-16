@@ -1,0 +1,34 @@
+{
+  "name": "@planner/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/server.js",
+    "dev": "node --experimental-strip-types src/server.ts",
+    "seed:demo": "node dist/cli.js seed-demo"
+  },
+  "dependencies": {
+    "@planner/domain": "workspace:*",
+    "@planner/calendar": "workspace:*",
+    "@planner/explain": "workspace:*",
+    "@planner/scheduler": "workspace:*",
+    "@planner/workload": "workspace:*",
+    "@planner/persistence": "workspace:*",
+    "fastify": "^5.2.0",
+    "@fastify/cors": "^10.0.1",
+    "@fastify/static": "^8.0.3",
+    "pg": "^8.13.1",
+    "zod": "^3.24.1"
+  }
+}

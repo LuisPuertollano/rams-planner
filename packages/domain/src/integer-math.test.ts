@@ -1,6 +1,6 @@
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
-import { applyBasisPoints, distributeInteger } from './integer-math.js'
+import { applyBasisPoints, distributeInteger, divideByBasisPoints } from './integer-math.js'
 import { basisPoints, UnitError } from './units.js'
 
 describe('applyBasisPoints', () => {
@@ -102,5 +102,26 @@ describe('distributeInteger', () => {
       }),
       { numRuns: 300 },
     )
+  })
+})
+
+describe('divideByBasisPoints', () => {
+  it('es la inversa de applyBasisPoints en los casos exactos', () => {
+    expect(divideByBasisPoints(240, basisPoints(5_000))).toBe(480)
+    expect(divideByBasisPoints(480, basisPoints(10_000))).toBe(480)
+    expect(divideByBasisPoints(480, basisPoints(20_000))).toBe(240)
+  })
+
+  it('redondea los empates hacia arriba en valor absoluto', () => {
+    expect(divideByBasisPoints(1, basisPoints(20_000))).toBe(1)
+    expect(divideByBasisPoints(-1, basisPoints(20_000))).toBe(-1)
+  })
+
+  it('rechaza dividir entre una dedicación del 0 %', () => {
+    expect(() => divideByBasisPoints(480, basisPoints(0))).toThrow(UnitError)
+  })
+
+  it('rechaza valores no enteros', () => {
+    expect(() => divideByBasisPoints(1.5, basisPoints(10_000))).toThrow(UnitError)
   })
 })

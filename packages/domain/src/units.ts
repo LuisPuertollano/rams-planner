@@ -82,15 +82,25 @@ export function calendarDate(value: string): CalendarDate {
   const year = Number(yearText)
   const month = Number(monthText)
   const day = Number(dayText)
-  const asUtc = new Date(Date.UTC(year, month - 1, day))
-  const roundTrips =
-    asUtc.getUTCFullYear() === year &&
-    asUtc.getUTCMonth() === month - 1 &&
-    asUtc.getUTCDate() === day
-  if (!roundTrips) {
+  // Validación aritmética, sin `Date`: Date.UTC reinterpreta los años 0-99 como
+  // 1900+año, que es justo el rango donde una fecha válida se rechazaría.
+  if (month < 1 || month > 12 || day < 1 || day > daysInMonth(year, month)) {
     throw new UnitError(`CalendarDate "${value}" no es una fecha existente`)
   }
   return value as CalendarDate
+}
+
+const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] as const
+
+/** Año bisiesto en el calendario gregoriano proléptico. */
+export function isLeapYear(year: number): boolean {
+  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
+}
+
+/** Días que tiene un mes (1-12) de un año concreto. */
+export function daysInMonth(year: number, month: number): number {
+  if (month === 2) return isLeapYear(year) ? 29 : 28
+  return DAYS_IN_MONTH[month - 1] ?? 0
 }
 
 /** Suma de minutos laborables, manteniendo el tipo y la validación. */

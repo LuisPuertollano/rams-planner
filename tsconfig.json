@@ -1,6 +1,32 @@
 {
   "extends": "./tsconfig.base.json",
-  "compilerOptions": { "noEmit": true },
-  "include": ["vitest.config.ts"],
-  "references": [{ "path": "./packages/domain" }]
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "vitest.config.ts"
+  ],
+  "references": [
+    {
+      "path": "./packages/domain"
+    },
+    {
+      "path": "./packages/calendar"
+    },
+    {
+      "path": "./packages/explain"
+    },
+    {
+      "path": "./packages/scheduler"
+    },
+    {
+      "path": "./packages/workload"
+    },
+    {
+      "path": "./packages/persistence"
+    },
+    {
+      "path": "./packages/api"
+    }
+  ]
 }

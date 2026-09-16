@@ -1,4 +1,26 @@
 {
   "files": [],
-  "references": [{ "path": "./packages/domain/tsconfig.build.json" }]
+  "references": [
+    {
+      "path": "./packages/domain/tsconfig.build.json"
+    },
+    {
+      "path": "./packages/calendar/tsconfig.build.json"
+    },
+    {
+      "path": "./packages/explain/tsconfig.build.json"
+    },
+    {
+      "path": "./packages/scheduler/tsconfig.build.json"
+    },
+    {
+      "path": "./packages/workload/tsconfig.build.json"
+    },
+    {
+      "path": "./packages/persistence/tsconfig.build.json"
+    },
+    {
+      "path": "./packages/api/tsconfig.build.json"
+    }
+  ]
 }

@@ -1,0 +1,7 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "rootDir": "./src", "outDir": "./dist", "composite": true, "tsBuildInfoFile": "./dist/.tsbuildinfo" },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts", "src/__fixtures__/**"],
+  "references": [{ "path": "../domain/tsconfig.build.json" }, { "path": "../calendar/tsconfig.build.json" }, { "path": "../explain/tsconfig.build.json" }]
+}
