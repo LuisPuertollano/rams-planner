@@ -254,6 +254,40 @@ porque formar a alguien es una decisión legítima y no un error.
 La herramienta **no impide** asignar a quien no sabe. Quién es capaz de qué lo
 decides tú; lo único que hace la herramienta es que no se te pase.
 
+### Reparto
+
+Qué trabajo se podría mover, a quién, y qué arreglaría. **Son propuestas, no
+decisiones**: se aplican de una en una y sólo si te convencen.
+
+Cada fila dice lo mismo que diría un compañero sensato: esta tarea la lleva Jan,
+que está al 131 % en mayo; Ana cumple lo que la tarea pide y tiene hueco; si se
+la pasas, Jan baja al 98 % y Ana sube al 41 %.
+
+Las reglas que sigue, y que conviene conocer para fiarse de la lista:
+
+- Sólo mira asignaciones que caen en un mes en el que su dueño **se pasa** del
+  umbral que elijas arriba.
+- Un candidato lo es porque **tiene las competencias que la tarea pide, al nivel
+  que las pide**, y porque le **queda hueco los días exactos** en que hay que
+  hacer el trabajo.
+- **Nunca propone a quien quedaría sobrecargado.** Eso sería mover el problema de
+  sitio, no resolverlo.
+- Si alguien está sobrecargado y **nadie puede recogerlo**, lo dice abajo en vez
+  de callarse. Ese caso no se arregla repartiendo: se arregla contratando,
+  formando a alguien, o moviendo la fecha.
+
+Por qué no lo hace sola: la herramienta ve horas y competencias declaradas. No
+ve que alguien acaba de entrar, que a otro le toca formarse en eso, o que ese
+cliente exige que firme una persona concreta. Tú sí. Una herramienta que
+reasigna sola a tu equipo acaba desobedecida, y entonces no sirve para nada.
+
+**Reparto y Nivelar no son lo mismo**, y se complementan:
+
+| | Qué cambia | Cuándo usarlo |
+|-|------------|---------------|
+| **Reparto** | **Quién** hace el trabajo. Las fechas no se tocan | Hay alguien libre que sabe hacerlo |
+| **Nivelar** | **Cuándo** se hace. Quién lo hace no se toca | No hay a quién pasárselo: sólo cabe retrasar |
+
 ### Hallazgos
 
 Todo lo que el motor quiere decirte, ordenado por gravedad:

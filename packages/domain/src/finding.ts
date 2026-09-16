@@ -19,6 +19,7 @@ export type FindingCode =
   | 'CONTOUR_MISMATCH'
   | 'LEVELING_IMPOSSIBLE'
   | 'LEVELING_DELAYED'
+  | 'REBALANCE_NO_CANDIDATE'
 
 export interface Finding {
   readonly severity: FindingSeverity

@@ -22,12 +22,13 @@ import { GanttView } from './views/GanttView.js'
 import { HeatmapView } from './views/HeatmapView.js'
 import { MatrixView } from './views/MatrixView.js'
 import { PlanView } from './views/PlanView.js'
+import { RebalanceView } from './views/RebalanceView.js'
 import { SkillsView } from './views/SkillsView.js'
 import { ResourcesView } from './views/ResourcesView.js'
 
 type Tab =
   | 'matriz' | 'saturacion' | 'plan' | 'cronograma'
-  | 'equipo' | 'competencias' | 'calendario' | 'hallazgos' | 'comparar'
+  | 'equipo' | 'competencias' | 'calendario' | 'reparto' | 'hallazgos' | 'comparar'
 
 const TABS: readonly { id: Tab; label: string; hint: string }[] = [
   { id: 'matriz', label: 'Carga', hint: 'Cuántas horas tiene comprometida cada persona, cada mes, en cada proyecto' },
@@ -37,6 +38,7 @@ const TABS: readonly { id: Tab; label: string; hint: string }[] = [
   { id: 'equipo', label: 'Equipo', hint: 'De qué está hecha la capacidad: calendario, dedicación, ausencias y tarifa de cada persona' },
   { id: 'calendario', label: 'Calendario', hint: 'Quién está fuera, cuándo, y qué capacidad le queda al equipo cada día' },
   { id: 'competencias', label: 'Competencias', hint: 'Quién sabe hacer qué, y dónde el equipo tiene un único especialista' },
+  { id: 'reparto', label: 'Reparto', hint: 'Qué trabajo se podría mover, a quién, y qué arreglaría. Propuestas, no decisiones' },
   { id: 'hallazgos', label: 'Hallazgos', hint: 'Todo lo que el motor quiere decirte' },
   { id: 'comparar', label: 'Comparar', hint: 'En qué se diferencia el plan de hoy del que congelaste' },
 ]
@@ -315,6 +317,15 @@ export function App(): React.JSX.Element {
                 onExplain={setExplaining}
                 onEdit={setEditing}
                 onEditProject={setEditingProject}
+                onChanged={() => {
+                  load().catch((cause: unknown) => {
+                    setError(cause instanceof Error ? cause.message : 'Error al recargar')
+                  })
+                }}
+              />
+            ) : tab === 'reparto' ? (
+              <RebalanceView
+                projects={state.projects}
                 onChanged={() => {
                   load().catch((cause: unknown) => {
                     setError(cause instanceof Error ? cause.message : 'Error al recargar')
