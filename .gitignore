@@ -6,3 +6,7 @@ coverage/
 .env
 .env.local
 .DS_Store
+
+# Volcado que dbmate regenera en cada migración: la fuente de verdad son
+# db/migrations, no este fichero.
+db/schema.sql

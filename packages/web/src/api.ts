@@ -216,3 +216,136 @@ export async function fetchRuns(): Promise<readonly RunSummary[]> {
   const body = await get<{ runs: readonly RunSummary[] }>('/api/runs')
   return body.runs
 }
+
+// ---------------------------------------------------------------------------
+// Ficha de recursos
+//
+// Todo lo de esta sección es dato DECLARADO: no lleva `runId` porque no
+// pertenece a ninguna ejecución. Lo que sí devuelve cada escritura es la
+// ejecución nueva que ha provocado, para que la pantalla no se quede mirando
+// números viejos.
+// ---------------------------------------------------------------------------
+
+export interface CalendarOption {
+  readonly id: string
+  readonly code: string
+  readonly name: string
+  readonly parentCode: string | null
+}
+
+export interface AvailabilityPeriod {
+  readonly id: string
+  readonly from: string
+  readonly to: string
+  readonly unitsBp: number
+  readonly reason: string | null
+}
+
+export interface AbsencePeriod {
+  readonly id: string
+  readonly kind: string
+  readonly from: string
+  readonly to: string
+  readonly minutesPerDay: number | null
+  readonly note: string | null
+}
+
+export interface CostRatePeriod {
+  readonly id: string
+  readonly from: string
+  readonly to: string
+  readonly currency: string
+  readonly standardCentsHour: number
+}
+
+export interface ResourceDetail {
+  readonly id: string
+  readonly code: string
+  readonly displayName: string
+  readonly kind: string
+  readonly calendarId: string | null
+  readonly calendarCode: string | null
+  readonly maxUnitsBp: number
+  readonly activeFrom: string | null
+  readonly activeTo: string | null
+  readonly availability: readonly AvailabilityPeriod[]
+  readonly absences: readonly AbsencePeriod[]
+  readonly costRates: readonly CostRatePeriod[]
+}
+
+export interface TeamState {
+  readonly resources: readonly ResourceDetail[]
+  readonly calendars: readonly CalendarOption[]
+}
+
+export async function fetchTeam(): Promise<TeamState> {
+  return get<TeamState>('/api/resources')
+}
+
+async function send(path: string, method: 'POST' | 'PATCH' | 'DELETE', body?: unknown): Promise<void> {
+  const response = await fetch(path, {
+    method,
+    ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
+  })
+  if (!response.ok) {
+    const payload: unknown = await response.json().catch(() => ({}))
+    throw new Error(
+      typeof payload === 'object' && payload !== null && 'error' in payload
+        ? String(payload.error)
+        : 'No se pudo guardar',
+    )
+  }
+}
+
+export async function createResource(input: {
+  readonly code: string
+  readonly displayName: string
+  readonly calendarId: string | null
+  readonly maxUnitsBp: number
+}): Promise<void> {
+  return send('/api/resources', 'POST', input)
+}
+
+export async function patchResource(
+  resourceId: string,
+  changes: Readonly<Record<string, string | number | null>>,
+): Promise<void> {
+  return send(`/api/resources/${resourceId}`, 'PATCH', changes)
+}
+
+export async function removeResource(resourceId: string): Promise<void> {
+  return send(`/api/resources/${resourceId}`, 'DELETE')
+}
+
+export async function addAvailability(
+  resourceId: string,
+  period: { readonly from: string; readonly to: string; readonly unitsBp: number; readonly reason: string | null },
+): Promise<void> {
+  return send(`/api/resources/${resourceId}/availability`, 'POST', period)
+}
+
+export async function removeAvailability(id: string): Promise<void> {
+  return send(`/api/availability/${id}`, 'DELETE')
+}
+
+export async function addAbsence(
+  resourceId: string,
+  absence: { readonly kind: string; readonly from: string; readonly to: string; readonly note: string | null },
+): Promise<void> {
+  return send(`/api/resources/${resourceId}/absences`, 'POST', absence)
+}
+
+export async function removeAbsence(id: string): Promise<void> {
+  return send(`/api/absences/${id}`, 'DELETE')
+}
+
+export async function addCostRate(
+  resourceId: string,
+  rate: { readonly from: string; readonly to: string; readonly standardCentsHour: number },
+): Promise<void> {
+  return send(`/api/resources/${resourceId}/rates`, 'POST', rate)
+}
+
+export async function removeCostRate(id: string): Promise<void> {
+  return send(`/api/rates/${id}`, 'DELETE')
+}

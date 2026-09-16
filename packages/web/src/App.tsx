@@ -18,14 +18,16 @@ import { GanttView } from './views/GanttView.js'
 import { HeatmapView } from './views/HeatmapView.js'
 import { MatrixView } from './views/MatrixView.js'
 import { PlanView } from './views/PlanView.js'
+import { ResourcesView } from './views/ResourcesView.js'
 
-type Tab = 'matriz' | 'saturacion' | 'plan' | 'cronograma' | 'hallazgos' | 'comparar'
+type Tab = 'matriz' | 'saturacion' | 'plan' | 'cronograma' | 'equipo' | 'hallazgos' | 'comparar'
 
 const TABS: readonly { id: Tab; label: string; hint: string }[] = [
   { id: 'matriz', label: 'Carga', hint: 'Cuántas horas tiene comprometida cada persona, cada mes, en cada proyecto' },
   { id: 'saturacion', label: 'Saturación', hint: 'Quién se pasa de capacidad, cuándo y por cuánto' },
   { id: 'plan', label: 'Plan', hint: 'El árbol de trabajo con sus fechas calculadas' },
   { id: 'cronograma', label: 'Cronograma', hint: 'El plan en el tiempo, con el camino crítico' },
+  { id: 'equipo', label: 'Equipo', hint: 'De qué está hecha la capacidad: calendario, dedicación, ausencias y tarifa de cada persona' },
   { id: 'hallazgos', label: 'Hallazgos', hint: 'Todo lo que el motor quiere decirte' },
   { id: 'comparar', label: 'Comparar', hint: 'En qué se diferencia el plan de hoy del que congelaste' },
 ]
@@ -230,11 +232,26 @@ export function App(): React.JSX.Element {
             <h2>{activeTab?.label}</h2>
             <p>{activeTab?.hint}</p>
             <span className="spacer faint" style={{ fontSize: 12 }}>
-              {tab === 'plan' ? '✎ declarado · 🔒 derivado, no editable' : '🔒 columnas derivadas · no editables'}
+              {tab === 'equipo'
+                ? '✎ todo declarado · cada cambio recalcula el plan'
+                : tab === 'plan'
+                  ? '✎ declarado · 🔒 derivado, no editable'
+                  : '🔒 columnas derivadas · no editables'}
             </span>
           </div>
           <div className={tab === 'hallazgos' ? 'panel__body panel__body--flush' : 'panel__body panel__body--flush'}>
-            {state === null || data === null ? (
+            {tab === 'equipo' ? (
+              // La ficha del equipo es dato declarado: existe aunque todavía no
+              // se haya calculado nada, y de hecho es por donde hay que empezar
+              // en una base de datos vacía.
+              <ResourcesView
+                onChanged={() => {
+                  load().catch((cause: unknown) => {
+                    setError(cause instanceof Error ? cause.message : 'Error al recargar')
+                  })
+                }}
+              />
+            ) : state === null || data === null ? (
               <div className="empty">
                 <h3>Cargando el plan…</h3>
                 <p>Si es la primera vez, ejecuta <code>pnpm --filter @planner/api seed:demo</code>.</p>

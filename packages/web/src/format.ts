@@ -20,6 +20,15 @@ export function euros(cents: number): string {
   return `${(cents / 100).toLocaleString('es-ES', { maximumFractionDigits: 0 })} €`
 }
 
+/**
+ * Una tarifa por hora se muestra con sus dos decimales: redondear 72,50 €/h a
+ * 73 €/h cambiaría el coste de un proyecto entero por una comodidad tipográfica.
+ * Y un cero aquí es un cero, no un guion: significa «sin coste», que es un dato.
+ */
+export function euroRate(cents: number): string {
+  return `${(cents / 100).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+}
+
 export function monthLabel(period: string): string {
   const [year, month] = period.split('-')
   const index = Number(month) - 1
