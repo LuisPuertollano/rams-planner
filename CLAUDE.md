@@ -68,8 +68,12 @@ Los tipos son nominales: el compilador impide mezclarlos. No los conviertas con
 ## Antes de dar algo por terminado
 
 ```bash
-pnpm verify     # lint + tipos + regla de dependencia + tests
+pnpm verify     # lint + tipos + regla de dependencia + tests con cobertura
 ```
+
+`verify` ejecuta **exactamente** lo que verifica CI del código, cobertura
+incluida. Si alguna vez dejan de coincidir, CI encontrará cosas que en local
+pasaban, que es la peor forma de perder el tiempo.
 
 Y si tocaste la base de datos:
 

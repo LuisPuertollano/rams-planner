@@ -105,7 +105,12 @@ jobs:
 
       - name: Las migraciones son reversibles
         run: |
-          for _ in 1 2 3 4; do dbmate --migrations-dir ./db/migrations --no-dump-schema down; done
+          # Tantas vueltas como migraciones haya: fijar el número a mano hace
+          # que este paso empiece a fallar en cuanto se añade una.
+          total=$(find db/migrations -name '*.sql' | wc -l)
+          for _ in $(seq 1 "$total"); do
+            dbmate --migrations-dir ./db/migrations --no-dump-schema down
+          done
           remaining=$(psql -h 127.0.0.1 -U planner -d planner -tAc \
             "select count(*) from information_schema.tables where table_schema='public'")
           if [ "$remaining" != "1" ]; then

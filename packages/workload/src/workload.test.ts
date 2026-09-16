@@ -287,3 +287,68 @@ describe('agregaciones', () => {
     expect(periodOf(d('2026-01-01'), 'week')).toBe('2026-S01')
   })
 })
+
+describe('casos límite del reparto', () => {
+  it('avisa cuando la asignación no tiene ni un día laborable donde repartirse', () => {
+    // La ventana de la asignación cae entera en fin de semana.
+    const snapshot = new PlanBuilder()
+      .resource('ana')
+      .task('a', { durationMinutes: 2400 })
+      .assign('a', 'ana', { windowFrom: d('2026-03-07'), windowTo: d('2026-03-08') })
+      .build()
+    const { timephased, findings } = runWorkload(snapshot)
+    expect(timephased).toHaveLength(0)
+    expect(findings.some((finding) => finding.code === 'RESOURCE_NO_CAPACITY')).toBe(true)
+  })
+
+  it('sin periodo de disponibilidad vigente se usa la dedicación máxima', () => {
+    const snapshot = new PlanBuilder()
+      .resource('ana', { availability: [{ from: d('2020-01-01'), to: d('2020-12-31'), unitsBp: 5_000 }] })
+      .task('a')
+      .assign('a', 'ana')
+      .build()
+    // Ningún periodo cubre 2026, así que manda max_units_bp (100 %).
+    expect(runWorkload(snapshot).capacity.capacityOf('ana', d('2026-03-02'))).toBe(480)
+  })
+
+  it('sin tarifa vigente el coste es cero, no un número inventado', () => {
+    const snapshot = new PlanBuilder()
+      .resource('ana', { costRates: [{ from: d('2020-01-01'), to: d('2020-12-31'), standardCentsPerHour: 9_000 }] })
+      .task('a')
+      .assign('a', 'ana')
+      .build()
+    expect(runWorkload(snapshot).timephased[0]?.costCents).toBe(0)
+  })
+
+  it('un recurso de tipo coste no genera carga', () => {
+    const snapshot = new PlanBuilder()
+      .resource('licencias', { kind: 'cost' })
+      .task('a')
+      .assign('a', 'licencias')
+      .build()
+    expect(runWorkload(snapshot).timephased).toHaveLength(0)
+  })
+})
+
+describe('agregación por claves', () => {
+  it('puede agregar sin separar por proyecto y separando por tarea', () => {
+    const snapshot = new PlanBuilder()
+      .resource('ana')
+      .task('a', { durationMinutes: 480 })
+      .task('b', { durationMinutes: 480 })
+      .link('a', 'b')
+      .assign('a', 'ana')
+      .assign('b', 'ana')
+      .build()
+    const { timephased } = runWorkload(snapshot)
+
+    const porTarea = aggregateLoad(timephased, 'month', { byNode: true })
+    expect(porTarea).toHaveLength(2)
+    expect(porTarea.every((row) => row.nodeId !== '')).toBe(true)
+
+    const sinProyecto = aggregateLoad(timephased, 'month', { byProject: false, byNode: false })
+    expect(sinProyecto).toHaveLength(1)
+    expect(sinProyecto[0]?.projectId).toBe('')
+    expect(sinProyecto[0]?.plannedMinutes).toBe(960)
+  })
+})
