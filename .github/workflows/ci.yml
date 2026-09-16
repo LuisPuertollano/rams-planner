@@ -103,6 +103,48 @@ jobs:
       - name: Pruebas de integración contra la base de datos real
         run: pnpm vitest run packages/persistence
 
+      # Una instalación que se actualiza no es una base limpia, y ese es el
+      # camino que más se recorre en la vida real. Aquí se reproduce: las
+      # migraciones viejas, los datos que dejó la versión anterior, y encima
+      # las nuevas. Este paso existe porque una migración de semilla con
+      # identificadores fijos pasó CI en verde y habría roto la actualización
+      # de la única instalación que había.
+      - name: Las migraciones se aplican sobre una instalación que ya tenía datos
+        env:
+          DATABASE_URL: postgres://planner:planner_ci@127.0.0.1:5432/planner_upgrade?sslmode=disable
+        run: |
+          psql -h 127.0.0.1 -U planner -d planner -c 'CREATE DATABASE planner_upgrade'
+
+          # Todas menos la última: la versión "anterior".
+          mkdir -p /tmp/migraciones-anteriores
+          ls db/migrations/*.sql | head -n -1 | xargs -I{} cp {} /tmp/migraciones-anteriores/
+          dbmate --migrations-dir /tmp/migraciones-anteriores --no-dump-schema up
+
+          # Los datos que deja la versión anterior. Se insertan con SQL y no
+          # con la CLI a propósito: la CLI es código NUEVO, y contra el esquema
+          # viejo fallaría por razones que no tienen nada que ver con lo que
+          # este paso comprueba. En una instalación real el esquema se migra
+          # antes de que arranque la aplicación nueva, nunca al revés.
+          psql -h 127.0.0.1 -U planner -d planner_upgrade -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO field_definition (entity_type, field_key, label, data_type, display_order)
+          VALUES ('wbs_node', 'rams_tag', 'Disciplina RAMS', 'single_select', 1);
+          INSERT INTO project (code, name, calendar_id, status_start, priority, currency)
+          VALUES ('YA-EXISTIA', 'Proyecto anterior a la actualización',
+                  '00000000-0000-4000-8000-000000000002', '2026-03-02', 500, 'EUR');
+          SQL
+
+          # Ahora la actualización. Si falla aquí, falla en producción.
+          dbmate --migrations-dir ./db/migrations --no-dump-schema up
+
+          etiquetas=$(psql -h 127.0.0.1 -U planner -d planner_upgrade -tAc \
+            "select count(*) from field_value v join wbs_node n on n.id = v.entity_id
+             where n.project_id = '00000000-0000-4000-9000-000000000001'")
+          if [ "$etiquetas" -lt 1 ]; then
+            echo "La plantilla se creó sin sus disciplinas: la migración no encontró el campo."
+            exit 1
+          fi
+          echo "Actualización sobre una base con datos: OK ($etiquetas disciplinas)."
+
       # En una base LIMPIA a propósito: los datos de demostración referencian
       # los calendarios base, así que revertir su migración sobre ellos falla
       # por clave ajena. Eso no es un fallo de la migración, es que hay datos.

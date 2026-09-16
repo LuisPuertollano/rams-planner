@@ -84,26 +84,34 @@ INSERT INTO task (node_id, task_type, is_effort_driven, duration_minutes, work_d
     ('00000000-0000-4000-9001-000000000030', 'fixed_duration', TRUE, 2400, 0, 'asap', 0, FALSE),
     ('00000000-0000-4000-9001-000000000031', 'fixed_duration', TRUE, 0, 0, 'asap', 0, TRUE);
 
-INSERT INTO field_value (field_id, entity_id, value_text) VALUES
-    ('00000000-0000-4000-9000-0000000000ff', '00000000-0000-4000-9001-000000000002', 'Plan'),
-    ('00000000-0000-4000-9000-0000000000ff', '00000000-0000-4000-9001-000000000003', 'Plan'),
-    ('00000000-0000-4000-9000-0000000000ff', '00000000-0000-4000-9001-000000000006', 'Definición'),
-    ('00000000-0000-4000-9000-0000000000ff', '00000000-0000-4000-9001-000000000007', 'Hazard Log'),
-    ('00000000-0000-4000-9000-0000000000ff', '00000000-0000-4000-9001-000000000008', 'Hazard Log'),
-    ('00000000-0000-4000-9000-0000000000ff', '00000000-0000-4000-9001-000000000011', 'Hazard Log'),
-    ('00000000-0000-4000-9000-0000000000ff', '00000000-0000-4000-9001-000000000012', 'Requisitos'),
-    ('00000000-0000-4000-9000-0000000000ff', '00000000-0000-4000-9001-000000000013', 'SIL'),
-    ('00000000-0000-4000-9000-0000000000ff', '00000000-0000-4000-9001-000000000016', 'FMECA'),
-    ('00000000-0000-4000-9000-0000000000ff', '00000000-0000-4000-9001-000000000017', 'RAM'),
-    ('00000000-0000-4000-9000-0000000000ff', '00000000-0000-4000-9001-000000000018', 'RAM'),
-    ('00000000-0000-4000-9000-0000000000ff', '00000000-0000-4000-9001-000000000019', 'RAM'),
-    ('00000000-0000-4000-9000-0000000000ff', '00000000-0000-4000-9001-000000000022', 'V&V'),
-    ('00000000-0000-4000-9000-0000000000ff', '00000000-0000-4000-9001-000000000023', 'Safety Case'),
-    ('00000000-0000-4000-9000-0000000000ff', '00000000-0000-4000-9001-000000000024', 'V&V'),
-    ('00000000-0000-4000-9000-0000000000ff', '00000000-0000-4000-9001-000000000027', 'Safety Case'),
-    ('00000000-0000-4000-9000-0000000000ff', '00000000-0000-4000-9001-000000000028', 'V&V'),
-    ('00000000-0000-4000-9000-0000000000ff', '00000000-0000-4000-9001-000000000029', 'Hazard Log'),
-    ('00000000-0000-4000-9000-0000000000ff', '00000000-0000-4000-9001-000000000030', 'Plan');
+-- El identificador del campo se busca en vez de darlo por sabido: en una base
+-- donde «rams_tag» ya existía —creado por la semilla de demostración— el
+-- INSERT de arriba no hizo nada, y el identificador fijo no existe.
+INSERT INTO field_value (field_id, entity_id, value_text)
+SELECT f.id, v.entity_id::uuid, v.tag
+FROM field_definition f,
+     (VALUES
+    ('00000000-0000-4000-9001-000000000002', 'Plan'),
+    ('00000000-0000-4000-9001-000000000003', 'Plan'),
+    ('00000000-0000-4000-9001-000000000006', 'Definición'),
+    ('00000000-0000-4000-9001-000000000007', 'Hazard Log'),
+    ('00000000-0000-4000-9001-000000000008', 'Hazard Log'),
+    ('00000000-0000-4000-9001-000000000011', 'Hazard Log'),
+    ('00000000-0000-4000-9001-000000000012', 'Requisitos'),
+    ('00000000-0000-4000-9001-000000000013', 'SIL'),
+    ('00000000-0000-4000-9001-000000000016', 'FMECA'),
+    ('00000000-0000-4000-9001-000000000017', 'RAM'),
+    ('00000000-0000-4000-9001-000000000018', 'RAM'),
+    ('00000000-0000-4000-9001-000000000019', 'RAM'),
+    ('00000000-0000-4000-9001-000000000022', 'V&V'),
+    ('00000000-0000-4000-9001-000000000023', 'Safety Case'),
+    ('00000000-0000-4000-9001-000000000024', 'V&V'),
+    ('00000000-0000-4000-9001-000000000027', 'Safety Case'),
+    ('00000000-0000-4000-9001-000000000028', 'V&V'),
+    ('00000000-0000-4000-9001-000000000029', 'Hazard Log'),
+    ('00000000-0000-4000-9001-000000000030', 'Plan')
+     ) AS v(entity_id, tag)
+WHERE f.entity_type = 'wbs_node' AND f.field_key = 'rams_tag';
 
 -- Las dependencias encadenan el trabajo en el orden del ciclo de vida: cada
 -- entregable espera al anterior. Es lo más conservador y lo más fácil de
@@ -136,5 +144,13 @@ INSERT INTO dependency (predecessor_node_id, successor_node_id, dependency_kind,
     ('00000000-0000-4000-9001-000000000030', '00000000-0000-4000-9001-000000000031', 'FS', 0);
 
 -- migrate:down
+-- Los valores de campo van primero: `field_value.entity_id` no es clave ajena a
+-- `wbs_node` (el campo vale para cualquier entidad), así que el borrado en
+-- cascada del proyecto no se los lleva y quedarían huérfanos.
+DELETE FROM field_value WHERE entity_id IN (
+    SELECT id FROM wbs_node WHERE project_id = '00000000-0000-4000-9000-000000000001'
+);
 DELETE FROM project WHERE id = '00000000-0000-4000-9000-000000000001';
+-- Sólo se retira la definición si la creó esta migración: si el campo ya
+-- existía, es de quien lo puso.
 DELETE FROM field_definition WHERE id = '00000000-0000-4000-9000-0000000000ff';
