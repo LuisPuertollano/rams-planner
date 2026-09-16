@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  DBMATE_VERSION: v2.27.0
+
+jobs:
+  code:
+    name: Código (lint, tipos, regla de dependencia, tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # La versión sale del campo packageManager de package.json. Declararla
+      # también aquí hace que pnpm/action-setup falle con "Multiple versions".
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Tipos
+        run: pnpm typecheck
+
+      - name: Regla de dependencia (el núcleo no conoce a los adaptadores)
+        run: pnpm check:deps
+
+      - name: Tests y cobertura
+        run: pnpm test:coverage
+
+  database:
+    name: Base de datos (migraciones e invariantes)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: planner
+          POSTGRES_PASSWORD: planner_ci
+          POSTGRES_DB: planner
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U planner -d planner"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      DATABASE_URL: postgres://planner:planner_ci@127.0.0.1:5432/planner?sslmode=disable
+      PGPASSWORD: planner_ci
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar dbmate
+        run: |
+          curl -fsSL -o /usr/local/bin/dbmate \
+            "https://github.com/amacneil/dbmate/releases/download/${DBMATE_VERSION}/dbmate-linux-amd64"
+          chmod +x /usr/local/bin/dbmate
+
+      - name: Aplicar migraciones
+        run: dbmate --migrations-dir ./db/migrations --no-dump-schema up
+
+      - name: Invariantes que hace cumplir la base de datos
+        run: |
+          psql -h 127.0.0.1 -U planner -d planner -v ON_ERROR_STOP=1 -f db/tests/invariants.sql
+
+      - name: Las migraciones son reversibles
+        run: |
+          for _ in 1 2 3 4; do dbmate --migrations-dir ./db/migrations --no-dump-schema down; done
+          remaining=$(psql -h 127.0.0.1 -U planner -d planner -tAc \
+            "select count(*) from information_schema.tables where table_schema='public'")
+          if [ "$remaining" != "1" ]; then
+            echo "El rollback dejó $remaining tablas; debería quedar sólo schema_migrations."
+            exit 1
+          fi
+          dbmate --migrations-dir ./db/migrations --no-dump-schema up
