@@ -361,6 +361,19 @@ a.button { text-decoration: none; display: inline-block; }
 .cobertura--unico { color: var(--severity-warning); }
 .cobertura__aviso { font-size: 11px; }
 
+/* --------------------------------------------------------- calendario --- */
+
+.grid--calendar th, .grid--calendar td { padding: 3px 2px; font-size: 11px; text-align: center; }
+.grid--calendar th:first-child, .grid--calendar td:first-child { text-align: left; padding-left: 10px; font-size: 13px; }
+.grid--calendar td:not(:first-child):not(:last-child) { width: 20px; min-width: 20px; height: 22px; }
+
+.dia--abierto { background: var(--util-ok); opacity: 0.35; }
+.dia--cerrado { background: var(--bg-sunken); }
+.dia--ausente { background: var(--severity-warning); }
+.dia--total { color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.legend__swatch.dia--abierto, .legend__swatch.dia--cerrado, .legend__swatch.dia--ausente { opacity: 1; }
+.legend__swatch.dia--abierto { background: var(--util-ok); }
+
 .team__detail { padding: 16px; display: flex; flex-direction: column; gap: 14px; overflow: auto; }
 
 .card { border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; background: var(--bg-raised); }

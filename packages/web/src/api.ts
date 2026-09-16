@@ -540,3 +540,26 @@ export async function setNodeSkill(nodeId: string, skillId: string, minLevel: nu
   })
   if (!response.ok) throw new Error('No se pudo guardar el requisito')
 }
+
+// ---------------------------------------------------------------------------
+// Calendario del equipo
+// ---------------------------------------------------------------------------
+
+export interface DailyCapacity {
+  readonly resourceId: string
+  readonly date: string
+  readonly capacityMinutes: number
+  readonly plannedMinutes: number
+}
+
+/**
+ * Capacidad y carga día a día. Sale de lo derivado: es la capacidad que el
+ * motor ha usado de verdad, no una reconstrucción del calendario en el cliente
+ * que acabaría enseñando otro número.
+ */
+export async function fetchCapacity(runId: string, from: string, to: string): Promise<readonly DailyCapacity[]> {
+  const body = await get<{ days: readonly DailyCapacity[] }>(
+    `/api/runs/${runId}/capacity?from=${from}&to=${to}`,
+  )
+  return body.days
+}

@@ -15,6 +15,7 @@ import { EditPanel } from './components/EditPanel.js'
 import { ImportButton } from './components/ImportButton.js'
 import { ProjectPanel } from './components/ProjectPanel.js'
 import { WhyPanel } from './components/WhyPanel.js'
+import { CalendarView } from './views/CalendarView.js'
 import { DiffView } from './views/DiffView.js'
 import { FindingsView } from './views/FindingsView.js'
 import { GanttView } from './views/GanttView.js'
@@ -24,7 +25,9 @@ import { PlanView } from './views/PlanView.js'
 import { SkillsView } from './views/SkillsView.js'
 import { ResourcesView } from './views/ResourcesView.js'
 
-type Tab = 'matriz' | 'saturacion' | 'plan' | 'cronograma' | 'equipo' | 'competencias' | 'hallazgos' | 'comparar'
+type Tab =
+  | 'matriz' | 'saturacion' | 'plan' | 'cronograma'
+  | 'equipo' | 'competencias' | 'calendario' | 'hallazgos' | 'comparar'
 
 const TABS: readonly { id: Tab; label: string; hint: string }[] = [
   { id: 'matriz', label: 'Carga', hint: 'Cuántas horas tiene comprometida cada persona, cada mes, en cada proyecto' },
@@ -32,6 +35,7 @@ const TABS: readonly { id: Tab; label: string; hint: string }[] = [
   { id: 'plan', label: 'Plan', hint: 'El árbol de trabajo con sus fechas calculadas' },
   { id: 'cronograma', label: 'Cronograma', hint: 'El plan en el tiempo, con el camino crítico' },
   { id: 'equipo', label: 'Equipo', hint: 'De qué está hecha la capacidad: calendario, dedicación, ausencias y tarifa de cada persona' },
+  { id: 'calendario', label: 'Calendario', hint: 'Quién está fuera, cuándo, y qué capacidad le queda al equipo cada día' },
   { id: 'competencias', label: 'Competencias', hint: 'Quién sabe hacer qué, y dónde el equipo tiene un único especialista' },
   { id: 'hallazgos', label: 'Hallazgos', hint: 'Todo lo que el motor quiere decirte' },
   { id: 'comparar', label: 'Comparar', hint: 'En qué se diferencia el plan de hoy del que congelaste' },
@@ -317,6 +321,8 @@ export function App(): React.JSX.Element {
                   })
                 }}
               />
+            ) : tab === 'calendario' ? (
+              <CalendarView runId={state.run?.id ?? ''} />
             ) : tab === 'cronograma' ? (
               <GanttView tasks={data.tasks} projects={state.projects} />
             ) : tab === 'comparar' ? (

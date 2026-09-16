@@ -200,6 +200,29 @@ De qué está hecha la capacidad. Ver el paso 1.
 **Todo lo de esta pestaña recalcula el plan al guardarlo.** Es intencionado: una
 capacidad que cambia sin que cambie la carga sería una pantalla mintiendo.
 
+### Calendario
+
+Quién está fuera, cuándo, y qué capacidad le queda al equipo cada día. Personas
+en las filas, días del mes en las columnas.
+
+| Color | Qué es |
+|-------|--------|
+| Naranja | Ausencia declarada: vacaciones, baja, formación |
+| Gris | No laborable: fin de semana o festivo del calendario de esa persona |
+| Verde | Disponible |
+
+La columna **Horas** de la derecha es la capacidad real de cada persona ese mes,
+y la fila **Capacidad del equipo** es la suma por día y del mes entero. Ya
+llevan descontadas las ausencias y los festivos: **no es una estimación**, es la
+capacidad exacta que el motor ha usado para repartir el trabajo.
+
+Para qué sirve mirarla: un agosto en el que coinciden cuatro personas no se
+detecta abriendo siete fichas individuales. Aquí se ve de un vistazo, y el
+número de horas del mes te dice cuánto trabajo cabe de verdad antes de
+comprometerlo.
+
+Las ausencias se declaran en la pestaña **Equipo**, en la ficha de cada persona.
+
 ### Competencias
 
 La hoja del equipo: **personas en las filas, competencias en las columnas**. Es
