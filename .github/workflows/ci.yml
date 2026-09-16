@@ -103,15 +103,24 @@ jobs:
       - name: Pruebas de integración contra la base de datos real
         run: pnpm vitest run packages/persistence
 
+      # En una base LIMPIA a propósito: los datos de demostración referencian
+      # los calendarios base, así que revertir su migración sobre ellos falla
+      # por clave ajena. Eso no es un fallo de la migración, es que hay datos.
       - name: Las migraciones son reversibles
+        env:
+          DATABASE_URL: postgres://planner:planner_ci@127.0.0.1:5432/planner_rollback?sslmode=disable
         run: |
+          psql -h 127.0.0.1 -U planner -d planner -c 'CREATE DATABASE planner_rollback'
+          dbmate --migrations-dir ./db/migrations --no-dump-schema up
+
           # Tantas vueltas como migraciones haya: fijar el número a mano hace
           # que este paso empiece a fallar en cuanto se añade una.
           total=$(find db/migrations -name '*.sql' | wc -l)
           for _ in $(seq 1 "$total"); do
             dbmate --migrations-dir ./db/migrations --no-dump-schema down
           done
-          remaining=$(psql -h 127.0.0.1 -U planner -d planner -tAc \
+
+          remaining=$(psql -h 127.0.0.1 -U planner -d planner_rollback -tAc \
             "select count(*) from information_schema.tables where table_schema='public'")
           if [ "$remaining" != "1" ]; then
             echo "El rollback dejó $remaining tablas; debería quedar sólo schema_migrations."

@@ -61,10 +61,25 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
     GRANT SELECT ON TABLES TO planner_api, planner_engine, planner_readonly;
 
 -- migrate:down
-REVOKE ALL ON ALL TABLES IN SCHEMA public FROM planner_api, planner_engine, planner_readonly;
-REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM planner_api, planner_engine, planner_readonly;
-REVOKE ALL ON SCHEMA public FROM planner_api, planner_engine, planner_readonly;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE SELECT ON TABLES FROM planner_api, planner_engine, planner_readonly;
-DROP ROLE IF EXISTS planner_api;
-DROP ROLE IF EXISTS planner_engine;
-DROP ROLE IF EXISTS planner_readonly;
+-- Se retiran los privilegios de ESTA base de datos y los roles se dejan estar.
+--
+-- Un rol es global del cluster, pero sus privilegios son de cada base de datos.
+-- Borrarlo desde una migración rompe en cuanto el mismo cluster aloja otra base
+-- que también lo usa —desarrollo y pruebas, el caso normal—: PostgreSQL se
+-- niega con «cannot be dropped because some objects depend on it», y con razón.
+-- El ciclo de vida de un rol es del cluster, no de una migración.
+--
+-- DROP OWNED BY retira de golpe todos los privilegios del rol en esta base,
+-- incluidos los de columna y los privilegios por defecto, que revocados a mano
+-- se olvidan siempre.
+DO $$
+DECLARE
+    v_role TEXT;
+BEGIN
+    FOREACH v_role IN ARRAY ARRAY['planner_api', 'planner_engine', 'planner_readonly'] LOOP
+        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = v_role) THEN
+            EXECUTE format('DROP OWNED BY %I', v_role);
+        END IF;
+    END LOOP;
+END;
+$$;
