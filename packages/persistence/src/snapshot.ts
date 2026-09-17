@@ -19,6 +19,7 @@ import type {
   ContourKind,
   ConstraintKind,
   DependencyDefinition,
+  DependencyOutOfPlan,
   DependencyKind,
   NodeKind,
   PlanSnapshot,
@@ -36,6 +37,31 @@ export interface LoadOptions {
   readonly horizon: Horizon
   readonly defaultCalendarCode?: string
 }
+
+/**
+ * Lo que entra en el cálculo: activo y no plantilla.
+ *
+ * En una constante y no repetido cinco veces, porque cinco copias de un
+ * predicado son cinco sitios donde olvidarse de uno. Y es el sitio donde se lee
+ * la regla entera de una vez: una plantilla es un molde y no se calcula; un
+ * proyecto en pausa o archivado está declarado y tampoco.
+ */
+const EN_EL_PLAN = "p.deleted_at IS NULL AND NOT p.is_template AND p.status = 'activo'"
+
+/** Nulo cuando el proyecto sí entra en el plan. */
+type MotivoFuera = 'inactivo' | 'archivado' | 'plantilla' | null
+
+/**
+ * Por qué un proyecto se queda fuera del cálculo, o nulo si no se queda.
+ *
+ * Es SQL y no TypeScript porque la consulta de dependencias necesita saberlo de
+ * los dos extremos a la vez para decidir si el enlace se aplica, y traerse los
+ * proyectos enteros para calcularlo aquí sería dos viajes más y un `JOIN` a
+ * mano.
+ */
+const motivo = (alias: string): string =>
+  `CASE WHEN ${alias}.is_template THEN 'plantilla' ` +
+  `WHEN ${alias}.status <> 'activo' THEN ${alias}.status::text END`
 
 /**
  * Carga el snapshot completo.
@@ -57,7 +83,7 @@ export async function loadSnapshot(db: Queryable, options: LoadOptions): Promise
   const projects = await loadProjects(db)
   const nodes = await loadNodes(db)
   const tasks = await loadTasks(db)
-  const dependencies = await loadDependencies(db)
+  const { dependencies, outOfPlan } = await loadDependencies(db)
   const assignments = await loadAssignments(db)
   const { skillRequirements, skillNames } = await loadSkills(db)
   const defaultCalendarId = await resolveDefaultCalendar(db, options.defaultCalendarCode ?? 'base_bw')
@@ -71,6 +97,7 @@ export async function loadSnapshot(db: Queryable, options: LoadOptions): Promise
     nodes,
     tasks,
     dependencies,
+    dependenciesOutOfPlan: outOfPlan,
     assignments,
     skillRequirements,
     skillNames,
@@ -94,7 +121,7 @@ async function loadSkills(db: Queryable): Promise<{
     `SELECT r.node_id, r.skill_id, r.min_level
      FROM node_skill_requirement r
      JOIN wbs_node n ON n.id = r.node_id AND n.deleted_at IS NULL
-     JOIN project  p ON p.id = n.project_id AND p.deleted_at IS NULL AND NOT p.is_template
+     JOIN project  p ON p.id = n.project_id AND ${EN_EL_PLAN}
      ORDER BY r.node_id, r.skill_id`,
   )
   const names = await db.query<{ id: string; name: string }>('SELECT id, name FROM skill ORDER BY id')
@@ -263,13 +290,16 @@ async function loadProjects(db: Queryable): Promise<readonly ProjectDefinition[]
     priority: number
   }>(
     `SELECT id, code, name, calendar_id, status_start::text, priority
-     FROM project WHERE deleted_at IS NULL AND NOT is_template ORDER BY code, id`,
+     FROM project p WHERE ${EN_EL_PLAN} ORDER BY code, id`,
   )
   return rows.map((row) => ({
     id: row.id,
     code: row.code,
     name: row.name,
     ...(row.calendar_id !== null ? { calendarId: row.calendar_id } : {}),
+    // Siempre `activo`: la instantánea sólo carga lo que se calcula. Se pone
+    // explícito para que quien lea un `PlanSnapshot` no tenga que deducirlo.
+    status: 'activo',
     statusStart: calendarDate(row.status_start),
     priority: row.priority,
   }))
@@ -287,7 +317,7 @@ async function loadNodes(db: Queryable): Promise<readonly WbsNodeDefinition[]> {
   }>(
     `SELECT n.id, n.project_id, n.parent_id, n.node_kind, n.code, n.name, n.sort_key
      FROM wbs_node n JOIN project p ON p.id = n.project_id
-     WHERE n.deleted_at IS NULL AND p.deleted_at IS NULL AND NOT p.is_template
+     WHERE n.deleted_at IS NULL AND ${EN_EL_PLAN}
      ORDER BY n.path, n.id`,
   )
   return rows.map((row) => ({
@@ -321,7 +351,7 @@ async function loadTasks(db: Queryable): Promise<readonly TaskDefinition[]> {
             t.percent_complete_bp, t.standard_effort_minutes, t.is_milestone
      FROM task t
      JOIN wbs_node n ON n.id = t.node_id AND n.deleted_at IS NULL
-     JOIN project  p ON p.id = n.project_id AND p.deleted_at IS NULL AND NOT p.is_template
+     JOIN project  p ON p.id = n.project_id AND ${EN_EL_PLAN}
      ORDER BY t.node_id`,
   )
   return rows.map((row) => ({
@@ -340,28 +370,80 @@ async function loadTasks(db: Queryable): Promise<readonly TaskDefinition[]> {
   }))
 }
 
-async function loadDependencies(db: Queryable): Promise<readonly DependencyDefinition[]> {
+/**
+ * Los enlaces, separados en dos: los que se aplican y los que no se pueden
+ * aplicar porque el otro extremo se quedó fuera del plan.
+ *
+ * Los segundos **no se descartan aquí**. Antes esta consulta filtraba sólo por
+ * el proyecto de la sucesora, así que un enlace cuya predecesora estaba en una
+ * plantilla llegaba al motor con un nodo que no existía, y el orden topológico
+ * se lo saltaba en silencio: la sucesora se adelantaba sola. Con los proyectos
+ * archivados eso pasaría de raro a corriente.
+ */
+async function loadDependencies(db: Queryable): Promise<{
+  dependencies: readonly DependencyDefinition[]
+  outOfPlan: readonly DependencyOutOfPlan[]
+}> {
   const { rows } = await db.query<{
     id: string
     predecessor_node_id: string
     successor_node_id: string
     dependency_kind: string
     lag_minutes: number
+    predecessor_name: string
+    successor_name: string
+    predecessor_reason: MotivoFuera
+    successor_reason: MotivoFuera
+    predecessor_project: string | null
+    successor_project: string | null
   }>(
-    `SELECT d.id, d.predecessor_node_id, d.successor_node_id, d.dependency_kind, d.lag_minutes
+    `SELECT d.id, d.predecessor_node_id, d.successor_node_id, d.dependency_kind, d.lag_minutes,
+            q.name AS predecessor_name, s.name AS successor_name,
+            ${motivo('pp')} AS predecessor_reason, pp.code AS predecessor_project,
+            ${motivo('ps')} AS successor_reason,   ps.code AS successor_project
      FROM dependency d
-     JOIN wbs_node s ON s.id = d.successor_node_id   AND s.deleted_at IS NULL
-     JOIN wbs_node q ON q.id = d.predecessor_node_id AND q.deleted_at IS NULL
-     JOIN project  p ON p.id = s.project_id AND p.deleted_at IS NULL AND NOT p.is_template
+     JOIN wbs_node s  ON s.id = d.successor_node_id   AND s.deleted_at IS NULL
+     JOIN wbs_node q  ON q.id = d.predecessor_node_id AND q.deleted_at IS NULL
+     JOIN project  ps ON ps.id = s.project_id AND ps.deleted_at IS NULL
+     JOIN project  pp ON pp.id = q.project_id AND pp.deleted_at IS NULL
+     -- Al menos un extremo dentro: un enlace entre dos proyectos que los dos
+     -- están fuera no es asunto de este plan y no se dice.
+     WHERE ${motivo('ps')} IS NULL OR ${motivo('pp')} IS NULL
      ORDER BY d.id`,
   )
-  return rows.map((row) => ({
-    id: row.id,
-    predecessorNodeId: row.predecessor_node_id,
-    successorNodeId: row.successor_node_id,
-    kind: row.dependency_kind as DependencyKind,
-    lagMinutes: row.lag_minutes,
-  }))
+
+  const dependencies: DependencyDefinition[] = []
+  const outOfPlan: DependencyOutOfPlan[] = []
+
+  for (const row of rows) {
+    // Los dos dentro: el enlace se aplica, como siempre.
+    if (row.predecessor_reason === null && row.successor_reason === null) {
+      dependencies.push({
+        id: row.id,
+        predecessorNodeId: row.predecessor_node_id,
+        successorNodeId: row.successor_node_id,
+        kind: row.dependency_kind as DependencyKind,
+        lagMinutes: row.lag_minutes,
+      })
+      continue
+    }
+
+    // Uno fuera: no se aplica, y se anota quién se queda sin él y por qué. La
+    // tarea que se nombra es la que **sí** está en el plan, porque es la que
+    // alguien va a mirar cuando sus fechas cambien.
+    const faltaLaPredecesora = row.predecessor_reason !== null
+    outOfPlan.push({
+      id: row.id,
+      nodeId: faltaLaPredecesora ? row.successor_node_id : row.predecessor_node_id,
+      nodeName: faltaLaPredecesora ? row.successor_name : row.predecessor_name,
+      otherName: faltaLaPredecesora ? row.predecessor_name : row.successor_name,
+      otherProjectCode: (faltaLaPredecesora ? row.predecessor_project : row.successor_project) ?? '—',
+      reason: (faltaLaPredecesora ? row.predecessor_reason : row.successor_reason) ?? 'archivado',
+      missingIsPredecessor: faltaLaPredecesora,
+    })
+  }
+
+  return { dependencies, outOfPlan }
 }
 
 async function loadAssignments(db: Queryable): Promise<readonly AssignmentDefinition[]> {

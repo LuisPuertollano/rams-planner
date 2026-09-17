@@ -22,6 +22,11 @@ export const COMMITMENT_LEVELS = ['firme', 'probable', 'posible'] as const
 
 export type CommitmentLevel = (typeof COMMITMENT_LEVELS)[number]
 
+/** Qué se hace con un proyecto. Sólo `activo` entra en el cálculo. */
+export const PROJECT_STATUSES = ['activo', 'inactivo', 'archivado'] as const
+
+export type ProjectStatus = (typeof PROJECT_STATUSES)[number]
+
 export interface CommitmentSplit {
   readonly firme: number
   readonly probable: number
@@ -43,6 +48,11 @@ export interface Project {
    * es la confianza en que llegue.
    */
   readonly commitment: CommitmentLevel
+  /**
+   * Qué se hace con él. Lo que no está `activo` **no entra en el cálculo**: no
+   * genera carga ni ocupa a nadie, y se guarda entero.
+   */
+  readonly status: ProjectStatus
   /** La línea base contra la que se compara este proyecto. */
   readonly currentBaselineId: string | null
 }

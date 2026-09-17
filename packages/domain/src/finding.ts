@@ -6,6 +6,7 @@ export type FindingSeverity = 'blocking' | 'error' | 'warning' | 'info'
 
 export type FindingCode =
   | 'DEPENDENCY_CYCLE'
+  | 'DEPENDENCY_OUT_OF_PLAN'
   | 'CONSTRAINT_CONFLICT'
   | 'RESOURCE_OVERALLOCATED'
   | 'RESOURCE_NO_CAPACITY'

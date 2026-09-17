@@ -6,6 +6,7 @@ import type {
   AssignmentDefinition,
   ConstraintKind,
   DependencyDefinition,
+  DependencyOutOfPlan,
   DependencyKind,
   PlanSnapshot,
   ProjectDefinition,
@@ -44,21 +45,44 @@ export class PlanBuilder {
   private readonly nodes: WbsNodeDefinition[] = []
   private readonly tasks: TaskDefinition[] = []
   private readonly dependencies: DependencyDefinition[] = []
+  private readonly dependenciesOutOfPlan: DependencyOutOfPlan[] = []
   private readonly assignments: AssignmentDefinition[] = []
   private readonly resources: ResourceDefinition[] = []
   private readonly skillRequirements: SkillRequirement[] = []
   private readonly skillNames: Record<string, string> = {}
   private readonly projects: ProjectDefinition[] = [
-    { id: 'p1', code: 'P1', name: 'Proyecto', statusStart: d('2026-03-02'), priority: 500 },
+    { id: 'p1', code: 'P1', name: 'Proyecto', status: 'activo', statusStart: d('2026-03-02'), priority: 500 },
   ]
 
   project(project: Partial<ProjectDefinition> & { id: string }): this {
     this.projects.push({
       code: project.id.toUpperCase(),
       name: project.id,
+      status: 'activo',
       statusStart: d('2026-03-02'),
       priority: 500,
       ...project,
+    })
+    return this
+  }
+
+  /**
+   * Un enlace declarado cuyo otro extremo no está en el plan: el proyecto de
+   * enfrente está en pausa, archivado, o es una plantilla.
+   */
+  danglingLink(
+    nodeId: string,
+    options: Partial<DependencyOutOfPlan> = {},
+  ): this {
+    this.dependenciesOutOfPlan.push({
+      id: `suelto-${nodeId}`,
+      nodeId,
+      nodeName: nodeId,
+      otherName: 'La de enfrente',
+      otherProjectCode: 'OTRO',
+      reason: 'archivado',
+      missingIsPredecessor: true,
+      ...options,
     })
     return this
   }
@@ -166,6 +190,7 @@ export class PlanBuilder {
       nodes: this.nodes,
       tasks: this.tasks,
       dependencies: this.dependencies,
+      dependenciesOutOfPlan: this.dependenciesOutOfPlan,
       skillRequirements: this.skillRequirements,
       skillNames: this.skillNames,
       assignments: this.assignments,

@@ -28,6 +28,7 @@ parece una mala idea, aquí está el razonamiento que había detrás.
 | [0021](0021-permisos-traducidos.md) | El catálogo de permisos en cuatro idiomas; los nombres de los roles no se traducen | P1 |
 | [0022](0022-errores-con-codigo.md) | Los errores de la API llevan código estable; la frase se escribe en la interfaz | P1 |
 | [0023](0023-capacidad-neta-y-compromiso.md) | Capacidad neta frente a bruta, compromiso del proyecto y línea base de referencia | P1, P2, P4, P5 |
+| [0024](0024-estado-del-proyecto.md) | El estado del proyecto decide qué entra en el cálculo; el enlace que cruza a lo archivado se avisa | P1, P2, P3, P4 |
 
 ## Decisiones tomadas por defecto
 

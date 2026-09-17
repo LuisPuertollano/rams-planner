@@ -5,7 +5,7 @@
  * número que salga de aquí lleva su `runId` y por tanto se puede auditar.
  */
 
-import type { CalendarDate, CommitmentLevel } from '@planner/domain'
+import type { CalendarDate, CommitmentLevel, ProjectStatus } from '@planner/domain'
 import type { Queryable } from './db.js'
 
 export interface RunSummary {
@@ -378,6 +378,11 @@ export interface ProjectSummary {
    * es confianza —`firme` está contratado, `posible` puede no llegar nunca—.
    */
   readonly commitment: CommitmentLevel
+  /**
+   * Qué se hace con él. Lo que no está `activo` no entra en el cálculo, así
+   * que no genera carga ni consume capacidad de nadie.
+   */
+  readonly status: ProjectStatus
   /** Contra qué línea base se compara este proyecto. Nula: contra ninguna. */
   readonly currentBaselineId: string | null
 }
@@ -391,10 +396,14 @@ export async function readProjects(db: Queryable): Promise<readonly ProjectSumma
     priority: number
     is_template: boolean
     commitment: CommitmentLevel
+    status: ProjectStatus
     current_baseline_id: string | null
   }>(
-    `SELECT id, code, name, status_start::text, priority, is_template, commitment, current_baseline_id
-     FROM project WHERE deleted_at IS NULL ORDER BY is_template, code`,
+    `SELECT id, code, name, status_start::text, priority, is_template, commitment, status,
+            current_baseline_id
+     FROM project WHERE deleted_at IS NULL
+     -- Lo archivado al final: sigue estando, y no es lo que se mira primero.
+     ORDER BY is_template, status = 'archivado', code`,
   )
   return rows.map((row) => ({
     id: row.id,
@@ -404,6 +413,7 @@ export async function readProjects(db: Queryable): Promise<readonly ProjectSumma
     priority: row.priority,
     isTemplate: row.is_template,
     commitment: row.commitment,
+    status: row.status,
     currentBaselineId: row.current_baseline_id,
   }))
 }

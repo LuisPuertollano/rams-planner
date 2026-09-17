@@ -182,6 +182,11 @@ export const fr: Diccionario = {
     'Le plan n’a ni cycle, ni conflit de contrainte, et personne au-delà de sa capacité.',
 
   'hallazgo.DEPENDENCY_CYCLE': 'Il y a un cycle de dépendances : %s. Le calcul ne peut pas continuer ; supprime l’un des liens.',
+  'hallazgo.DEPENDENCY_OUT_OF_PLAN.falta-la-predecesora': '« %s » attend « %s » (%s), qui est hors du plan : %s. Le lien ne s’applique pas et les dates sortent sans lui.',
+  'hallazgo.DEPENDENCY_OUT_OF_PLAN.falta-la-sucesora': '« %s » est prédécesseur de « %s » (%s), qui est hors du plan : %s. Le lien ne s’applique pas.',
+  'hallazgo.fuera.inactivo': 'son projet est en pause',
+  'hallazgo.fuera.archivado': 'son projet est archivé',
+  'hallazgo.fuera.plantilla': 'son projet a été enregistré comme modèle',
   'hallazgo.CONSTRAINT_CONFLICT.start_no_later_than': '« %s » ne peut pas commencer avant le %s : ses prédécesseurs la poussent au %s.',
   'hallazgo.CONSTRAINT_CONFLICT.finish_no_later_than': '« %s » finirait le %s, après la limite %s.',
   'hallazgo.CONSTRAINT_CONFLICT.must_start_on': '« %s » doit commencer le %s, mais ses prédécesseurs ne le permettent qu’au %s. La contrainte gagne et le conflit reste visible.',
@@ -205,6 +210,7 @@ export const fr: Diccionario = {
   'hallazgo.REBALANCE_NO_CANDIDATE': '« %s » est surchargé et personne ne peut reprendre son travail : soit la compétence manque, soit les autres n’ont pas de place non plus.',
 
   'hallazgo.que.DEPENDENCY_CYCLE': 'Il y a un cycle de dépendances. Le moteur s’arrête au lieu de supprimer un lien de lui-même.',
+  'hallazgo.que.DEPENDENCY_OUT_OF_PLAN': 'Un lien déclaré que le plan ne peut pas appliquer parce que l’autre extrémité n’entre pas dans le calcul. Il est signalé pour qu’archiver un projet n’avance pas en silence les dates de celui d’à côté.',
   'hallazgo.que.CONSTRAINT_CONFLICT': 'Une contrainte dure contredit les dépendances. La contrainte gagne et le conflit reste visible.',
   'hallazgo.que.RESOURCE_OVERALLOCATED': 'La charge dépasse la capacité. La donnée est journalière ; ici résumée par mois.',
   'hallazgo.que.RESOURCE_NO_CAPACITY': 'Du travail est affecté sur des jours sans capacité.',

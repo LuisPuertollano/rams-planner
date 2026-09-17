@@ -182,6 +182,11 @@ export const de: Diccionario = {
     'Der Plan hat keine Zyklen, keine Konflikte mit Einschränkungen und niemanden über seiner Kapazität.',
 
   'hallazgo.DEPENDENCY_CYCLE': 'Es gibt einen Abhängigkeitszyklus: %s. Die Berechnung kann nicht weiterlaufen; löse eine der Verknüpfungen.',
+  'hallazgo.DEPENDENCY_OUT_OF_PLAN.falta-la-predecesora': '„%s“ wartet auf „%s“ (%s), was außerhalb des Plans liegt: %s. Die Verknüpfung greift nicht, und die Termine entstehen ohne sie.',
+  'hallazgo.DEPENDENCY_OUT_OF_PLAN.falta-la-sucesora': '„%s“ ist Vorgänger von „%s“ (%s), was außerhalb des Plans liegt: %s. Die Verknüpfung greift nicht.',
+  'hallazgo.fuera.inactivo': 'das Projekt ist pausiert',
+  'hallazgo.fuera.archivado': 'das Projekt ist archiviert',
+  'hallazgo.fuera.plantilla': 'das Projekt wurde als Vorlage gespeichert',
   'hallazgo.CONSTRAINT_CONFLICT.start_no_later_than': '„%s“ kann nicht vor dem %s beginnen: die Vorgänger drücken es auf %s.',
   'hallazgo.CONSTRAINT_CONFLICT.finish_no_later_than': '„%s“ würde am %s enden, nach der Grenze %s.',
   'hallazgo.CONSTRAINT_CONFLICT.must_start_on': '„%s“ muss am %s beginnen, aber die Vorgänger erlauben es erst am %s. Die Einschränkung gewinnt und der Konflikt bleibt sichtbar.',
@@ -205,6 +210,7 @@ export const de: Diccionario = {
   'hallazgo.REBALANCE_NO_CANDIDATE': '„%s“ ist überlastet und es gibt niemanden, der die Arbeit übernehmen kann: entweder fehlt die Kompetenz, oder auch die anderen haben keinen Platz.',
 
   'hallazgo.que.DEPENDENCY_CYCLE': 'Es gibt einen Abhängigkeitszyklus. Der Rechenkern hält an, statt eigenmächtig eine Verknüpfung zu lösen.',
+  'hallazgo.que.DEPENDENCY_OUT_OF_PLAN': 'Eine erklärte Verknüpfung, die der Plan nicht anwenden kann, weil das andere Ende nicht in die Berechnung eingeht. Sie wird gemeldet, damit das Archivieren eines Projekts nicht stillschweigend die Termine des Nachbarprojekts vorzieht.',
   'hallazgo.que.CONSTRAINT_CONFLICT': 'Eine harte Einschränkung widerspricht den Abhängigkeiten. Die Einschränkung gewinnt und der Konflikt bleibt sichtbar.',
   'hallazgo.que.RESOURCE_OVERALLOCATED': 'Die Last übersteigt die Kapazität. Die Daten sind täglich; hier als Monat zusammengefasst.',
   'hallazgo.que.RESOURCE_NO_CAPACITY': 'Es ist Arbeit an Tagen ohne Kapazität zugeordnet.',

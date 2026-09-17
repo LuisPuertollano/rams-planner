@@ -41,6 +41,71 @@ describe.skipIf(pool === null)('integración con PostgreSQL', () => {
     expect(snapshot.projects[0]?.statusStart).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
 
+  it('un proyecto que se archiva sale del plan, y el enlace que perdía se dice', async () => {
+    if (pool === null) return
+    // Es la prueba que ninguna unitaria puede hacer: que el filtro de estado
+    // está de verdad en las cinco consultas de la instantánea, y que el enlace
+    // que cruza al proyecto archivado llega al motor como aviso en vez de
+    // desaparecer.
+    await withTransaction(pool, async (db) => {
+      const antes = await loadSnapshot(db, { horizon })
+      const proyecto = antes.projects[0]
+      expect(proyecto).toBeDefined()
+      if (proyecto === undefined) return
+
+      const suyos = antes.nodes.filter((nodo) => nodo.projectId === proyecto.id).length
+      expect(suyos).toBeGreaterThan(0)
+
+      // Un enlace desde una tarea de este proyecto a una de otro, para que al
+      // archivarlo el otro se quede sin predecesora.
+      const mia = antes.tasks.find((tarea) => {
+        const nodo = antes.nodes.find((n) => n.id === tarea.nodeId)
+        return nodo?.projectId === proyecto.id
+      })
+      const ajena = antes.tasks.find((tarea) => {
+        const nodo = antes.nodes.find((n) => n.id === tarea.nodeId)
+        return nodo !== undefined && nodo.projectId !== proyecto.id
+      })
+      expect(mia).toBeDefined()
+      expect(ajena).toBeDefined()
+      if (mia === undefined || ajena === undefined) return
+
+      await db.query(
+        `INSERT INTO dependency (predecessor_node_id, successor_node_id, dependency_kind, lag_minutes)
+         VALUES ($1, $2, 'FS', 0)`,
+        [mia.nodeId, ajena.nodeId],
+      )
+      await db.query(`UPDATE project SET status = 'archivado' WHERE id = $1`, [proyecto.id])
+
+      const despues = await loadSnapshot(db, { horizon })
+
+      // El proyecto y todo lo suyo, fuera del plan.
+      expect(despues.projects.some((p) => p.id === proyecto.id)).toBe(false)
+      expect(despues.nodes.filter((nodo) => nodo.projectId === proyecto.id)).toEqual([])
+      expect(despues.projects.length).toBe(antes.projects.length - 1)
+
+      // Y el enlace que cruzaba no se ha perdido: se dice.
+      const suelto = despues.dependenciesOutOfPlan.find((d) => d.nodeId === ajena.nodeId)
+      expect(suelto?.reason).toBe('archivado')
+      expect(suelto?.missingIsPredecessor).toBe(true)
+      expect(suelto?.otherProjectCode).toBe(proyecto.code)
+
+      // El motor lo convierte en aviso y sigue calculando.
+      const salida = schedulePlan(despues)
+      expect(salida.completed).toBe(true)
+      expect(salida.findings.some((f) => f.code === 'DEPENDENCY_OUT_OF_PLAN')).toBe(true)
+
+      // Se deshace: esta prueba no deja el proyecto archivado para las demás.
+      throw new Error('rollback a propósito')
+    }).catch((error: unknown) => {
+      if (!(error instanceof Error) || error.message !== 'rollback a propósito') throw error
+    })
+
+    // Y comprobado: la transacción se deshizo y el plan vuelve a estar entero.
+    const final = await withTransaction(pool, (db) => loadSnapshot(db, { horizon }))
+    expect(final.dependenciesOutOfPlan).toEqual([])
+  })
+
   it('el mismo snapshot produce el mismo hash y el mismo resultado', async () => {
     if (pool === null) return
     const snapshot = await withTransaction(pool, (db) => loadSnapshot(db, { horizon }))
