@@ -11,6 +11,7 @@
  * barato que repartirlo.
  */
 
+import type { CommitmentLevel } from '@planner/domain'
 import type { Queryable } from './db.js'
 
 const SEGMENT_WIDTH = 3
@@ -24,6 +25,8 @@ export interface ProjectInput {
   readonly calendarCode?: string | undefined
   /** `true` crea una plantilla: un molde que no se calcula ni genera carga. */
   readonly asTemplate?: boolean | undefined
+  /** Cuánto hay que servir de verdad. Sin decir nada, `firme`: lo de siempre. */
+  readonly commitment?: CommitmentLevel | undefined
 }
 
 export async function createProject(db: Queryable, input: ProjectInput): Promise<string> {
@@ -33,9 +36,16 @@ export async function createProject(db: Queryable, input: ProjectInput): Promise
     [input.calendarCode ?? null],
   )
   const { rows } = await db.query<{ id: string }>(
-    `INSERT INTO project (code, name, calendar_id, status_start, priority, currency, is_template)
-     VALUES ($1, $2, $3, $4, 500, 'EUR', $5) RETURNING id`,
-    [input.code, input.name, calendar.rows[0]?.id ?? null, input.statusStart, input.asTemplate ?? false],
+    `INSERT INTO project (code, name, calendar_id, status_start, priority, currency, is_template, commitment)
+     VALUES ($1, $2, $3, $4, 500, 'EUR', $5, $6) RETURNING id`,
+    [
+      input.code,
+      input.name,
+      calendar.rows[0]?.id ?? null,
+      input.statusStart,
+      input.asTemplate ?? false,
+      input.commitment ?? 'firme',
+    ],
   )
   const id = rows[0]?.id
   if (id === undefined) throw new Error('No se pudo crear el proyecto')
@@ -48,6 +58,15 @@ export interface ProjectChanges {
   readonly statusStart?: string | undefined
   readonly priority?: number | undefined
   readonly isTemplate?: boolean | undefined
+  readonly commitment?: CommitmentLevel | undefined
+  /**
+   * La línea base de referencia. `null` la retira.
+   *
+   * Es por proyecto y no global porque cada uno congela en su momento —su
+   * revisión, su hito contractual— y la línea base del de al lado no le dice
+   * nada.
+   */
+  readonly currentBaselineId?: string | null | undefined
 }
 
 /**
@@ -67,6 +86,8 @@ export async function updateProject(db: Queryable, projectId: string, changes: P
   if (changes.statusStart !== undefined) set('status_start', changes.statusStart)
   if (changes.priority !== undefined) set('priority', changes.priority)
   if (changes.isTemplate !== undefined) set('is_template', changes.isTemplate)
+  if (changes.commitment !== undefined) set('commitment', changes.commitment)
+  if (changes.currentBaselineId !== undefined) set('current_baseline_id', changes.currentBaselineId)
   if (columns.length === 0) throw new Error('No hay nada que cambiar')
   await db.query(`UPDATE project SET ${columns.join(', ')} WHERE id = $1`, values)
 }

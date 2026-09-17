@@ -1,21 +1,40 @@
 /**
  * Capacidad efectiva de un recurso, día a día.
  *
- *     capacidad = calendario ∩ disponibilidad ∩ ausencias
+ *     bruto = calendario ∩ disponibilidad ∩ ausencias
+ *     neto  = bruto × (1 − indirecto) × (1 − reserva)
  *
  * Nunca negativa (invariante R2). Se calcula por día porque un recurso puede
  * estar equilibrado al mes y saturado tres días concretos, y ese es justo el
  * dato que duele.
+ *
+ * El **neto** es contra lo que se planifica, y lo que se guarda es el par: sin
+ * el bruto al lado, «7,4 h» es un número que nadie puede comprobar (P4).
+ *
+ * Que sean dos factores y no uno importa: el indirecto es trabajo que pasa y la
+ * reserva es sitio que se guarda por si acaso. Se multiplican en ese orden y no
+ * se suman, y el orden es parte del contrato porque cada paso redondea a
+ * minutos enteros (P5) —sumarlos daría otro número, y uno distinto según quién
+ * lo calcule—.
  */
 
-import { addDays, applyBasisPoints, basisPoints, type CalendarDate } from '@planner/domain'
+import {
+  BASIS_POINTS_ONE as BP_UNO,
+  addDays,
+  applyBasisPoints,
+  basisPoints,
+  type CalendarDate,
+} from '@planner/domain'
 import { compileCalendar, type CompiledCalendar } from '@planner/calendar'
 import type { PlanSnapshot, ResourceDefinition } from '@planner/scheduler'
 
 export interface CapacityCell {
   readonly resourceId: string
   readonly date: CalendarDate
+  /** Lo planificable: el bruto menos lo indirecto y menos la reserva. */
   readonly capacityMinutes: number
+  /** Lo que daba el calendario tras la disponibilidad y las ausencias. */
+  readonly grossMinutes: number
 }
 
 export interface CapacityIndex {
@@ -43,10 +62,15 @@ export function computeCapacity(
       const unitsBp = availabilityOn(resource, date)
       const available = applyBasisPoints(workingMinutes, basisPoints(unitsBp))
       const absent = absenceMinutesOn(resource, date, workingMinutes)
-      const capacityMinutes = Math.max(0, available - absent)
+      const grossMinutes = Math.max(0, available - absent)
+      if (grossMinutes === 0) continue
+
+      // Los factores se aplican **al final**, sobre lo que queda: quien está de
+      // vacaciones tampoco va a reuniones.
+      const capacityMinutes = plannable(grossMinutes, resource)
       if (capacityMinutes === 0) continue
 
-      cells.push({ resourceId: resource.id, date, capacityMinutes })
+      cells.push({ resourceId: resource.id, date, capacityMinutes, grossMinutes })
       index.set(`${resource.id}|${date}`, capacityMinutes)
     }
   }
@@ -55,6 +79,23 @@ export function computeCapacity(
     cells,
     capacityOf: (resourceId, date) => index.get(`${resourceId}|${date}`) ?? 0,
   }
+}
+
+/**
+ * Lo que de verdad se puede planificar ese día.
+ *
+ * Un recurso sin factores declarados devuelve el bruto **sin pasar por la
+ * aritmética**, y no es una optimización: es lo que garantiza que una
+ * instalación que no ha declarado nada siga dando exactamente los mismos
+ * minutos que antes de que esto existiera (P2).
+ */
+export function plannable(grossMinutes: number, resource: ResourceDefinition): number {
+  const indirecto = resource.indirectBp
+  const reserva = resource.reserveBp
+  if (indirecto === 0 && reserva === 0) return grossMinutes
+
+  const trasIndirecto = applyBasisPoints(grossMinutes, basisPoints(BP_UNO - indirecto))
+  return Math.max(0, applyBasisPoints(trasIndirecto, basisPoints(BP_UNO - reserva)))
 }
 
 export function calendarFor(

@@ -99,7 +99,10 @@ export function CalendarView({ runId }: Props): React.JSX.Element {
   }
 
   const capacidadDelMes = (days).reduce((sum, row) => sum + row.capacityMinutes, 0)
+  const brutoDelMes = (days).reduce((sum, row) => sum + row.grossMinutes, 0)
   const cargaDelMes = (days).reduce((sum, row) => sum + row.plannedMinutes, 0)
+  // Sin factores declarados los dos números coinciden, y decirlo sería ruido.
+  const reservadoDelMes = brutoDelMes - capacidadDelMes
 
   return (
     <>
@@ -110,7 +113,12 @@ export function CalendarView({ runId }: Props): React.JSX.Element {
         <button className="button" onClick={() => { mover(1) }}>›</button>
         <span className="faint">
           Capacidad del equipo este mes: <b>{hours(capacidadDelMes)} h</b>, ya con las ausencias y los
-          festivos descontados · {cargaDelMes === 0 ? 'sin trabajo comprometido' : <>comprometidas <b>{hours(cargaDelMes)} h</b></>}
+          festivos descontados
+          {reservadoDelMes === 0 ? null : (
+            <> · de las <b>{hours(brutoDelMes)} h</b> del calendario se reservan <b>{hours(reservadoDelMes)} h</b> para
+            tiempo indirecto y para lo que no ha pasado todavía</>
+          )}
+          {' · '}{cargaDelMes === 0 ? 'sin trabajo comprometido' : <>comprometidas <b>{hours(cargaDelMes)} h</b></>}
         </span>
       </div>
 

@@ -162,6 +162,8 @@ export const fr: Diccionario = {
   'informe.riesgo.retraso': 'aurait dû être terminée il y a %s jour(s)',
   'informe.tldr.alcance': '%s projet(s), %s tâche(s) planifiée(s) dans la période, réparties sur %s mois.',
   'informe.tldr.trabajo': '%s h engagées, pour %s h de capacité des personnes concernées : %s.',
+  'informe.tldr.compromiso': '%s du travail de la période n’est pas encore signé : %s h ferme, %s h probable, %s h possible.',
+  'informe.tldr.capacidad-reservada': 'Sur la capacité de la période, %s h sont réservées (%s) : %s h au calendrier, %s h planifiables.',
   'informe.tldr.avance': 'Le travail de la période est à %s : %s terminées, %s en cours, %s non commencées.',
   'informe.tldr.coste': '%s engagés sur la période.',
   'informe.tldr.sobrecarga': '%s personne(s) dépassent 100 % sur un mois ; la pire, %s en %s à %s.',

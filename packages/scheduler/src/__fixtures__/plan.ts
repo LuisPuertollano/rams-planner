@@ -133,6 +133,8 @@ export class PlanBuilder {
       kind: 'person',
       calendarId: 'cal-40h',
       maxUnitsBp: 10_000,
+      indirectBp: 0,
+      reserveBp: 0,
       availability: [{ from: d('2026-01-01'), to: d('2027-12-31'), unitsBp: 10_000 }],
       absences: [],
       costRates: [{ from: d('2026-01-01'), to: d('2027-12-31'), standardCentsPerHour: 6_000 }],

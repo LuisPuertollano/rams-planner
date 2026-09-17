@@ -9,6 +9,7 @@
 
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import { z } from 'zod'
+import { COMMITMENT_LEVELS } from '@planner/domain'
 import {
   addDependency,
   createNode,
@@ -115,6 +116,7 @@ export function registerPlanRoutes(app: FastifyInstance, pool: Pool): void {
         statusStart: isoDate,
         calendarCode: z.string().max(60).optional(),
         asTemplate: z.boolean().optional(),
+        commitment: z.enum(COMMITMENT_LEVELS).optional(),
       })
       .parse(request.body)
     return write(reply, `alta del proyecto ${body.code}`, `alta del proyecto ${body.code}`, (db) =>
@@ -160,6 +162,8 @@ export function registerPlanRoutes(app: FastifyInstance, pool: Pool): void {
         statusStart: isoDate.optional(),
         priority: z.number().int().min(0).max(10_000).optional(),
         isTemplate: z.boolean().optional(),
+        commitment: z.enum(COMMITMENT_LEVELS).optional(),
+        currentBaselineId: z.string().uuid().nullable().optional(),
       })
       .parse(request.body)
     if (Object.keys(body).length === 0) return fallar(reply, 400, 'NADA_QUE_CAMBIAR', 'No hay nada que cambiar.')

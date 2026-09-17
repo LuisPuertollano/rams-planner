@@ -159,6 +159,8 @@ export const en: Diccionario = {
   'informe.riesgo.retraso': 'should have finished %s day(s) ago',
   'informe.tldr.alcance': '%s project(s), %s task(s) scheduled inside the period, across %s month(s).',
   'informe.tldr.trabajo': '%s h committed, against %s h of capacity of the people working on them: %s.',
+  'informe.tldr.compromiso': '%s of the work in this period is not signed yet: %s h firm, %s h likely, %s h possible.',
+  'informe.tldr.capacidad-reservada': '%s h of this period’s capacity are held back (%s): %s h on the calendar, %s h plannable.',
   'informe.tldr.avance': 'The work in the period is %s done: %s finished, %s in progress, %s not started.',
   'informe.tldr.coste': '%s committed in the period.',
   'informe.tldr.sobrecarga': '%s person(s) go over 100 % in some month; the worst, %s in %s at %s.',

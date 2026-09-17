@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
-import { duplicateProject, patchProject, removeProject, type Project } from '../api.js'
+import { duplicateProject, patchProject, removeProject, type Baseline, type Project } from '../api.js'
 import { errorText } from '../errors.js'
+import { fullDate } from '../format.js'
 import { useT } from '../i18n/index.js'
 import { EntityHistory } from './EntityHistory.js'
 
 interface Props {
   readonly project: Project
+  /** Las fotos congeladas que se pueden elegir como referencia. */
+  readonly baselines: readonly Baseline[]
   readonly onClose: () => void
   readonly onChanged: () => void
 }
@@ -18,7 +21,7 @@ interface Props {
  * Cambiarla mueve el proyecto entero, así que se edita aquí, a la vista, en vez
  * de quedarse con el valor que le tocó el día del alta.
  */
-export function ProjectPanel({ project, onClose, onChanged }: Props): React.JSX.Element {
+export function ProjectPanel({ project, baselines, onClose, onChanged }: Props): React.JSX.Element {
   const { t } = useT()
   const [code, setCode] = useState(project.code)
   const [name, setName] = useState(project.name)
@@ -42,7 +45,7 @@ export function ProjectPanel({ project, onClose, onChanged }: Props): React.JSX.
       .finally(() => { setBusy(false) })
   }
 
-  const save = (changes: Readonly<Record<string, string | number | boolean>>): void => {
+  const save = (changes: Readonly<Record<string, string | number | boolean | null>>): void => {
     run(async () => { await patchProject(project.id, changes) })
   }
 
@@ -107,6 +110,63 @@ export function ProjectPanel({ project, onClose, onChanged }: Props): React.JSX.
                 }}
               />
             </label>
+          </div>
+
+          <div className="card">
+            <h3 className="card__title">Compromiso</h3>
+            <p className="card__note">
+              Cuánto de este trabajo hay que hacer <b>de verdad</b>. No es el tipo de proyecto: es la
+              confianza en que llegue. El informe separa las horas por esto, porque sumar las de una oferta
+              a las de un contrato y llamar plan al total es la forma más rápida de que el plan no sirva
+              para decidir.
+            </p>
+            <label className="field" style={{ marginTop: 8, maxWidth: 260 }}>
+              <span>Nivel</span>
+              <select
+                className="input"
+                value={project.commitment}
+                disabled={busy}
+                onChange={(event) => { save({ commitment: event.target.value }) }}
+              >
+                <option value="firme">Firme · contratado, hay que hacerlo</option>
+                <option value="probable">Probable · previsto, sin firmar</option>
+                <option value="posible">Posible · una oferta; puede no llegar</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="card">
+            <h3 className="card__title">Línea base de referencia</h3>
+            <p className="card__note">
+              Contra qué foto del plan se compara este proyecto. Cada uno congela en su momento —su
+              revisión, su hito contractual—, así que la elige el proyecto y no la herramienta entera. Sin
+              una elegida, comparar obliga a decir cuál cada vez, y dos personas acaban mirando fotos
+              distintas sin enterarse.
+            </p>
+            <label className="field" style={{ marginTop: 8, maxWidth: 320 }}>
+              <span>Foto</span>
+              <select
+                className="input"
+                value={project.currentBaselineId ?? ''}
+                disabled={busy || baselines.length === 0}
+                onChange={(event) => {
+                  save({ currentBaselineId: event.target.value === '' ? null : event.target.value })
+                }}
+              >
+                <option value="">— ninguna —</option>
+                {baselines.map((baseline) => (
+                  <option key={baseline.id} value={baseline.id}>
+                    {baseline.name} · {fullDate(baseline.capturedAt.slice(0, 10))}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {baselines.length > 0 ? null : (
+              <p className="card__note" style={{ marginTop: 8 }}>
+                Todavía no hay ninguna línea base congelada. Se crean desde la barra de arriba, sobre la
+                ejecución que quieras guardar.
+              </p>
+            )}
           </div>
 
           <div className="card">

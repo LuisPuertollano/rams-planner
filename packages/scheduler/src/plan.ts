@@ -62,6 +62,18 @@ export interface ResourceDefinition {
   readonly kind: ResourceKind
   readonly calendarId?: string
   readonly maxUnitsBp: number
+  /**
+   * Lo que del día laborable **no llega nunca** a una tarea del plan: reuniones
+   * de departamento, formación, revisar lo de otro, el correo. Es trabajo que
+   * pasa, conocido y repetido.
+   */
+  readonly indirectBp: number
+  /**
+   * Lo que se **guarda** para lo que todavía no ha pasado: la baja de un día
+   * que nadie vio venir. Es una decisión de riesgo, no una medida, y por eso no
+   * se mezcla con la anterior.
+   */
+  readonly reserveBp: number
   readonly availability: readonly AvailabilityPeriod[]
   readonly absences: readonly AbsencePeriod[]
   readonly costRates: readonly CostRate[]

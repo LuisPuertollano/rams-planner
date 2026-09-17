@@ -168,6 +168,8 @@ export const es = {
   'informe.riesgo.retraso': 'debería estar terminada hace %s día(s)',
   'informe.tldr.alcance': '%s proyecto(s), %s tarea(s) con fechas dentro del periodo, repartidas en %s mes(es).',
   'informe.tldr.trabajo': '%s h comprometidas, sobre %s h de capacidad de quien trabaja en ellos: el %s.',
+  'informe.tldr.compromiso': 'El %s del trabajo del periodo todavÃ­a no estÃ¡ firmado: %s h firmes, %s h probables, %s h posibles.',
+  'informe.tldr.capacidad-reservada': 'De la capacidad del periodo se reservan %s h (el %s): %s h de calendario, %s h planificables.',
   'informe.tldr.avance': 'El trabajo del periodo va al %s: %s terminadas, %s en curso, %s sin empezar.',
   'informe.tldr.coste': '%s comprometidos en el periodo.',
   'informe.tldr.sobrecarga': '%s persona(s) pasan del 100 % en algún mes; la peor, %s en %s con un %s.',

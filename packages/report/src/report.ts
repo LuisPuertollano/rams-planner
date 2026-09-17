@@ -11,6 +11,8 @@
  * Un servidor que devuelve prosa no se puede traducir ni volver a usar.
  */
 
+import type { CommitmentLevel } from '@planner/domain'
+
 export interface ReportPeriod {
   /** Inclusive, AAAA-MM-DD. */
   readonly from: string
@@ -22,6 +24,8 @@ export interface ReportProject {
   readonly id: string
   readonly code: string
   readonly name: string
+  /** Cuánto de esta demanda hay que servir de verdad. */
+  readonly commitment: CommitmentLevel
 }
 
 export interface ReportTask {
@@ -53,7 +57,10 @@ export interface ReportLoadCell {
 export interface ReportCapacityCell {
   readonly resourceId: string
   readonly period: string
+  /** Lo planificable. */
   readonly capacityMinutes: number
+  /** Lo que daba el calendario. La diferencia es lo indirecto y la reserva. */
+  readonly grossMinutes: number
 }
 
 export interface ReportResource {
@@ -116,6 +123,8 @@ export interface Highlight {
 export type HighlightKind =
   | 'alcance'
   | 'trabajo'
+  | 'compromiso'
+  | 'capacidad-reservada'
   | 'avance'
   | 'coste'
   | 'sobrecarga'
@@ -192,13 +201,36 @@ export interface RiskLine {
   readonly amount: number
 }
 
+/**
+ * El trabajo repartido por cuánto hay que servirlo de verdad.
+ *
+ * Es la cifra que convierte una suma en una decisión: mil horas de las que
+ * novecientas están contratadas es un plan; mil de las que cuatrocientas son
+ * ofertas es una apuesta, y el total es el mismo número.
+ */
+export interface CommitmentSplit {
+  readonly firme: number
+  readonly probable: number
+  readonly posible: number
+}
+
 export interface ReportTotals {
   readonly projectCount: number
   readonly tasksInPeriod: number
   readonly tasksTotal: number
   readonly tasksWithoutDates: number
   readonly plannedMinutes: number
+  /** Los mismos minutos, repartidos por nivel de compromiso del proyecto. */
+  readonly plannedByCommitment: CommitmentSplit
   readonly capacityMinutes: number
+  /**
+   * La capacidad antes de descontar lo indirecto y la reserva.
+   *
+   * Igual a `capacityMinutes` cuando nadie ha declarado factores. La diferencia
+   * es lo que el equipo **tiene** y no puede comprometer, y merece salir: sin
+   * ella, «vas al 105 %» parece un problema de este mes y no de la cuenta.
+   */
+  readonly grossCapacityMinutes: number
   readonly utilizationBp: number | null
   readonly costCents: number
   readonly completedTasks: number
@@ -264,6 +296,14 @@ export function buildReport(input: ReportInput): Report {
   const totalCoste = suma(carga, (c) => c.costCents)
   const capacidadPorMes = agrupa(capacidad, (c) => c.period, (c) => c.capacityMinutes)
   const totalCapacidad = [...meses].reduce((acumulado, mes) => acumulado + (capacidadPorMes.get(mes) ?? 0), 0)
+  const brutoPorMes = agrupa(capacidad, (c) => c.period, (c) => c.grossMinutes)
+  const totalBruto = [...meses].reduce((acumulado, mes) => acumulado + (brutoPorMes.get(mes) ?? 0), 0)
+
+  // El compromiso es del proyecto, y la carga sabe de qué proyecto es: basta
+  // con cruzarlos. Se cuenta sobre la carga del periodo, no sobre el proyecto
+  // entero, porque la pregunta es qué hay que servir **ahora**.
+  const compromisoDe = new Map(proyectos.map((p) => [p.id, p.commitment]))
+  const porCompromiso = repartoPorCompromiso(carga, compromisoDe)
 
   const personas = input.peopleHidden ? [] : lineasDePersona(proyectos, carga, capacidad, meses, input)
   const sobrecargadas = personas.flatMap((persona) =>
@@ -290,7 +330,9 @@ export function buildReport(input: ReportInput): Report {
     tasksTotal: tareas.length,
     tasksWithoutDates: sinFechas.length,
     plannedMinutes: totalPlanificado,
+    plannedByCommitment: porCompromiso,
     capacityMinutes: totalCapacidad,
+    grossCapacityMinutes: totalBruto,
     utilizationBp: totalCapacidad === 0 ? null : ratioBp(totalPlanificado, totalCapacidad),
     costCents: totalCoste,
     completedTasks: terminadas,
@@ -321,6 +363,24 @@ export function buildReport(input: ReportInput): Report {
   }
 }
 
+/**
+ * Los minutos del periodo, repartidos por compromiso.
+ *
+ * Una carga cuyo proyecto no esté en el alcance no llega aquí, pero si llegara
+ * contaría como `firme`: es lo que el esquema pone por defecto, y callar un
+ * trabajo es peor que contarlo de más.
+ */
+function repartoPorCompromiso(
+  carga: readonly ReportLoadCell[],
+  compromisoDe: ReadonlyMap<string, CommitmentLevel>,
+): CommitmentSplit {
+  const reparto = { firme: 0, probable: 0, posible: 0 }
+  for (const celda of carga) {
+    reparto[compromisoDe.get(celda.projectId) ?? 'firme'] += celda.plannedMinutes
+  }
+  return reparto
+}
+
 // ---------------------------------------------------------------------------
 // El resumen
 // ---------------------------------------------------------------------------
@@ -328,9 +388,9 @@ export function buildReport(input: ReportInput): Report {
 /**
  * Lo que habría que leer si sólo se leyeran cinco líneas.
  *
- * El orden es fijo —alcance, trabajo, avance, coste, y después lo que va mal—
- * porque un resumen que cambia de forma según los datos no se lee de un
- * vistazo, que es justo para lo que está.
+ * El orden es fijo —alcance, trabajo, de qué está hecho ese trabajo, avance,
+ * coste, y después lo que va mal— porque un resumen que cambia de forma según
+ * los datos no se lee de un vistazo, que es justo para lo que está.
  */
 function resumen(
   input: ReportInput,
@@ -361,6 +421,44 @@ function resumen(
         plannedMinutes: totals.plannedMinutes,
         capacityMinutes: totals.capacityMinutes,
         ...(totals.utilizationBp === null ? {} : { utilizationBp: totals.utilizationBp }),
+      },
+      labels: [],
+    })
+  }
+
+  // Sólo cuando hay algo que no es firme. Decir «el 100 % está contratado» en
+  // una instalación que no usa esto sería una línea de ruido en todos los
+  // informes, y el resumen está para lo que hay que mirar.
+  const noFirme = totals.plannedByCommitment.probable + totals.plannedByCommitment.posible
+  if (noFirme > 0) {
+    puntos.push({
+      kind: 'compromiso',
+      // Rojo cuando más de la mitad del trabajo del periodo depende de que
+      // entre algo que todavía no ha entrado: el plan ya no describe lo que hay
+      // que hacer, describe lo que podría haber que hacer.
+      severity: noFirme * 2 > totals.plannedMinutes ? 'error' : 'warning',
+      numbers: {
+        firmMinutes: totals.plannedByCommitment.firme,
+        likelyMinutes: totals.plannedByCommitment.probable,
+        possibleMinutes: totals.plannedByCommitment.posible,
+        notFirmBp: totals.plannedMinutes === 0 ? 0 : ratioBp(noFirme, totals.plannedMinutes),
+      },
+      labels: [],
+    })
+  }
+
+  // Lo que el equipo tiene y no puede comprometer. Sin esto, «vas al 105 %»
+  // parece un apuro de este mes en vez de la cuenta que ya no sale.
+  if (totals.grossCapacityMinutes > totals.capacityMinutes) {
+    const reservado = totals.grossCapacityMinutes - totals.capacityMinutes
+    puntos.push({
+      kind: 'capacidad-reservada',
+      severity: 'neutral',
+      numbers: {
+        grossMinutes: totals.grossCapacityMinutes,
+        plannableMinutes: totals.capacityMinutes,
+        reservedMinutes: reservado,
+        reservedBp: ratioBp(reservado, totals.grossCapacityMinutes),
       },
       labels: [],
     })

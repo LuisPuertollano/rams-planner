@@ -5,7 +5,7 @@
  * número que salga de aquí lleva su `runId` y por tanto se puede auditar.
  */
 
-import type { CalendarDate } from '@planner/domain'
+import type { CalendarDate, CommitmentLevel } from '@planner/domain'
 import type { Queryable } from './db.js'
 
 export interface RunSummary {
@@ -373,6 +373,13 @@ export interface ProjectSummary {
   readonly priority: number
   /** Una plantilla no se calcula: es un molde, no un proyecto en marcha. */
   readonly isTemplate: boolean
+  /**
+   * Cuánto de esta demanda hay que servir de verdad. No es tipo de trabajo:
+   * es confianza —`firme` está contratado, `posible` puede no llegar nunca—.
+   */
+  readonly commitment: CommitmentLevel
+  /** Contra qué línea base se compara este proyecto. Nula: contra ninguna. */
+  readonly currentBaselineId: string | null
 }
 
 export async function readProjects(db: Queryable): Promise<readonly ProjectSummary[]> {
@@ -383,8 +390,10 @@ export async function readProjects(db: Queryable): Promise<readonly ProjectSumma
     status_start: string
     priority: number
     is_template: boolean
+    commitment: CommitmentLevel
+    current_baseline_id: string | null
   }>(
-    `SELECT id, code, name, status_start::text, priority, is_template
+    `SELECT id, code, name, status_start::text, priority, is_template, commitment, current_baseline_id
      FROM project WHERE deleted_at IS NULL ORDER BY is_template, code`,
   )
   return rows.map((row) => ({
@@ -394,13 +403,24 @@ export async function readProjects(db: Queryable): Promise<readonly ProjectSumma
     statusStart: row.status_start,
     priority: row.priority,
     isTemplate: row.is_template,
+    commitment: row.commitment,
+    currentBaselineId: row.current_baseline_id,
   }))
 }
 
 export interface DailyCapacity {
   readonly resourceId: string
   readonly date: string
+  /** Lo planificable, que es contra lo que reparte el motor. */
   readonly capacityMinutes: number
+  /**
+   * Lo que daba el calendario antes de descontar lo indirecto y la reserva.
+   *
+   * Igual al neto en una ejecución sin factores declarados, y también en las
+   * ejecuciones anteriores a que esto existiera: no anotaron un bruto, y
+   * decirlo igual al neto es exactamente lo que vieron.
+   */
+  readonly grossMinutes: number
   readonly plannedMinutes: number
 }
 
@@ -424,9 +444,11 @@ export async function readDailyCapacity(
     resource_id: string
     date: string
     capacity_minutes: number
+    gross_minutes: number
     planned_minutes: string | null
   }>(
     `SELECT c.resource_id, c.work_date::text AS date, c.capacity_minutes,
+            COALESCE(c.gross_minutes, c.capacity_minutes) AS gross_minutes,
             (SELECT SUM(tp.planned_minutes) FROM assignment_timephased tp
               JOIN assignment a ON a.id = tp.assignment_id
               WHERE tp.run_id = c.run_id AND a.resource_id = c.resource_id
@@ -440,6 +462,7 @@ export async function readDailyCapacity(
     resourceId: row.resource_id,
     date: row.date,
     capacityMinutes: row.capacity_minutes,
+    grossMinutes: row.gross_minutes,
     plannedMinutes: row.planned_minutes === null ? 0 : Number(row.planned_minutes),
   }))
 }

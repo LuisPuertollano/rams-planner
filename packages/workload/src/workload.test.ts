@@ -1,5 +1,6 @@
 import { calendarDate } from '@planner/domain'
 import { schedulePlan } from '@planner/scheduler'
+import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import { PlanBuilder } from '../../scheduler/src/__fixtures__/plan.js'
 import { aggregateLoad, aggregateUtilization, periodOf } from './aggregate.js'
@@ -161,6 +162,77 @@ describe('capacidad', () => {
     const snapshot = new PlanBuilder().resource('ana').task('a').assign('a', 'ana').build()
     const { capacity } = runWorkload(snapshot)
     expect(capacity.capacityOf('ana', d('2026-03-07'))).toBe(0)
+  })
+
+  it('sin factores declarados, el neto es exactamente el bruto', () => {
+    // Lo que garantiza que una instalación que no usa esto planifique igual que
+    // antes de que existiera. No es una optimización: es P2.
+    const snapshot = new PlanBuilder().resource('ana').task('a').assign('a', 'ana').build()
+    const { capacity } = runWorkload(snapshot)
+    const celda = capacity.cells.find((c) => c.date === '2026-03-02')
+    expect(celda?.capacityMinutes).toBe(480)
+    expect(celda?.grossMinutes).toBe(480)
+  })
+
+  it('descuenta lo indirecto y la reserva, en ese orden', () => {
+    const snapshot = new PlanBuilder()
+      .resource('ana', { indirectBp: 400, reserveBp: 300 })
+      .task('a')
+      .assign('a', 'ana')
+      .build()
+    const { capacity } = runWorkload(snapshot)
+    // 480 × 0,96 = 460,8 → 461; 461 × 0,97 = 447,17 → 447.
+    expect(capacity.capacityOf('ana', d('2026-03-02'))).toBe(447)
+    expect(capacity.cells.find((c) => c.date === '2026-03-02')?.grossMinutes).toBe(480)
+  })
+
+  it('multiplicar no es restar, y por eso el orden es parte del contrato', () => {
+    // Restar 4 % + 7 % daría 480 × 0,89 = 427. Multiplicar da 429, porque el
+    // segundo factor se aplica sobre lo que dejó el primero. Son números
+    // distintos y hay que elegir uno: se elige el que compone.
+    const snapshot = new PlanBuilder()
+      .resource('ana', { indirectBp: 400, reserveBp: 700 })
+      .task('a')
+      .assign('a', 'ana')
+      .build()
+    const { capacity } = runWorkload(snapshot)
+    expect(capacity.capacityOf('ana', d('2026-03-02'))).toBe(429)
+  })
+
+  it('los factores van después de las ausencias: de vacaciones no hay reuniones', () => {
+    const snapshot = new PlanBuilder()
+      .resource('ana', {
+        indirectBp: 2_500,
+        absences: [{ from: d('2026-03-02'), to: d('2026-03-02'), kind: 'training', minutesPerDay: 240 }],
+      })
+      .task('a')
+      .assign('a', 'ana')
+      .build()
+    const { capacity } = runWorkload(snapshot)
+    // Quedan 240 de bruto, y el 25 % se aplica sobre esos 240, no sobre 480.
+    expect(capacity.capacityOf('ana', d('2026-03-02'))).toBe(180)
+    expect(capacity.cells.find((c) => c.date === '2026-03-02')?.grossMinutes).toBe(240)
+  })
+
+  it('el neto nunca pasa del bruto, para cualquier par de factores', () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 0, max: 5_000 }),
+        fc.integer({ min: 0, max: 5_000 }),
+        (indirectBp, reserveBp) => {
+          const snapshot = new PlanBuilder()
+            .resource('ana', { indirectBp, reserveBp })
+            .task('a')
+            .assign('a', 'ana')
+            .build()
+          for (const celda of runWorkload(snapshot).capacity.cells) {
+            expect(celda.capacityMinutes).toBeLessThanOrEqual(celda.grossMinutes)
+            expect(celda.capacityMinutes).toBeGreaterThanOrEqual(0)
+          }
+        },
+      ),
+      { numRuns: 25 },
+    )
   })
 })
 

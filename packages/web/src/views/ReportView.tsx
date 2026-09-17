@@ -388,6 +388,22 @@ function contar(
         hours(n('capacityMinutes'), 0, locale),
         punto.numbers['utilizationBp'] === undefined ? '—' : percent(n('utilizationBp')),
       )
+    case 'compromiso':
+      return t(
+        'informe.tldr.compromiso',
+        percent(n('notFirmBp')),
+        hours(n('firmMinutes'), 0, locale),
+        hours(n('likelyMinutes'), 0, locale),
+        hours(n('possibleMinutes'), 0, locale),
+      )
+    case 'capacidad-reservada':
+      return t(
+        'informe.tldr.capacidad-reservada',
+        hours(n('reservedMinutes'), 0, locale),
+        percent(n('reservedBp')),
+        hours(n('grossMinutes'), 0, locale),
+        hours(n('plannableMinutes'), 0, locale),
+      )
     case 'avance':
       return t(
         'informe.tldr.avance',

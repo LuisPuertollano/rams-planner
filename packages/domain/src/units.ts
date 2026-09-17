@@ -112,3 +112,23 @@ export function addWorkMinutes(left: WorkMinutes, right: WorkMinutes): WorkMinut
 export function addCents(left: Cents, right: Cents): Cents {
   return cents(left + right)
 }
+
+/**
+ * Cuánto de una demanda hay que servir de verdad.
+ *
+ * No es el tipo de trabajo —I+D, sostenimiento, cliente— sino la **confianza**
+ * en que llegue. Son dos ejes distintos y mezclarlos es lo que convierte una
+ * lista de tipos de proyecto en una lista que ya no sirve para sumar.
+ *
+ * Sumar las horas de una oferta a las de un contrato firmado y llamar plan al
+ * total es la forma más rápida de que el plan no sirva para decidir: son la
+ * misma unidad y no son la misma obligación.
+ */
+export const COMMITMENT_LEVELS = ['firme', 'probable', 'posible'] as const
+
+export type CommitmentLevel = (typeof COMMITMENT_LEVELS)[number]
+
+/** De más obligatorio a menos. El orden es el de `COMMITMENT_LEVELS`. */
+export function isCommitmentLevel(valor: string): valor is CommitmentLevel {
+  return (COMMITMENT_LEVELS as readonly string[]).includes(valor)
+}

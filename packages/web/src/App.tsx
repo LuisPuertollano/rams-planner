@@ -613,7 +613,7 @@ function Planner({
               <GanttView tasks={data.tasks} projects={state.projects} />
             ) : tab === 'comparar' ? (
               <DiffView
-                baselines={state.baselines}
+                baselines={state?.baselines ?? []}
                 currentRunId={state.run?.id ?? ''}
                 projects={state.projects}
               />
@@ -646,6 +646,7 @@ function Planner({
       {editingProject === null ? null : (
         <ProjectPanel
           project={editingProject}
+          baselines={state?.baselines ?? []}
           onClose={() => { setEditingProject(null) }}
           onChanged={() => {
             load().catch((cause: unknown) => {

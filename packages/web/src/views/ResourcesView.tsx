@@ -17,7 +17,7 @@ import {
   type ResourceDetail,
   type TeamState,
 } from '../api.js'
-import { euroRate, fullDate, percent } from '../format.js'
+import { euroRate, fullDate, hours, percent } from '../format.js'
 import { errorText } from '../errors.js'
 import { useT } from '../i18n/index.js'
 
@@ -50,6 +50,18 @@ const today = (): string => new Date().toISOString().slice(0, 10)
  * cambio recalcula el plan, porque si no la carga que muestra la herramienta
  * dejaría de corresponderse con lo que acabas de declarar.
  */
+/**
+ * Lo que queda de un día tras los factores de esta persona.
+ *
+ * Es la misma cuenta que hace el motor —multiplicar, en este orden, redondeando
+ * a minutos— y está aquí sólo para poder enseñarla en la ficha. Quien manda es
+ * el servidor: esto es un ejemplo, no el número con el que se planifica.
+ */
+function planificable(minutos: number, resource: ResourceDetail): number {
+  const trasIndirecto = Math.round((minutos * (10_000 - resource.indirectBp)) / 10_000)
+  return Math.round((trasIndirecto * (10_000 - resource.reserveBp)) / 10_000)
+}
+
 export function ResourcesView({ onChanged }: Props): React.JSX.Element {
   const { t } = useT()
   const [team, setTeam] = useState<TeamState | null>(null)
@@ -226,7 +238,38 @@ function ResourceCard({ resource, calendars, costsHidden, busy, onRun }: CardPro
               onCommit={(unitsBp) => { onRun(async () => { await patchResource(resource.id, { maxUnitsBp: unitsBp }) }) }}
             />
           </label>
+
+          <label className="field">
+            <span title="Reuniones, formación, revisar lo de otro, el correo. Sale del día antes de repartir trabajo">
+              Tiempo indirecto
+            </span>
+            <PercentInput
+              valueBp={resource.indirectBp}
+              busy={busy}
+              onCommit={(bp) => { onRun(async () => { await patchResource(resource.id, { indirectBp: bp }) }) }}
+            />
+          </label>
+
+          <label className="field">
+            <span title="Sitio que se guarda para lo que no ha pasado todavía: la baja que nadie vio venir">
+              Reserva
+            </span>
+            <PercentInput
+              valueBp={resource.reserveBp}
+              busy={busy}
+              onCommit={(bp) => { onRun(async () => { await patchResource(resource.id, { reserveBp: bp }) }) }}
+            />
+          </label>
         </div>
+        <p className="card__note">
+          Lo <b>indirecto</b> es trabajo que pasa; la <b>reserva</b>, sitio que se guarda por si acaso.
+          Los dos salen del día antes de repartir tareas.{' '}
+          {resource.indirectBp === 0 && resource.reserveBp === 0
+            ? 'Con los dos a cero, un día de 8 h se planifica entero, que es lo de siempre.'
+            : `Con lo declarado aquí, un día de 8 h deja ${hours(planificable(480, resource), 1)} h planificables.`}{' '}
+          Planificar contra el día entero sobrecompromete siempre, y el hueco no se ve como sobrecarga:
+          se ve como retrasos, tres meses después.
+        </p>
         <p className="card__note">
           Cambiar cualquiera de estos campos recalcula el plan entero: la capacidad de esta persona
           cambia y con ella su saturación y el coste de sus tareas.
