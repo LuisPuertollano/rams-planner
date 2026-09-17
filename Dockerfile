@@ -28,6 +28,7 @@ COPY packages/explain/package.json     ./packages/explain/
 COPY packages/scheduler/package.json   ./packages/scheduler/
 COPY packages/workload/package.json    ./packages/workload/
 COPY packages/persistence/package.json ./packages/persistence/
+COPY packages/report/package.json      ./packages/report/
 COPY packages/api/package.json         ./packages/api/
 COPY packages/web/package.json         ./packages/web/
 RUN pnpm install --frozen-lockfile --prod --ignore-scripts
@@ -38,6 +39,7 @@ COPY --from=build /app/packages/explain/dist     ./packages/explain/dist
 COPY --from=build /app/packages/scheduler/dist   ./packages/scheduler/dist
 COPY --from=build /app/packages/workload/dist    ./packages/workload/dist
 COPY --from=build /app/packages/persistence/dist ./packages/persistence/dist
+COPY --from=build /app/packages/report/dist      ./packages/report/dist
 COPY --from=build /app/packages/api/dist         ./packages/api/dist
 COPY --from=build /app/packages/web/dist         ./packages/web/dist
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
