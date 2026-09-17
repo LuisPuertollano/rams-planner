@@ -23,6 +23,7 @@ parece una mala idea, aquí está el razonamiento que había detrás.
 | [0016](0016-documentos-y-precedencias.md) | Los documentos y su matriz: el orden del ciclo de vida, declarado una vez | P1 |
 | [0017](0017-cuatro-idiomas.md) | La interfaz en cuatro idiomas, con el castellano como fuente | — |
 | [0018](0018-aplicar-la-matriz.md) | Aplicar la matriz a un proyecto: la propuesta se enseña antes de escribirse | P2, P4 |
+| [0019](0019-informes.md) | Informes: un resumen sin frases hechas, sobre una ejecución y un periodo | P2, P3, P4 |
 
 ## Decisiones tomadas por defecto
 

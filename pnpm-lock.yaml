@@ -56,6 +56,9 @@ importers:
       '@planner/persistence':
         specifier: workspace:*
         version: link:../persistence
+      '@planner/report':
+        specifier: workspace:*
+        version: link:../report
       '@planner/scheduler':
         specifier: workspace:*
         version: link:../scheduler
@@ -110,6 +113,12 @@ importers:
       '@types/pg':
         specifier: ^8.23.1
         version: 8.23.1
+
+  packages/report:
+    dependencies:
+      '@planner/domain':
+        specifier: workspace:*
+        version: link:../domain
 
   packages/scheduler:
     dependencies:

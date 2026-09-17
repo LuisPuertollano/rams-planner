@@ -343,6 +343,48 @@ Se puede aplicar las veces que haga falta: lo que ya está no se duplica, aparec
 como «ya está en el plan». Y una dependencia creada así es una dependencia
 normal: se quita desde **Plan** como cualquier otra.
 
+### Informes
+
+La pregunta que se hace una vez al mes: **¿en qué estamos?** Y la de después:
+*¿en qué estamos **en este periodo**?*
+
+Se elige **uno o varios proyectos** —o ninguno, y salen todos los que puedas
+ver— y **un periodo**. Los cuatro botones de al lado son atajos: *Todo el plan*,
+*Este trimestre*, *Seis meses*, *Este año*. El que manda por defecto es todo el
+plan; los demás son decisión tuya, no de la herramienta.
+
+**En corto** es el resumen: lo que leerías si sólo leyeras cinco líneas. Cuántos
+proyectos y tareas, cuántas horas comprometidas sobre la capacidad de quien
+trabaja en ellos, el avance, el coste, quién se pasa, qué va con retraso y qué
+dejó dicho el último cálculo. El botón **Copiar el resumen** lo deja en el
+portapapeles en texto plano, listo para pegar en un correo, con la ejecución y
+el periodo al final.
+
+Debajo va el detalle del que salen esas cinco líneas: **mes a mes**, **por
+proyecto**, **por persona**, **lo que va con retraso** y **lo que dice el
+motor**.
+
+Tres cosas que conviene saber de cómo están hechos los números:
+
+- **La capacidad es la de las personas que trabajan en los proyectos elegidos**,
+  no la del equipo entero. Con el equipo entero, un informe de un solo proyecto
+  diría «el 1 % de la capacidad»: cierto e inútil.
+- **El avance se pondera por trabajo, no por número de tareas.** Diez fichas de
+  una hora terminadas y una de mil horas sin empezar no son un 91 %. Son un 1 %.
+- **La saturación de una persona es la de su peor mes.** Un 200 % en mayo y un
+  20 % en junio dan un 110 % de media que no le pasa a nadie.
+
+Si tu rol no incluye ver costes o ver la carga, el informe llega sin esa parte y
+**lo dice arriba**. No es que cueste cero ni que no haya nadie pasado: es que no
+se te envía.
+
+Al pie va la **ejecución** de la que sale todo y el periodo. Dos personas que
+miran el mismo informe están mirando los mismos números, y el mismo informe se
+puede volver a sacar más adelante: misma ejecución y mismo periodo, mismas
+cifras.
+
+Se imprime bien: la barra, las pestañas y los botones desaparecen en papel.
+
 ### Reparto
 
 Qué trabajo se podría mover, a quién, y qué arreglaría. **Son propuestas, no

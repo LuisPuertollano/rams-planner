@@ -24,6 +24,7 @@
     "@planner/explain": "workspace:*",
     "@planner/scheduler": "workspace:*",
     "@planner/workload": "workspace:*",
+    "@planner/report": "workspace:*",
     "@planner/persistence": "workspace:*",
     "fastify": "^5.2.0",
     "@fastify/cors": "^10.0.1",

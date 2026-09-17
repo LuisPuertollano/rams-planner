@@ -10,7 +10,7 @@ import { builtinModules } from 'node:module'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-export const CORE_PACKAGES = ['domain', 'calendar', 'scheduler', 'workload', 'explain', 'rules']
+export const CORE_PACKAGES = ['domain', 'calendar', 'scheduler', 'workload', 'explain', 'report', 'rules']
 export const ADAPTER_PACKAGES = ['persistence', 'api', 'cli', 'interop', 'web']
 
 const BUILTIN_NAMES = new Set(builtinModules)

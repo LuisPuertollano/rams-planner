@@ -527,3 +527,22 @@ a.button { text-decoration: none; display: inline-block; }
 
 /* El selector de idioma: al lado del tema, y del ancho de lo que dice. */
 .input--idioma { width: auto; padding: 5px 8px; font-size: 12px; }
+
+/* --- El informe ----------------------------------------------------------- */
+/* Un informe se lee de arriba abajo, no se explora: columna estrecha para el
+   resumen y tablas a lo ancho para el detalle del que sale. */
+.informe section { padding: 0 16px 20px; }
+.informe h3 { margin: 18px 0 8px; font-size: 14px; }
+.informe__resumen ul { margin: 0; padding-left: 18px; max-width: 96ch; }
+.informe__punto { margin: 6px 0; line-height: 1.5; }
+.informe__punto--warning { color: var(--severity-warning); }
+.informe__punto--error { color: var(--severity-error); }
+.informe__pie { padding: 0 16px 20px; font-size: 12px; }
+.input--multiple { min-width: 280px; }
+
+@media print {
+  /* En papel sobran la barra, las pestañas y los botones: lo que se imprime
+     es el informe, no la herramienta. */
+  .toolbar, nav, .tab, .button, .input { display: none !important; }
+  .informe section { page-break-inside: avoid; }
+}

@@ -20,6 +20,7 @@ import { registerMatrixRoutes } from './matrix-routes.js'
 import { registerPlanRoutes } from './plan-routes.js'
 import { auditRoutes, collectRoutePermissions } from './route-permissions.js'
 import { registerRebalanceRoutes } from './rebalance-routes.js'
+import { registerReportRoutes } from './report-routes.js'
 import { registerResourceRoutes } from './resources-routes.js'
 import { registerSkillRoutes } from './skills-routes.js'
 import { registerRoutes } from './routes.js'
@@ -42,6 +43,7 @@ export function registerAllRoutes(app: FastifyInstance, pool: Pool): void {
   registerDocumentRoutes(app, pool)
   registerMatrixRoutes(app, pool)
   registerRebalanceRoutes(app, pool)
+  registerReportRoutes(app, pool)
 }
 
 export interface BuildOptions {

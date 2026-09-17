@@ -978,3 +978,128 @@ export async function applyMatrix(
   }
   return payload as MatrixApplied
 }
+
+// ---------------------------------------------------------------------------
+// Informes
+// ---------------------------------------------------------------------------
+
+export type ReportSeverity = 'neutral' | 'warning' | 'error'
+
+export type HighlightKind =
+  | 'alcance' | 'trabajo' | 'avance' | 'coste'
+  | 'sobrecarga' | 'riesgo' | 'hallazgos' | 'sin-fechas'
+
+/** Un punto del resumen: sin texto, para que lo diga la interfaz y en su idioma. */
+export interface Highlight {
+  readonly kind: HighlightKind
+  readonly severity: ReportSeverity
+  readonly numbers: Readonly<Record<string, number>>
+  readonly labels: readonly string[]
+}
+
+export interface ReportMonth {
+  readonly period: string
+  readonly plannedMinutes: number
+  readonly capacityMinutes: number
+  readonly utilizationBp: number | null
+  readonly costCents: number
+}
+
+export interface ReportProjectLine {
+  readonly projectId: string
+  readonly code: string
+  readonly name: string
+  readonly plannedMinutes: number
+  readonly costCents: number
+  readonly tasksInPeriod: number
+  readonly tasksTotal: number
+  readonly percentCompleteBp: number
+  readonly start: string | null
+  readonly finish: string | null
+  readonly criticalTasks: number
+  readonly risks: number
+  readonly blockingFindings: number
+}
+
+export interface ReportPersonLine {
+  readonly resourceId: string
+  readonly code: string
+  readonly displayName: string
+  readonly plannedMinutes: number
+  readonly capacityMinutes: number
+  readonly utilizationBp: number | null
+  readonly worstPeriod: string | null
+  readonly worstUtilizationBp: number | null
+  readonly projects: readonly string[]
+}
+
+export type RiskKind = 'fecha-limite' | 'holgura-negativa' | 'retraso'
+
+export interface ReportRisk {
+  readonly nodeId: string
+  readonly projectId: string
+  readonly projectCode: string
+  readonly path: string
+  readonly name: string
+  readonly kind: RiskKind
+  readonly scheduledFinish: string | null
+  readonly deadline: string | null
+  readonly percentCompleteBp: number
+  readonly amount: number
+}
+
+export interface ReportFinding {
+  readonly severity: string
+  readonly code: string
+  readonly projectId: string | null
+  readonly entityName: string | null
+  readonly message: string
+  readonly occursOn: string | null
+}
+
+export interface ReportTotals {
+  readonly projectCount: number
+  readonly tasksInPeriod: number
+  readonly tasksTotal: number
+  readonly tasksWithoutDates: number
+  readonly plannedMinutes: number
+  readonly capacityMinutes: number
+  readonly utilizationBp: number | null
+  readonly costCents: number
+  readonly completedTasks: number
+  readonly inProgressTasks: number
+  readonly notStartedTasks: number
+  readonly percentCompleteBp: number
+  readonly milestonesInPeriod: number
+  readonly criticalTasks: number
+  readonly overloadedPeople: number
+  readonly blockingFindings: number
+  readonly errorFindings: number
+  readonly warningFindings: number
+}
+
+export interface Report {
+  readonly runId: string
+  readonly period: { readonly from: string; readonly to: string }
+  readonly asOf: string
+  readonly costsHidden: boolean
+  readonly peopleHidden: boolean
+  readonly tldr: readonly Highlight[]
+  readonly totals: ReportTotals
+  readonly months: readonly ReportMonth[]
+  readonly projects: readonly ReportProjectLine[]
+  readonly people: readonly ReportPersonLine[]
+  readonly risks: readonly ReportRisk[]
+  readonly findings: readonly ReportFinding[]
+}
+
+export async function fetchReport(
+  projectIds: readonly string[],
+  from: string,
+  to: string,
+): Promise<Report> {
+  const consulta = new URLSearchParams({ from, to })
+  // Sin proyectos, el servidor manda todos los que se puedan ver.
+  if (projectIds.length > 0) consulta.set('projects', projectIds.join(','))
+  return get<Report>(`/api/report?${consulta.toString()}`)
+}
