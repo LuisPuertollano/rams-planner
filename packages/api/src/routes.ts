@@ -17,10 +17,12 @@ import {
   readDailyCapacity,
   readDerivations,
   readDiff,
+  readEntityHistory,
   readFieldValues,
   readFindings,
   readLoad,
   readProjects,
+  readRecentChanges,
   readResources,
   readTasks,
   readUtilization,
@@ -318,28 +320,20 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
   /** Historial de cambios de una entidad: quién, cuándo y con qué comentario. */
   app.get('/api/history/:entityId', { config: { permission: 'historial.ver' } }, async (request) => {
     const { entityId } = z.object({ entityId: z.string().uuid() }).parse(request.params)
-    const { rows } = await pool.query<{
-      occurred_at: Date
-      operation: string
-      entity_type: string
-      before_value: unknown
-      after_value: unknown
-      comment: string | null
-    }>(
-      `SELECT occurred_at, operation, entity_type, before_value, after_value, comment
-       FROM change_event WHERE entity_id = $1 ORDER BY occurred_at DESC LIMIT 100`,
-      [entityId],
-    )
-    return {
-      entityId,
-      events: rows.map((row) => ({
-        occurredAt: row.occurred_at.toISOString(),
-        operation: row.operation,
-        entityType: row.entity_type,
-        before: row.before_value,
-        after: row.after_value,
-        comment: row.comment,
-      })),
-    }
+    return { entityId, events: await withDb((db) => readEntityHistory(db, entityId)) }
+  })
+
+  /**
+   * Lo último que ha pasado en toda la herramienta.
+   *
+   * El registro es de la herramienta entera y no se corta por proyecto: un
+   * cambio no siempre cuelga de uno —dar de alta a alguien, retirar una
+   * competencia— y una lista a medias contaría una historia falsa. Por eso
+   * `historial.ver` es de los permisos que sólo valen concedidos en toda la
+   * herramienta.
+   */
+  app.get('/api/history', { config: { permission: 'historial.ver' } }, async (request) => {
+    const query = z.object({ limit: z.coerce.number().int().min(1).max(500).default(200) }).parse(request.query)
+    return { events: await withDb((db) => readRecentChanges(db, query.limit)) }
   })
 }

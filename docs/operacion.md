@@ -257,6 +257,17 @@ desmarcar la casilla equivocada te deja fuera de tu propia herramienta sin más
 salida que abrir la base de datos a mano. La base de datos tiene además dos
 triggers que rechazan borrarlo o repermisarlo incluso por SQL directo.
 
+### El registro de cambios
+
+Desde que hay sesión, **cada cambio queda firmado**: la pestaña **Registro**
+dice quién lo hizo, cuándo, sobre qué y qué campos se movieron. Lo escribe un
+trigger de la base de datos, no la aplicación, y nadie tiene permiso de `UPDATE`
+ni `DELETE` sobre esa tabla: el historial no se puede reescribir desde la
+herramienta.
+
+Los cambios hechos con la CLI salen sin autor, porque no hay sesión detrás. Es
+correcto y conviene que se note.
+
 ### Cuando alguien se va
 
 Desactivar a una persona (**Usuarios y roles → Desactivar**) le cierra las

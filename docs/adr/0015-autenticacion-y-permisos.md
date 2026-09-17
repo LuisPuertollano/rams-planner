@@ -131,10 +131,18 @@ cumplir, no se recuerda.
 - `packages/api/src/admin-routes.ts` y `packages/web/src/views/AdminView.tsx` ·
   la hoja: funciones en filas, agrupadas por pantalla; roles editables en
   columnas; una casilla por cruce.
+- `packages/persistence/src/audit-context.ts` · quién firma cada cambio. El
+  actor viaja en un `AsyncLocalStorage` que se fija en el primer hook de la
+  petición, y `withTransaction` lo recoge sin que nadie tenga que pasarlo: las
+  cuarenta llamadas que escriben quedan firmadas sin tocarlas, y una ruta nueva
+  no se puede olvidar de hacerlo. Un `actorId` explícito sigue ganando, para
+  los trabajos de fondo.
 - `packages/api/src/permissions.integration.test.ts` · las pruebas que entran
   por la puerta. Montan la aplicación entera, crean cuentas con permisos
   concretos y comprueban lo que contesta el servidor, que es lo único que
-  cuenta.
+  cuenta. Las de auditoría piden **por HTTP de verdad**, no con `inject`: sin
+  socket de por medio la cadena asíncrona se conserva, el fallo de propagación
+  del actor no se reproduce y la prueba daría verde con el historial anónimo.
 
 ### Qué se ve, no sólo qué se puede hacer
 

@@ -65,9 +65,23 @@ async function cuentaCon(permisos: readonly string[], projectId: string | null =
   return respuesta.headers['set-cookie']?.toString() ?? ''
 }
 
+/**
+ * La dirección del servidor escuchando de verdad.
+ *
+ * Casi todo se prueba con `app.inject`, que es más rápido y basta. Pero el
+ * contexto de auditoría **no**: `inject` no pasa por el socket y conserva una
+ * cadena asíncrona que el servidor real no conserva, así que un fallo en la
+ * propagación del actor pasaría desapercibido. De hecho pasó: el historial
+ * guardaba los cambios sin nombre y `inject` los daba por firmados.
+ */
+let base = ''
+
 beforeAll(async () => {
   if (pool === null) return
   app = await buildServer(pool, { logLevel: 'silent' })
+  await app.listen({ port: 0, host: '127.0.0.1' })
+  const direccion = app.server.address()
+  base = typeof direccion === 'object' && direccion !== null ? `http://127.0.0.1:${String(direccion.port)}` : ''
   sinCostes = await cuentaCon(['carga.ver', 'plan.ver', 'equipo.ver', 'exportar', 'ejecuciones.ver'])
   basica = await cuentaCon(['carga.ver', 'plan.ver', 'plan.estructura', 'calcular', 'plantillas.usar'])
 
@@ -397,5 +411,63 @@ describeSiHayBase('lo que se lee también viene recortado', () => {
     expect(respuesta.statusCode).toBe(200)
     const cells = respuesta.json<{ cells: readonly { projectId: string }[] }>().cells
     expect(cells.every((cell) => cell.projectId === proyectoMio)).toBe(true)
+  })
+})
+
+/** Una petición por HTTP de verdad, con su cookie. */
+async function pedir(
+  method: string,
+  ruta: string,
+  cookie: string,
+  cuerpo?: unknown,
+): Promise<{ status: number; body: unknown }> {
+  const respuesta = await fetch(`${base}${ruta}`, {
+    method,
+    headers: cuerpo === undefined ? { cookie } : { cookie, 'content-type': 'application/json' },
+    ...(cuerpo === undefined ? {} : { body: JSON.stringify(cuerpo) }),
+  })
+  return { status: respuesta.status, body: await respuesta.json() }
+}
+
+describeSiHayBase('el historial dice quién', () => {
+  it('un cambio hecho con sesión queda firmado, y el registro lo cuenta', async () => {
+    // Por HTTP, no por `inject`: es la única forma de que esta prueba pueda
+    // fallar cuando el contexto de auditoría deje de propagarse.
+    const creado = await pedir('POST', '/api/projects', basica, {
+      code: unico('FIRMA'),
+      name: 'Proyecto firmado',
+      statusStart: '2026-03-02',
+    })
+    expect(creado.status).toBe(200)
+    const projectId = (creado.body as { result: string }).result
+
+    // Quien lo creó no puede leer el registro: son permisos distintos, y eso
+    // también conviene que siga siendo verdad.
+    const denegado = await pedir('GET', '/api/history', basica)
+    expect(denegado.status).toBe(403)
+
+    const cronista = await cuentaCon(['historial.ver'])
+    const historial = await pedir('GET', `/api/history/${projectId}`, cronista)
+    expect(historial.status).toBe(200)
+    const eventos = (
+      historial.body as {
+        events: readonly { actorId: string | null; actorName: string | null; operation: string }[]
+      }
+    ).events
+
+    const alta = eventos.find((evento) => evento.operation === 'insert')
+    expect(alta).toBeDefined()
+    // Lo que faltaba hasta ahora: el cambio se guardaba sin nombre.
+    expect(alta?.actorId).not.toBeNull()
+    expect(alta?.actorName).toBe('Cuenta de prueba')
+  })
+
+  it('el registro general trae el nombre de lo que cambió, no sólo su identificador', async () => {
+    const cronista = await cuentaCon(['historial.ver'])
+    const respuesta = await pedir('GET', '/api/history?limit=50', cronista)
+    expect(respuesta.status).toBe(200)
+    const eventos = (respuesta.body as { events: readonly { entityName: string | null }[] }).events
+    expect(eventos.length).toBeGreaterThan(0)
+    expect(eventos.some((evento) => evento.entityName !== null)).toBe(true)
   })
 })

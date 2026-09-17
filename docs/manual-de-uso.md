@@ -331,6 +331,21 @@ trabajo ha cambiado. Sirve para lo importante:
 
 Eso es la respuesta a la segunda pregunta, con nombres y fechas.
 
+### Registro
+
+Quién cambió qué y cuándo, con el comentario de la operación y **qué campos se
+movieron**: `duración: 480 → 960`, no «cambio en Tarea 3.2». Se filtra por
+persona, por tarea o por comentario.
+
+El registro no lo escribe la aplicación, lo escribe la base de datos con cada
+cambio, así que no se puede olvidar de anotar nada ni se puede reescribir
+después. Las filas que salen **sin autor** no son un fallo: son los cambios
+hechos con la CLI y los anteriores a que la herramienta tuviera login.
+
+Es de toda la herramienta y no se corta por proyecto: un cambio no siempre
+cuelga de uno —dar de alta a alguien, retirar una competencia— y una lista a
+medias contaría una historia falsa.
+
 ### Administración
 
 Sólo la ven quienes administran. Son dos cosas:

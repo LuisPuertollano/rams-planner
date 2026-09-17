@@ -26,6 +26,7 @@ import { LoginView } from './views/LoginView.js'
 import { DiffView } from './views/DiffView.js'
 import { FindingsView } from './views/FindingsView.js'
 import { GanttView } from './views/GanttView.js'
+import { HistoryView } from './views/HistoryView.js'
 import { HeatmapView } from './views/HeatmapView.js'
 import { MatrixView } from './views/MatrixView.js'
 import { PlanView } from './views/PlanView.js'
@@ -36,7 +37,7 @@ import { ResourcesView } from './views/ResourcesView.js'
 type Tab =
   | 'matriz' | 'saturacion' | 'plan' | 'cronograma'
   | 'equipo' | 'competencias' | 'calendario' | 'reparto' | 'hallazgos' | 'comparar'
-  | 'admin'
+  | 'registro' | 'admin'
 
 /**
  * Cada pestaña declara con qué permiso se entra. Si alguien no tiene ninguno de
@@ -63,6 +64,7 @@ const TABS: readonly {
   { id: 'reparto', label: 'Reparto', hint: 'Qué trabajo se podría mover, a quién, y qué arreglaría. Propuestas, no decisiones', permission: ['reparto.ver'] },
   { id: 'hallazgos', label: 'Hallazgos', hint: 'Todo lo que el motor quiere decirte', permission: ['carga.ver', 'plan.ver'] },
   { id: 'comparar', label: 'Comparar', hint: 'En qué se diferencia el plan de hoy del que congelaste', permission: ['ejecuciones.ver'] },
+  { id: 'registro', label: 'Registro', hint: 'Quién cambió qué y cuándo, con su comentario', permission: ['historial.ver'] },
   { id: 'admin', label: 'Administración', hint: 'Quién entra, qué rol tiene y qué deja hacer cada rol', permission: ['roles.gestionar', 'usuarios.gestionar'] },
 ]
 
@@ -218,7 +220,7 @@ export function App(): React.JSX.Element {
           ))}
         </nav>
 
-        {state?.run === null || state === null || tab === 'admin' ? null : (
+        {state?.run === null || state === null || tab === 'admin' || tab === 'registro' ? null : (
           <span className="run-chip" title={`Hash de entradas: ${state.run.inputHash}`}>
             ejecución <b>{state.run.id.slice(0, 8)}</b> · motor {state.run.engineVersion} ·{' '}
             {new Date(state.run.startedAt).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })} ·{' '}
@@ -319,7 +321,7 @@ export function App(): React.JSX.Element {
           </div>
         )}
 
-        {totals === null || visibleTabs.length === 0 || tab === 'admin' ? null : (
+        {totals === null || visibleTabs.length === 0 || tab === 'admin' || tab === 'registro' ? null : (
           <div className="stat-row">
             <div className="stat">
               <div className="stat__label">Trabajo planificado</div>
@@ -370,6 +372,8 @@ export function App(): React.JSX.Element {
             <span className="spacer faint" style={{ fontSize: 12 }}>
               {tab === 'admin'
                 ? '✎ lo que marques aquí es lo que la API deja hacer'
+                : tab === 'registro'
+                  ? '🔒 sólo lectura · el registro lo escribe la base de datos, no la aplicación'
                 : tab === 'equipo' || tab === 'competencias'
                   ? '✎ todo declarado · cada cambio recalcula el plan'
                   : tab === 'plan'
@@ -380,6 +384,11 @@ export function App(): React.JSX.Element {
           <div className={tab === 'hallazgos' ? 'panel__body panel__body--flush' : 'panel__body panel__body--flush'}>
             {tab === 'admin' ? (
               <AdminView projects={state?.projects ?? []} currentUserId={me.user?.id ?? null} />
+            ) : tab === 'registro' ? (
+              // El registro es dato propio: existe aunque no se haya calculado
+              // nada, y de hecho lo primero que se registra es el alta de la
+              // primera persona del equipo.
+              <HistoryView projects={state?.projects ?? []} />
             ) : tab === 'competencias' ? (
               <SkillsView
                 onChanged={() => {

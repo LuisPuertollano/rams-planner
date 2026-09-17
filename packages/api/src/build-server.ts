@@ -7,6 +7,7 @@
  * sólo existe como efecto secundario del arranque no se puede probar.
  */
 
+import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import cors from '@fastify/cors'
 import fastifyStatic from '@fastify/static'
@@ -28,7 +29,15 @@ export interface BuildOptions {
 }
 
 export async function buildServer(pool: Pool, options: BuildOptions = {}): Promise<FastifyInstance> {
-  const app = Fastify({ logger: { level: options.logLevel ?? 'info' } })
+  const app = Fastify({
+    logger: { level: options.logLevel ?? 'info' },
+    // El identificador de petición viaja a `change_event.request_id`, que es
+    // UUID: el `req-1` que Fastify usa por defecto reventaría el trigger de
+    // auditoría en cada escritura. Además, así el log y el historial hablan
+    // del mismo identificador, que es medio problema resuelto cuando algo
+    // falla en producción.
+    genReqId: () => randomUUID(),
+  })
 
   await app.register(cors, { origin: true })
   // El CSV entra como texto plano: es lo que manda un formulario de fichero.
