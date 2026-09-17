@@ -67,8 +67,10 @@ export interface ReportFinding {
   readonly code: string
   readonly projectId: string | null
   readonly entityName: string | null
+  /** La frase del motor, en castellano. Quien lo enseña la traduce del resto. */
   readonly message: string
   readonly occursOn: string | null
+  readonly payload?: Readonly<Record<string, string | number | boolean | null>>
 }
 
 export interface ReportInput {

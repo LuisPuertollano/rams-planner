@@ -141,6 +141,9 @@ importers:
         specifier: ^19.0.0
         version: 19.3.0(react@19.3.0)
     devDependencies:
+      '@planner/domain':
+        specifier: workspace:*
+        version: link:../domain
       '@types/react':
         specifier: ^19.0.2
         version: 19.3.0

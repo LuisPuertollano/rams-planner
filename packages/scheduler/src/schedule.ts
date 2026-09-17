@@ -6,7 +6,14 @@
  * regla que la produjo y de la entrada responsable (P4).
  */
 
-import { formatWorkMinutesAsHours, sortFindings, workMinutes, type CalendarDate, type Finding } from '@planner/domain'
+import {
+  formatWorkMinutesAsHours,
+  sortFindings,
+  workMinutes,
+  type CalendarDate,
+  type Finding,
+  type FindingPayload,
+} from '@planner/domain'
 import {
   addWorkingMinutes,
   addWorkingMinutesClamped,
@@ -152,7 +159,8 @@ export function schedulePlan(snapshot: PlanSnapshot, options: ScheduleOptions = 
       entityType: 'dependency',
       entityId: cycle[0] ?? 'desconocido',
       message: `Hay un ciclo de dependencias: ${names}. El cálculo no puede continuar; rompe uno de los enlaces.`,
-      payload: { cycle: cycle.join(' → ') },
+      // Los nombres, no los identificadores: es lo que la frase enseña.
+      payload: { cycle: names },
     })
     return { taskResults: [], findings: sortFindings(findings), compiledCalendars: compiled, completed: false }
   }
@@ -372,14 +380,21 @@ function applyConstraint(
   const date = task.constraintDate
   const naturalFinish = finishOf(dependencyStart)
 
-  const conflict = (message: string): void => {
+  // La variante es la clase de restricción: discrimina exactamente las cuatro
+  // situaciones que este código describe.
+  const conflict = (message: string, extra: FindingPayload): void => {
     findings.push({
       severity: 'error',
       code: 'CONSTRAINT_CONFLICT',
       entityType: 'task',
       entityId: task.nodeId,
       message,
-      payload: { constraintKind: task.constraintKind, constraintDate: date ?? null },
+      payload: {
+        variant: task.constraintKind,
+        task: leaf.node.name,
+        constraintDate: date ?? null,
+        ...extra,
+      },
     })
   }
 
@@ -398,7 +413,9 @@ function applyConstraint(
     case 'start_no_later_than': {
       if (date !== undefined && absoluteOf(dependencyStart, horizonFrom) > absoluteOf(endOfDay(date), horizonFrom)) {
         conflict(
-          `«${task.nodeId}» no puede empezar antes del ${date}: sus predecesoras la empujan a ${formatInstant(dependencyStart)}.`,
+          `«${leaf.node.name}» no puede empezar antes del ${date}: sus predecesoras la empujan a ` +
+            `${formatInstant(dependencyStart)}.`,
+          { dependencyStart: formatInstant(dependencyStart) },
         )
       }
       return { start: dependencyStart, finish: naturalFinish }
@@ -416,7 +433,10 @@ function applyConstraint(
 
     case 'finish_no_later_than': {
       if (date !== undefined && absoluteOf(naturalFinish, horizonFrom) > absoluteOf(endOfDay(date), horizonFrom)) {
-        conflict(`«${task.nodeId}» terminaría el ${formatInstant(naturalFinish)}, después del límite ${date}.`)
+        conflict(
+          `«${leaf.node.name}» terminaría el ${formatInstant(naturalFinish)}, después del límite ${date}.`,
+          { finish: formatInstant(naturalFinish) },
+        )
       }
       return { start: dependencyStart, finish: naturalFinish }
     }
@@ -426,8 +446,9 @@ function applyConstraint(
       const start = snapToWorkingTime(startOfDay(date), calendar, 'forward')
       if (absoluteOf(dependencyStart, horizonFrom) > absoluteOf(start, horizonFrom)) {
         conflict(
-          `«${task.nodeId}» tiene que empezar el ${date}, pero sus predecesoras no lo permiten hasta ` +
+          `«${leaf.node.name}» tiene que empezar el ${date}, pero sus predecesoras no lo permiten hasta ` +
             `${formatInstant(dependencyStart)}. Gana la restricción y el conflicto queda visible.`,
+          { dependencyStart: formatInstant(dependencyStart) },
         )
       }
       sink.record({
@@ -446,8 +467,9 @@ function applyConstraint(
       const start = subtractWorkingMinutesClamped(finish, metrics.durationMinutes, calendar)
       if (absoluteOf(dependencyStart, horizonFrom) > absoluteOf(start, horizonFrom)) {
         conflict(
-          `«${task.nodeId}» tiene que terminar el ${date}, lo que exige empezar el ${formatInstant(start)}, ` +
+          `«${leaf.node.name}» tiene que terminar el ${date}, lo que exige empezar el ${formatInstant(start)}, ` +
             'antes de lo que permiten sus predecesoras.',
+          { start: formatInstant(start) },
         )
       }
       return { start, finish, rule: 'CONSTRAINT_MFO' }
@@ -496,7 +518,7 @@ function checkDeadline(
     entityId: leaf.node.id,
     occursOn: deadline,
     message: `«${leaf.node.name}» termina el ${formatInstant(finish)}, después de su fecha objetivo ${deadline}.`,
-    payload: { deadline, finish: formatInstant(finish) },
+    payload: { task: leaf.node.name, deadline, finish: formatInstant(finish) },
   })
 }
 
@@ -570,6 +592,7 @@ function checkWorkAndAssignments(
       entityType: 'task',
       entityId: leaf.node.id,
       message: `«${leaf.node.name}» tiene trabajo estimado pero nadie asignado.`,
+      payload: { task: leaf.node.name, workMinutes: leaf.metrics.workMinutes },
     })
   }
   if (leaf.metrics.workMinutes === 0 && leaf.metrics.durationMinutes > 0) {
@@ -581,6 +604,7 @@ function checkWorkAndAssignments(
       message:
         `«${leaf.node.name}» ocupa ${formatWorkMinutesAsHours(workMinutes(leaf.metrics.durationMinutes))} h ` +
         'de calendario pero no consume trabajo de nadie.',
+      payload: { task: leaf.node.name, durationMinutes: leaf.metrics.durationMinutes },
     })
   }
   const standard = leaf.task.standardEffortMinutes
@@ -593,7 +617,7 @@ function checkWorkAndAssignments(
       message:
         `«${leaf.node.name}» planifica ${formatWorkMinutesAsHours(workMinutes(leaf.metrics.workMinutes))} h ` +
         `frente a las ${formatWorkMinutesAsHours(workMinutes(standard))} h del esfuerzo estándar.`,
-      payload: { planned: leaf.metrics.workMinutes, standard },
+      payload: { task: leaf.node.name, planned: leaf.metrics.workMinutes, standard },
     })
   }
 }

@@ -114,7 +114,10 @@ export interface FindingRow {
   readonly entityId: string
   readonly entityName: string | null
   readonly occursOn: string | null
+  /** La frase que escribió el motor, en castellano. Es el respaldo. */
   readonly message: string
+  /** Los datos, de los que se construye la frase en el idioma activo. */
+  readonly payload?: Readonly<Record<string, string | number | boolean | null>>
 }
 
 export interface DerivationRow {
@@ -1060,6 +1063,7 @@ export interface ReportFinding {
   readonly entityName: string | null
   readonly message: string
   readonly occursOn: string | null
+  readonly payload?: Readonly<Record<string, string | number | boolean | null>>
 }
 
 export interface ReportTotals {
