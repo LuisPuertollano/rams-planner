@@ -173,6 +173,12 @@ docker compose exec api node packages/api/dist/cli.js <comando>
 | `seed-demo` | Carga los datos de demostración, si la base está vacía |
 | `calculate` | Recalcula y guarda una ejecución nueva. Sirve para un cron |
 | `runs` | Lista las últimas ejecuciones con su hash de entradas |
+| `crear-superadmin <correo> <nombre>` | Da de alta la primera cuenta, con todos los permisos |
+| `cambiar-clave <correo>` | Genera una contraseña nueva para alguien que perdió la suya |
+
+Los dos últimos **generan la contraseña y la imprimen una vez**. No se pasan por
+argumento a propósito: un argumento queda en el historial del shell y en la
+lista de procesos de la máquina.
 
 `calculate` desde un cron nocturno es útil por una razón concreta: como el hash
 de entradas está guardado, dos ejecuciones con el mismo hash y resultados
@@ -181,7 +187,64 @@ alarma barata.
 
 ---
 
-## 7. Cuando algo va mal
+## 7. Usuarios, roles y permisos
+
+### La primera cuenta
+
+Una base recién migrada **no tiene ningún usuario**, y mientras eso sea así la
+herramienta está **abierta**: cualquiera que llegue a ella entra y hace lo que
+quiera. Es a propósito —una instalación que no deja entrar a nadie hasta que
+alguien encuentre el comando correcto es peor—, pero se avisa por todas partes:
+en el log del arranque y en un banner rojo arriba de la interfaz.
+
+Se cierra creando el primer superadministrador:
+
+```bash
+docker compose exec api node packages/api/dist/cli.js \
+  crear-superadmin luis@empresa.com "Luis Puertollano"
+```
+
+La contraseña sale por pantalla una sola vez. A partir de ahí hay que entrar
+para hacer nada.
+
+### Repartir permisos
+
+Todo lo demás se hace desde la pestaña **Administración**, que sólo ven quienes
+tienen `roles.gestionar` o `usuarios.gestionar`:
+
+- **Hoja de permisos** — funciones en filas, roles en columnas, una casilla por
+  cruce. La lista de funciones sale del código (`packages/api/src/permissions.ts`),
+  así que no se puede quedar desactualizada: una funcionalidad nueva sin permiso
+  no arranca el servidor.
+- **Usuarios y roles** — alta de personas, contraseñas, desactivar cuentas y
+  conceder roles, de forma global o **sólo sobre un proyecto**. Lo que alguien
+  puede hacer en un proyecto es la unión de sus roles globales y los de ese
+  proyecto: un rol por proyecto suma, nunca resta.
+
+Vienen tres roles editables de fábrica —**Lectura**, **Planificación** y
+**Responsable**— y uno fijo, **Superadministración**, que lo tiene todo y no
+aparece en la hoja. Esa excepción existe por una razón concreta: sin ella,
+desmarcar la casilla equivocada te deja fuera de tu propia herramienta sin más
+salida que abrir la base de datos a mano. La base de datos tiene además dos
+triggers que rechazan borrarlo o repermisarlo incluso por SQL directo.
+
+### Cuando alguien se va
+
+Desactivar a una persona (**Usuarios y roles → Desactivar**) le cierra las
+sesiones abiertas en el acto, no sólo le impide volver a entrar. Cambiarle la
+contraseña hace lo mismo. Las cuentas no se borran: su rastro en el historial de
+cambios tiene que seguir teniendo nombre.
+
+### Lo que la interfaz esconde no es lo que protege
+
+Las pestañas y los botones que no se pueden usar no se enseñan, pero eso es
+cortesía. Lo que protege es la API: cada ruta declara su permiso y el servidor
+deniega por defecto. Escribir la URL a mano devuelve un 403 con el nombre de la
+función que falta.
+
+---
+
+## 8. Cuando algo va mal
 
 **`api-1` aparece parado nada más levantar compose, en Windows.**
 Casi siempre son los finales de línea. Git para Windows convierte a CRLF al
@@ -240,7 +303,7 @@ distintos, y el diff dice exactamente en qué.
 
 ---
 
-## 8. Puesta en producción para un equipo
+## 9. Puesta en producción para un equipo
 
 Lo mínimo que hay que cambiar respecto a la configuración de desarrollo:
 
@@ -249,11 +312,13 @@ Lo mínimo que hay que cambiar respecto a la configuración de desarrollo:
 - [ ] Un usuario propio para la API, con el rol `planner_api` (punto 3).
 - [ ] La copia de seguridad del punto 4 en un cron, con la restauración probada
       al menos una vez. Una copia que no se ha restaurado nunca no es una copia.
-- [ ] Un proxy inverso delante si se expone fuera de la red local: la
-      herramienta no implementa autenticación y no pretende hacerlo.
+- [ ] El primer superadministrador creado (punto 7). Mientras no lo esté, la
+      herramienta está abierta a cualquiera que llegue a ella.
+- [ ] **Un proxy inverso con TLS delante.** Esto no es opcional en cuanto la
+      herramienta sale de una máquina: en `http://` la contraseña y la cookie de
+      sesión viajan en claro por la red del servidor, y la VPN cifra el túnel
+      desde fuera pero no protege nada dentro.
 
-Sobre el último punto: el modelo tiene `app_user` y el trigger de auditoría lee
-`app.actor_id` de la sesión, así que la herramienta **está preparada** para
-registrar quién hace cada cambio en cuanto haya autenticación delante. Mientras
-no la haya, los cambios se registran sin actor, que es honesto y es lo que se ve
-en el historial.
+Sobre el TLS: la cookie de sesión sólo lleva la marca `Secure` cuando la
+petición llega por HTTPS. Si el proxy termina el TLS y habla con la API por
+HTTP, tiene que mandar `X-Forwarded-Proto: https` para que la marca se ponga.

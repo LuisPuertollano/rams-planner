@@ -281,13 +281,19 @@ export interface ResourceDetail {
 export interface TeamState {
   readonly resources: readonly ResourceDetail[]
   readonly calendars: readonly CalendarOption[]
+  /**
+   * Quien pide esto no tiene permiso para ver costes, así que las tarifas
+   * llegan vacías. Sin este aviso la ficha diría «sin tarifa: el coste sale a
+   * cero», que es una mentira distinta.
+   */
+  readonly costsHidden?: boolean
 }
 
 export async function fetchTeam(): Promise<TeamState> {
   return get<TeamState>('/api/resources')
 }
 
-async function send(path: string, method: 'POST' | 'PATCH' | 'DELETE', body?: unknown): Promise<void> {
+async function send(path: string, method: 'POST' | 'PATCH' | 'PUT' | 'DELETE', body?: unknown): Promise<void> {
   const response = await fetch(path, {
     method,
     ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
@@ -604,4 +610,151 @@ export async function applyRebalance(proposal: RebalanceProposal): Promise<void>
     nodeId: proposal.nodeId,
     toResourceId: proposal.toResourceId,
   })
+}
+
+// ---------------------------------------------------------------------------
+// Sesión, permisos y administración
+// ---------------------------------------------------------------------------
+
+export interface SessionUser {
+  readonly id: string
+  readonly email: string
+  readonly displayName: string
+  readonly isActive: boolean
+  readonly lastLoginAt: string | null
+}
+
+export interface PermissionDefinition {
+  readonly code: string
+  readonly screen: string
+  readonly label: string
+  readonly detail: string
+  readonly sensitive?: boolean
+  readonly enforcedIn?: readonly string[]
+}
+
+export interface EffectivePermissions {
+  readonly isSuperadmin: boolean
+  readonly global: readonly string[]
+  readonly byProject: Readonly<Record<string, readonly string[]>>
+}
+
+export interface MeResponse {
+  readonly user: SessionUser | null
+  readonly permissions: EffectivePermissions | null
+  readonly catalogue: readonly PermissionDefinition[]
+  /**
+   * La instalación no tiene ni un usuario dado de alta, así que está abierta a
+   * quien llegue. Es lo que distingue «no has entrado» de «aquí todavía no hay
+   * nadie a quien pedirle que entre».
+   */
+  readonly openInstallation: boolean
+}
+
+export async function fetchMe(): Promise<MeResponse> {
+  return get<MeResponse>('/api/auth/me')
+}
+
+export async function signIn(email: string, password: string): Promise<MeResponse> {
+  const response = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  })
+  if (!response.ok) {
+    const body: unknown = await response.json().catch(() => ({}))
+    throw new Error(
+      typeof body === 'object' && body !== null && 'error' in body
+        ? String(body.error)
+        : 'No se pudo entrar',
+    )
+  }
+  return response.json() as Promise<MeResponse>
+}
+
+export async function signOut(): Promise<void> {
+  await fetch('/api/auth/logout', { method: 'POST' })
+}
+
+/** ¿Puede esto? Sin proyecto: en algún sitio. Con proyecto: ahí. */
+export function can(
+  permissions: EffectivePermissions | null,
+  code: string,
+  projectId?: string,
+): boolean {
+  if (permissions === null) return true // instalación todavía sin usuarios
+  if (permissions.isSuperadmin) return true
+  if (permissions.global.includes(code)) return true
+  if (projectId !== undefined) return permissions.byProject[projectId]?.includes(code) ?? false
+  return Object.values(permissions.byProject).some((lista) => lista.includes(code))
+}
+
+export interface Role {
+  readonly id: string
+  readonly code: string
+  readonly name: string
+  readonly description: string | null
+  readonly isSystem: boolean
+  readonly permissions: readonly string[]
+}
+
+export interface Grant {
+  readonly id: string
+  readonly userId: string
+  readonly roleId: string
+  readonly projectId: string | null
+}
+
+export interface AdminSheet {
+  readonly screens: readonly string[]
+  readonly permissions: readonly PermissionDefinition[]
+  readonly roles: readonly Role[]
+  readonly users: readonly SessionUser[]
+  readonly grants: readonly Grant[]
+}
+
+export async function fetchAdminSheet(): Promise<AdminSheet> {
+  return get<AdminSheet>('/api/admin/hoja')
+}
+
+export async function saveRolePermissions(roleId: string, permissions: readonly string[]): Promise<void> {
+  const response = await fetch(`/api/admin/roles/${roleId}/permissions`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ permissions }),
+  })
+  if (!response.ok) {
+    const body: unknown = await response.json().catch(() => ({}))
+    throw new Error(
+      typeof body === 'object' && body !== null && 'error' in body ? String(body.error) : 'No se pudo guardar',
+    )
+  }
+}
+
+export async function createRole(code: string, name: string, description: string): Promise<void> {
+  return send('/api/admin/roles', 'POST', { code, name, description })
+}
+
+export async function removeRole(roleId: string): Promise<void> {
+  return send(`/api/admin/roles/${roleId}`, 'DELETE')
+}
+
+export async function createAppUser(email: string, displayName: string, password: string): Promise<void> {
+  return send('/api/admin/usuarios', 'POST', { email, displayName, password })
+}
+
+export async function setUserPassword(userId: string, password: string): Promise<void> {
+  return send(`/api/admin/usuarios/${userId}/clave`, 'PUT', { password })
+}
+
+export async function setUserActive(userId: string, active: boolean): Promise<void> {
+  return send(`/api/admin/usuarios/${userId}/activo`, 'PUT', { active })
+}
+
+export async function grant(userId: string, roleId: string, projectId: string | null): Promise<void> {
+  return send('/api/admin/concesiones', 'POST', { userId, roleId, projectId })
+}
+
+export async function revoke(grantId: string): Promise<void> {
+  return send(`/api/admin/concesiones/${grantId}`, 'DELETE')
 }
