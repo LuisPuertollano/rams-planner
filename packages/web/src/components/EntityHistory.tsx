@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchEntityHistory, type ChangeEvent } from '../api.js'
+import { dateTime } from '../format.js'
 import { Cambios, OPERACION } from '../views/history-shared.js'
 
 interface Props {
@@ -54,10 +55,7 @@ export function EntityHistory({ entityId, limit = 6 }: Props): React.JSX.Element
             {events.slice(0, limit).map((event) => (
               <tr key={event.id}>
                 <td className="muted" style={{ whiteSpace: 'nowrap' }}>
-                  {new Date(event.occurredAt).toLocaleString('es-ES', {
-                    dateStyle: 'short',
-                    timeStyle: 'short',
-                  })}
+                  {dateTime(event.occurredAt)}
                 </td>
                 <td>{event.actorName ?? <span className="faint">sin sesión</span>}</td>
                 <td style={{ whiteSpace: 'normal' }}>

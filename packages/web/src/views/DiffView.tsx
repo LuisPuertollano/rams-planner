@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchDiff, fetchRuns, type Baseline, type Project, type RunSummary, type TaskDiff } from '../api.js'
-import { fullDate, hours } from '../format.js'
+import { dateTime, fullDate, hours } from '../format.js'
 
 interface Props {
   readonly baselines: readonly Baseline[]
@@ -47,13 +47,13 @@ export function DiffView({ baselines, currentRunId, projects }: Props): React.JS
   const options = [
     ...baselines.map((baseline) => ({
       value: baseline.runId,
-      label: `⭑ ${baseline.name} · ${new Date(baseline.capturedAt).toLocaleDateString('es-ES')}`,
+      label: `⭑ ${baseline.name} · ${fullDate(baseline.capturedAt)}`,
     })),
     ...runs
       .filter((run) => run.id !== currentRunId && !baselines.some((baseline) => baseline.runId === run.id))
       .map((run) => ({
         value: run.id,
-        label: `${new Date(run.startedAt).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })} · ${
+        label: `${dateTime(run.startedAt)} · ${
           run.triggerReason ?? 'cálculo'
         }`,
       })),

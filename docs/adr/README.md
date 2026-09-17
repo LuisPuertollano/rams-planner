@@ -20,7 +20,11 @@ parece una mala idea, aquí está el razonamiento que había detrás.
 | [0013](0013-historial-append-only.md) | Historial append-only con borrado lógico | P7 |
 | [0014](0014-nivelacion-por-retraso.md) | La nivelación empuja fechas, y dice cuándo eso no basta | P2 |
 | [0015](0015-autenticacion-y-permisos.md) | Autenticación y permisos: quién entra, qué ve y qué puede hacer | P1 |
+<<<<<<< HEAD
 | [0016](0016-documentos-y-precedencias.md) | Los documentos y su matriz: el orden del ciclo de vida, declarado una vez | P1 |
+=======
+| [0017](0017-cuatro-idiomas.md) | La interfaz en cuatro idiomas, con el castellano como fuente | — |
+>>>>>>> c06a2f7 (La herramienta habla cuatro idiomas)
 
 ## Decisiones tomadas por defecto
 

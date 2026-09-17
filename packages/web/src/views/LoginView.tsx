@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { signIn, type MeResponse } from '../api.js'
+import { useT } from '../i18n/index.js'
 
 interface Props {
   readonly onEntered: (me: MeResponse) => void
@@ -13,6 +14,7 @@ interface Props {
  * es nada, y eso es a propósito.
  */
 export function LoginView({ onEntered }: Props): React.JSX.Element {
+  const { t } = useT()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
@@ -25,7 +27,7 @@ export function LoginView({ onEntered }: Props): React.JSX.Element {
     signIn(email.trim(), password)
       .then(onEntered)
       .catch((cause: unknown) => {
-        setError(cause instanceof Error ? cause.message : 'No se pudo entrar')
+        setError(cause instanceof Error ? cause.message : t('login.error'))
       })
       .finally(() => { setBusy(false) })
   }
@@ -33,13 +35,13 @@ export function LoginView({ onEntered }: Props): React.JSX.Element {
   return (
     <div className="login">
       <form className="login__card" onSubmit={entrar}>
-        <h1>RAMS Planner</h1>
-        <p className="faint">carga de trabajo, explicada hasta el último minuto</p>
+        <h1>{t('app.nombre')}</h1>
+        <p className="faint">{t('app.lema')}</p>
 
         {error === null ? null : <div className="error-banner">{error}</div>}
 
         <label className="login__campo">
-          <span>Correo</span>
+          <span>{t('login.correo')}</span>
           <input
             className="input"
             type="email"
@@ -52,7 +54,7 @@ export function LoginView({ onEntered }: Props): React.JSX.Element {
         </label>
 
         <label className="login__campo">
-          <span>Contraseña</span>
+          <span>{t('login.contrasena')}</span>
           <input
             className="input"
             type="password"
@@ -64,13 +66,12 @@ export function LoginView({ onEntered }: Props): React.JSX.Element {
         </label>
 
         <button className="button button--primary" type="submit" disabled={busy}>
-          {busy ? 'Entrando…' : 'Entrar'}
+          {busy ? t('login.entrando') : t('login.entrar')}
         </button>
 
         <p className="faint login__pie">
-          ¿No tienes cuenta? Te la da quien administre la herramienta. Si acabas de instalarla y no hay
-          ninguna, créate la primera con{' '}
-          <code>node packages/api/dist/cli.js crear-superadmin &lt;correo&gt; &lt;nombre&gt;</code>.
+          {t('login.pie', '')}{' '}
+          <code>node packages/api/dist/cli.js crear-superadmin &lt;correo&gt; &lt;nombre&gt;</code>
         </p>
       </form>
     </div>
