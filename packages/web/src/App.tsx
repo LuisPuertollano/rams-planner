@@ -47,6 +47,7 @@ import { RebalanceView } from './views/RebalanceView.js'
 import { ReportView } from './views/ReportView.js'
 import { SkillsView } from './views/SkillsView.js'
 import { ResourcesView } from './views/ResourcesView.js'
+import { errorText } from './errors.js'
 
 type Tab =
   | 'matriz' | 'saturacion' | 'plan' | 'cronograma'
@@ -152,14 +153,14 @@ function Planner({
   useEffect(() => {
     fetchMe()
       .then(setMe)
-      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : t('app.errorCargar')) })
+      .catch((cause: unknown) => { setError(errorText(t, cause, 'app.errorCargar')) })
   }, [])
 
   const entrado = me !== null && (me.user !== null || me.openInstallation)
 
   useEffect(() => {
     if (!entrado) return
-    load().catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : t('app.errorCargar')) })
+    load().catch((cause: unknown) => { setError(errorText(t, cause, 'app.errorCargar')) })
   }, [entrado, load])
 
   useEffect(() => {
@@ -191,7 +192,7 @@ function Planner({
     setBusy(true)
     freezeBaseline(state.run.id, name.trim())
       .then(load)
-      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : t('lineaBase.error')) })
+      .catch((cause: unknown) => { setError(errorText(t, cause, 'lineaBase.error')) })
       .finally(() => { setBusy(false) })
   }
 
@@ -210,7 +211,7 @@ function Planner({
         }
         await load()
       })
-      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : t('calculo.error')) })
+      .catch((cause: unknown) => { setError(errorText(t, cause, 'calculo.error')) })
       .finally(() => { setBusy(false) })
   }
 
@@ -333,7 +334,7 @@ function Planner({
           <ImportButton
             onImported={() => {
               load().catch((cause: unknown) => {
-                setError(cause instanceof Error ? cause.message : t('app.errorRecargar'))
+                setError(errorText(t, cause, 'app.errorRecargar'))
               })
             }}
           />
@@ -390,7 +391,7 @@ function Planner({
                   .then(fetchMe)
                   .then(setMe)
                   .catch((cause: unknown) => {
-                    setError(cause instanceof Error ? cause.message : t('app.errorRecargar'))
+                    setError(errorText(t, cause, 'app.errorRecargar'))
                   })
               }}
             >
@@ -511,7 +512,7 @@ function Planner({
                     canApply={puede('dependencias.editar')}
                     onApplied={() => {
                       load().catch((cause: unknown) => {
-                        setError(cause instanceof Error ? cause.message : 'No se pudo recargar')
+                        setError(errorText(t, cause, 'app.errorRecargar'))
                       })
                     }}
                   />
@@ -530,7 +531,7 @@ function Planner({
               <SkillsView
                 onChanged={() => {
                   load().catch((cause: unknown) => {
-                    setError(cause instanceof Error ? cause.message : t('app.errorRecargar'))
+                    setError(errorText(t, cause, 'app.errorRecargar'))
                   })
                 }}
               />
@@ -541,7 +542,7 @@ function Planner({
               <ResourcesView
                 onChanged={() => {
                   load().catch((cause: unknown) => {
-                    setError(cause instanceof Error ? cause.message : t('app.errorRecargar'))
+                    setError(errorText(t, cause, 'app.errorRecargar'))
                   })
                 }}
               />
@@ -593,7 +594,7 @@ function Planner({
                 onEditProject={setEditingProject}
                 onChanged={() => {
                   load().catch((cause: unknown) => {
-                    setError(cause instanceof Error ? cause.message : t('app.errorRecargar'))
+                    setError(errorText(t, cause, 'app.errorRecargar'))
                   })
                 }}
               />
@@ -602,7 +603,7 @@ function Planner({
                 projects={state.projects}
                 onChanged={() => {
                   load().catch((cause: unknown) => {
-                    setError(cause instanceof Error ? cause.message : t('app.errorRecargar'))
+                    setError(errorText(t, cause, 'app.errorRecargar'))
                   })
                 }}
               />
@@ -648,7 +649,7 @@ function Planner({
           onClose={() => { setEditingProject(null) }}
           onChanged={() => {
             load().catch((cause: unknown) => {
-              setError(cause instanceof Error ? cause.message : t('app.errorRecargar'))
+              setError(errorText(t, cause, 'app.errorRecargar'))
             })
           }}
         />
@@ -662,7 +663,7 @@ function Planner({
           onClose={() => { setEditing(null) }}
           onChanged={() => {
             load().catch((cause: unknown) => {
-              setError(cause instanceof Error ? cause.message : t('app.errorRecargar'))
+              setError(errorText(t, cause, 'app.errorRecargar'))
             })
           }}
         />

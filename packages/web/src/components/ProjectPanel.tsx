@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { duplicateProject, patchProject, removeProject, type Project } from '../api.js'
+import { errorText } from '../errors.js'
+import { useT } from '../i18n/index.js'
 import { EntityHistory } from './EntityHistory.js'
 
 interface Props {
@@ -17,6 +19,7 @@ interface Props {
  * de quedarse con el valor que le tocó el día del alta.
  */
 export function ProjectPanel({ project, onClose, onChanged }: Props): React.JSX.Element {
+  const { t } = useT()
   const [code, setCode] = useState(project.code)
   const [name, setName] = useState(project.name)
   const [statusStart, setStatusStart] = useState(project.statusStart)
@@ -35,7 +38,7 @@ export function ProjectPanel({ project, onClose, onChanged }: Props): React.JSX.
     setError(null)
     action()
       .then(() => { onChanged(); if (close) onClose() })
-      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : 'No se pudo guardar') })
+      .catch((cause: unknown) => { setError(errorText(t, cause, 'error.local.guardar')) })
       .finally(() => { setBusy(false) })
   }
 

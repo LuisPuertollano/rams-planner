@@ -19,6 +19,8 @@ import {
   type TaskRow,
 } from '../api.js'
 import { percent } from '../format.js'
+import { errorText } from '../errors.js'
+import { useT } from '../i18n/index.js'
 import { EntityHistory } from './EntityHistory.js'
 
 interface Props {
@@ -47,6 +49,7 @@ const isContainer = (task: TaskRow): boolean => task.kind === 'phase' || task.ki
  * fechas las calcula el motor y se miran en la tabla, no se escriben.
  */
 export function EditPanel({ task, tasks, resources, onClose, onChanged }: Props): React.JSX.Element {
+  const { t } = useT()
   const [structure, setStructure] = useState<PlanStructure | null>(null)
   const [skills, setSkills] = useState<SkillMatrix | null>(null)
   // El catálogo de documentos, para poder marcar cuál entrega esta tarea. Si
@@ -70,7 +73,7 @@ export function EditPanel({ task, tasks, resources, onClose, onChanged }: Props)
   useEffect(() => {
     setName(task.name)
     reload().catch((cause: unknown) => {
-      setError(cause instanceof Error ? cause.message : 'No se pudo cargar la estructura')
+      setError(errorText(t, cause, 'error.local.estructura'))
     })
   }, [task.nodeId, task.name])
 
@@ -86,7 +89,7 @@ export function EditPanel({ task, tasks, resources, onClose, onChanged }: Props)
     action()
       .then(reload)
       .then(() => { onChanged(); if (close) onClose() })
-      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : 'No se pudo guardar') })
+      .catch((cause: unknown) => { setError(errorText(t, cause, 'error.local.guardar')) })
       .finally(() => { setBusy(false) })
   }
 

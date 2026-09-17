@@ -18,6 +18,8 @@ import {
   type TeamState,
 } from '../api.js'
 import { euroRate, fullDate, percent } from '../format.js'
+import { errorText } from '../errors.js'
+import { useT } from '../i18n/index.js'
 
 interface Props {
   /** Se llama tras cada cambio: el servidor ya ha recalculado, la pantalla debe recargarse. */
@@ -49,6 +51,7 @@ const today = (): string => new Date().toISOString().slice(0, 10)
  * dejaría de corresponderse con lo que acabas de declarar.
  */
 export function ResourcesView({ onChanged }: Props): React.JSX.Element {
+  const { t } = useT()
   const [team, setTeam] = useState<TeamState | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -61,7 +64,7 @@ export function ResourcesView({ onChanged }: Props): React.JSX.Element {
 
   useEffect(() => {
     reload().catch((cause: unknown) => {
-      setError(cause instanceof Error ? cause.message : 'No se pudo cargar el equipo')
+      setError(errorText(t, cause, 'error.local.equipo'))
     })
   }, [])
 
@@ -72,7 +75,7 @@ export function ResourcesView({ onChanged }: Props): React.JSX.Element {
     action()
       .then(reload)
       .then(onChanged)
-      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : 'No se pudo guardar') })
+      .catch((cause: unknown) => { setError(errorText(t, cause, 'error.local.guardar')) })
       .finally(() => { setBusy(false) })
   }
 

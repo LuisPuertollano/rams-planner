@@ -19,6 +19,7 @@ import {
   withTransaction,
   type Pool,
 } from '@planner/persistence'
+import { fallar } from './errors.js'
 import { desde, porNodo } from './permissions.js'
 
 export function registerDocumentRoutes(app: FastifyInstance, pool: Pool): void {
@@ -31,7 +32,7 @@ export function registerDocumentRoutes(app: FastifyInstance, pool: Pool): void {
       return { result: await withTransaction(pool, handler, { comment }) }
     } catch (error) {
       if (typeof error === 'object' && error !== null && 'code' in error && String(error.code) === '23505') {
-        return reply.status(422).send({ error: 'Ya existe un documento con ese código.' })
+        return fallar(reply, 422, 'DOCUMENTO_YA_EXISTE', 'Ya existe un documento con ese código.')
       }
       throw error
     }
@@ -67,7 +68,7 @@ export function registerDocumentRoutes(app: FastifyInstance, pool: Pool): void {
         sortKey: z.number().int().min(0).max(100_000).optional(),
       })
       .parse(request.body)
-    if (Object.keys(body).length === 0) return reply.status(400).send({ error: 'No hay nada que cambiar' })
+    if (Object.keys(body).length === 0) return fallar(reply, 400, 'NADA_QUE_CAMBIAR', 'No hay nada que cambiar.')
     return escribir(reply, 'edición de un documento', async (db) => {
       await updateDocumentType(db, documentId, body)
     })
@@ -95,7 +96,7 @@ export function registerDocumentRoutes(app: FastifyInstance, pool: Pool): void {
       })
       .parse(request.body)
     if (body.predecessorId === body.successorId) {
-      return reply.status(422).send({ error: 'Un documento no se espera a sí mismo.' })
+      return fallar(reply, 422, 'DOCUMENTO_NO_SE_ESPERA_A_SI_MISMO', 'Un documento no se espera a sí mismo.')
     }
     return escribir(
       reply,

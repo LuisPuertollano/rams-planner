@@ -9,6 +9,8 @@ import {
   type TaskRow,
 } from '../api.js'
 import { days, fullDate, hours, percent } from '../format.js'
+import { errorText } from '../errors.js'
+import { useT } from '../i18n/index.js'
 
 interface Props {
   readonly tasks: readonly TaskRow[]
@@ -38,6 +40,7 @@ export function PlanView({
   onEditProject,
   onChanged,
 }: Props): React.JSX.Element {
+  const { t } = useT()
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   const [saving, setSaving] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -74,7 +77,7 @@ export function PlanView({
     setError(null)
     updateTask(task.nodeId, { ...changes, comment: 'edición desde la vista de plan' })
       .then(onChanged)
-      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : 'No se pudo guardar') })
+      .catch((cause: unknown) => { setError(errorText(t, cause, 'error.local.guardar')) })
       .finally(() => { setSaving(null) })
   }
 
@@ -88,7 +91,7 @@ export function PlanView({
     setError(null)
     createProject({ code: code.trim(), name: name.trim(), statusStart: new Date().toISOString().slice(0, 10) })
       .then(onChanged)
-      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : 'No se pudo crear') })
+      .catch((cause: unknown) => { setError(errorText(t, cause, 'error.local.crear')) })
       .finally(() => { setSaving(null) })
   }
 
@@ -99,7 +102,7 @@ export function PlanView({
     setError(null)
     createNode({ projectId: project.id, parentId: null, kind: 'phase', name: name.trim() })
       .then(onChanged)
-      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : 'No se pudo crear') })
+      .catch((cause: unknown) => { setError(errorText(t, cause, 'error.local.crear')) })
       .finally(() => { setSaving(null) })
   }
 
@@ -120,7 +123,7 @@ export function PlanView({
     setError(null)
     duplicateProject(template.id, { code: code.trim(), name: name.trim(), statusStart: start.trim() })
       .then(onChanged)
-      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : 'No se pudo crear') })
+      .catch((cause: unknown) => { setError(errorText(t, cause, 'error.local.crear')) })
       .finally(() => { setSaving(null) })
   }
 

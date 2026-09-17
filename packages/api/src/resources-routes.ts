@@ -24,32 +24,12 @@ import {
   type Pool,
 } from '@planner/persistence'
 import { puedeEnTodaLaHerramienta } from './auth-routes.js'
+import { describeDbError, fallar } from './errors.js'
 import { calculate, defaultScenarioId } from './engine.js'
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe ser AAAA-MM-DD')
 
 const absenceKind = z.enum(['vacation', 'sick', 'training', 'parental', 'public_holiday', 'other'])
-
-/**
- * Traduce los errores de PostgreSQL que un usuario puede provocar sin hacer
- * nada raro. Un `23P01` aquí no es un fallo del programa: es la invariante R1
- * («la disponibilidad de una persona no se solapa consigo misma») haciendo su
- * trabajo, y merece una frase en castellano, no un volcado.
- */
-function describeDbError(error: unknown): string | null {
-  if (typeof error !== 'object' || error === null || !('code' in error)) return null
-  const code = String(error.code)
-  const constraint = 'constraint' in error ? String((error as { constraint: unknown }).constraint) : ''
-  if (code === '23P01') {
-    return constraint.includes('cost_rate')
-      ? 'Ya hay una tarifa que cubre parte de esas fechas. Borra la anterior o ajusta el periodo.'
-      : 'Ya hay un periodo de disponibilidad que se solapa con esas fechas. Borra el anterior o ajusta el periodo.'
-  }
-  if (code === '23505') return 'Ya existe un recurso con ese código.'
-  if (code === '23514') return 'Las fechas o los valores están fuera de lo permitido (revisa que «hasta» no sea anterior a «desde»).'
-  if (code === '23503') return 'El calendario indicado no existe.'
-  return null
-}
 
 export function registerResourceRoutes(app: FastifyInstance, pool: Pool): void {
   /**
@@ -66,9 +46,9 @@ export function registerResourceRoutes(app: FastifyInstance, pool: Pool): void {
     try {
       await withTransaction(pool, handler, { comment })
     } catch (error) {
-      const message = describeDbError(error)
-      if (message === null) throw error
-      return reply.status(422).send({ error: message })
+      const fallo = describeDbError(error, 'equipo')
+      if (fallo === null) throw error
+      return fallar(reply, 422, fallo.code, fallo.mensaje)
     }
     const scenarioId = await withTransaction(pool, (db) => defaultScenarioId(db))
     return { run: await calculate(pool, scenarioId, reason) }
@@ -120,7 +100,7 @@ export function registerResourceRoutes(app: FastifyInstance, pool: Pool): void {
         activeTo: isoDate.nullable().optional(),
       })
       .parse(request.body)
-    if (Object.keys(body).length === 0) return reply.status(400).send({ error: 'No hay nada que cambiar' })
+    if (Object.keys(body).length === 0) return fallar(reply, 400, 'NADA_QUE_CAMBIAR', 'No hay nada que cambiar.')
     return write(reply, 'edición de la ficha del recurso', `edición del recurso ${resourceId}`, async (db) => {
       await updateResource(db, resourceId, body)
     })

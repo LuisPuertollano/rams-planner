@@ -8,6 +8,8 @@ import {
   type ResourceDetail,
   type SkillMatrix,
 } from '../api.js'
+import { errorText } from '../errors.js'
+import { useT } from '../i18n/index.js'
 
 interface Props {
   readonly onChanged: () => void
@@ -34,6 +36,7 @@ const hintOf = (level: number): string => NIVELES.find((item) => item.value === 
  * contestar la primera.
  */
 export function SkillsView({ onChanged }: Props): React.JSX.Element {
+  const { t } = useT()
   const [matrix, setMatrix] = useState<SkillMatrix | null>(null)
   const [team, setTeam] = useState<readonly ResourceDetail[] | null>(null)
   const [busy, setBusy] = useState(false)
@@ -47,7 +50,7 @@ export function SkillsView({ onChanged }: Props): React.JSX.Element {
 
   useEffect(() => {
     reload().catch((cause: unknown) => {
-      setError(cause instanceof Error ? cause.message : 'No se pudieron cargar las competencias')
+      setError(errorText(t, cause, 'error.local.competencias'))
     })
   }, [])
 
@@ -57,7 +60,7 @@ export function SkillsView({ onChanged }: Props): React.JSX.Element {
     action()
       .then(reload)
       .then(onChanged)
-      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : 'No se pudo guardar') })
+      .catch((cause: unknown) => { setError(errorText(t, cause, 'error.local.guardar')) })
       .finally(() => { setBusy(false) })
   }
 

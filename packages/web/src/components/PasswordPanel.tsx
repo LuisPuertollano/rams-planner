@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { changeOwnPassword } from '../api.js'
+import { errorText } from '../errors.js'
 import { useT } from '../i18n/index.js'
 
 interface Props {
@@ -44,7 +45,7 @@ export function PasswordPanel({ onClose, onChanged }: Props): React.JSX.Element 
     changeOwnPassword(actual, nueva)
       .then(onChanged)
       .catch((cause: unknown) => {
-        setError(cause instanceof Error ? cause.message : t('clave.error'))
+        setError(errorText(t, cause, 'clave.error'))
       })
       .finally(() => { setBusy(false) })
   }

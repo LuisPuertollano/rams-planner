@@ -144,13 +144,46 @@ export interface RunData {
   readonly findings: readonly FindingRow[]
 }
 
+/**
+ * Un error que viene de la API, con el **código** que mandó el servidor.
+ *
+ * El código es lo que permite escribir la frase en el idioma de quien mira; el
+ * `message` es la frase castellana que llegó, y se guarda porque es el respaldo
+ * de un código que esta versión de la interfaz no conozca todavía.
+ *
+ * Los `datos` son lo que la frase necesita —el permiso que falta, los nombres de
+ * las funciones que no existen, las filas del CSV—, el cuerpo entero tal cual.
+ */
+export class ErrorDeLaApi extends Error {
+  readonly code: string | null
+  readonly datos: Readonly<Record<string, unknown>>
+
+  constructor(message: string, code: string | null, datos: Readonly<Record<string, unknown>>) {
+    super(message)
+    this.name = 'ErrorDeLaApi'
+    this.code = code
+    this.datos = datos
+  }
+}
+
+/**
+ * Convierte una respuesta que no fue bien en el error que se lanza.
+ *
+ * Un solo sitio, y antes eran diez copias del mismo `typeof body === 'object'`.
+ * El `respaldo` es para la respuesta que no trae cuerpo —un 502 del proxy, por
+ * ejemplo—: no hay frase del servidor porque no hubo servidor.
+ */
+async function comoError(response: Response, respaldo: string): Promise<ErrorDeLaApi> {
+  const cuerpo: unknown = await response.json().catch(() => ({}))
+  const datos: Readonly<Record<string, unknown>> =
+    typeof cuerpo === 'object' && cuerpo !== null ? (cuerpo as Record<string, unknown>) : {}
+  const mensaje = typeof datos['error'] === 'string' && datos['error'] !== '' ? datos['error'] : respaldo
+  return new ErrorDeLaApi(mensaje, typeof datos['code'] === 'string' ? datos['code'] : null, datos)
+}
+
 async function get<T>(path: string): Promise<T> {
   const response = await fetch(path, { headers: { accept: 'application/json' } })
-  if (!response.ok) {
-    const body: unknown = await response.json().catch(() => ({}))
-    const message = typeof body === 'object' && body !== null && 'error' in body ? String(body.error) : response.statusText
-    throw new Error(message)
-  }
+  if (!response.ok) throw await comoError(response, response.statusText)
   return response.json() as Promise<T>
 }
 
@@ -193,12 +226,7 @@ export async function updateTask(
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(changes),
   })
-  if (!response.ok) {
-    const body: unknown = await response.json().catch(() => ({}))
-    throw new Error(
-      typeof body === 'object' && body !== null && 'error' in body ? String(body.error) : 'No se pudo guardar',
-    )
-  }
+  if (!response.ok) throw await comoError(response, 'No se pudo guardar')
 }
 
 export async function freezeBaseline(runId: string, name: string): Promise<Baseline> {
@@ -207,7 +235,7 @@ export async function freezeBaseline(runId: string, name: string): Promise<Basel
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ name }),
   })
-  if (!response.ok) throw new Error('No se pudo congelar la línea base')
+  if (!response.ok) throw await comoError(response, 'No se pudo congelar la línea base')
   return response.json() as Promise<Baseline>
 }
 
@@ -229,7 +257,7 @@ export async function recalculate(reason: string, level = false): Promise<Calcul
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ reason, level }),
   })
-  if (!response.ok) throw new Error('No se pudo recalcular')
+  if (!response.ok) throw await comoError(response, 'No se pudo recalcular')
   return response.json() as Promise<CalculationSummary>
 }
 
@@ -314,14 +342,7 @@ async function send(path: string, method: 'POST' | 'PATCH' | 'PUT' | 'DELETE', b
     method,
     ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
   })
-  if (!response.ok) {
-    const payload: unknown = await response.json().catch(() => ({}))
-    throw new Error(
-      typeof payload === 'object' && payload !== null && 'error' in payload
-        ? String(payload.error)
-        : 'No se pudo guardar',
-    )
-  }
+  if (!response.ok) throw await comoError(response, 'No se pudo guardar')
 }
 
 export async function createResource(input: {
@@ -443,14 +464,7 @@ export async function duplicateProject(
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
   })
-  if (!response.ok) {
-    const payload: unknown = await response.json().catch(() => ({}))
-    throw new Error(
-      typeof payload === 'object' && payload !== null && 'error' in payload
-        ? String(payload.error)
-        : 'No se pudo copiar el proyecto',
-    )
-  }
+  if (!response.ok) throw await comoError(response, 'No se pudo copiar el proyecto')
   const body = (await response.json()) as { result: DuplicateResult }
   return body.result
 }
@@ -552,7 +566,7 @@ export async function setResourceSkill(resourceId: string, skillId: string, leve
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ level }),
   })
-  if (!response.ok) throw new Error('No se pudo guardar el nivel')
+  if (!response.ok) throw await comoError(response, 'No se pudo guardar el nivel')
 }
 
 /** Nivel 0 retira el requisito de esa tarea. */
@@ -562,7 +576,7 @@ export async function setNodeSkill(nodeId: string, skillId: string, minLevel: nu
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ minLevel }),
   })
-  if (!response.ok) throw new Error('No se pudo guardar el requisito')
+  if (!response.ok) throw await comoError(response, 'No se pudo guardar el requisito')
 }
 
 // ---------------------------------------------------------------------------
@@ -685,14 +699,7 @@ export async function signIn(email: string, password: string): Promise<MeRespons
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ email, password }),
   })
-  if (!response.ok) {
-    const body: unknown = await response.json().catch(() => ({}))
-    throw new Error(
-      typeof body === 'object' && body !== null && 'error' in body
-        ? String(body.error)
-        : 'No se pudo entrar',
-    )
-  }
+  if (!response.ok) throw await comoError(response, 'No se pudo entrar')
   return response.json() as Promise<MeResponse>
 }
 
@@ -710,14 +717,7 @@ export async function changeOwnPassword(actual: string, nueva: string): Promise<
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ actual, nueva }),
   })
-  if (!response.ok) {
-    const body: unknown = await response.json().catch(() => ({}))
-    throw new Error(
-      typeof body === 'object' && body !== null && 'error' in body
-        ? String(body.error)
-        : 'No se pudo cambiar la contraseña',
-    )
-  }
+  if (!response.ok) throw await comoError(response, 'No se pudo cambiar la contraseña')
 }
 
 /**
@@ -788,12 +788,7 @@ export async function saveRolePermissions(roleId: string, permissions: readonly 
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ permissions }),
   })
-  if (!response.ok) {
-    const body: unknown = await response.json().catch(() => ({}))
-    throw new Error(
-      typeof body === 'object' && body !== null && 'error' in body ? String(body.error) : 'No se pudo guardar',
-    )
-  }
+  if (!response.ok) throw await comoError(response, 'No se pudo guardar')
 }
 
 export async function createRole(code: string, name: string, description: string): Promise<void> {
@@ -971,15 +966,8 @@ export async function applyMatrix(
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ exclude }),
   })
-  const payload: unknown = await response.json().catch(() => ({}))
-  if (!response.ok) {
-    throw new Error(
-      typeof payload === 'object' && payload !== null && 'error' in payload
-        ? String(payload.error)
-        : 'No se pudo aplicar la matriz',
-    )
-  }
-  return payload as MatrixApplied
+  if (!response.ok) throw await comoError(response, 'No se pudo aplicar la matriz')
+  return (await response.json()) as MatrixApplied
 }
 
 // ---------------------------------------------------------------------------

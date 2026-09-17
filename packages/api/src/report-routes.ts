@@ -27,6 +27,7 @@ import {
 } from '@planner/persistence'
 import { buildReport, type Report } from '@planner/report'
 import { puede } from './auth-routes.js'
+import { fallar } from './errors.js'
 import { RECORTADO } from './permissions.js'
 import { onlyVisible, visibleProjects } from './visibility.js'
 
@@ -80,23 +81,27 @@ export function registerReportRoutes(app: FastifyInstance, pool: Pool): void {
           ? await latestRun(db)
           : { id: parametros.runId }
       if (run === undefined) {
-        return reply.status(409).send({
-          error: 'Todavía no hay ningún cálculo del que informar. Recalcula primero.',
-          code: 'SIN_EJECUCION',
-        })
+        return fallar(
+          reply,
+          409,
+          'SIN_EJECUCION',
+          'Todavía no hay ningún cálculo del que informar. Recalcula primero.',
+        )
       }
 
       const span = (await spanOf(db, run.id)) ?? { from: parametros.from ?? '', to: parametros.to ?? '' }
       const from = parametros.from ?? span.from
       const to = parametros.to ?? span.to
       if (from === '' || to === '') {
-        return reply.status(422).send({
-          error: 'Esa ejecución no tiene trabajo repartido: dime el periodo a mano.',
-          code: 'SIN_PERIODO',
-        })
+        return fallar(
+          reply,
+          422,
+          'SIN_PERIODO',
+          'Esa ejecución no tiene trabajo repartido: dime el periodo a mano.',
+        )
       }
       if (from > to) {
-        return reply.status(422).send({ error: 'El periodo empieza después de terminar.' })
+        return fallar(reply, 422, 'PERIODO_INVERTIDO', 'El periodo empieza después de terminar.')
       }
 
       // Primero lo que se puede ver, y sólo después lo que se ha pedido: al

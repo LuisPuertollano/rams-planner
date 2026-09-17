@@ -7,6 +7,8 @@ import {
   updateDocumentType,
   type DocumentCatalogue,
 } from '../api.js'
+import { errorText } from '../errors.js'
+import { useT } from '../i18n/index.js'
 
 interface Props {
   /** Si esta persona puede tocar el catálogo y las cruces, o sólo mirarlos. */
@@ -27,6 +29,7 @@ interface Props {
  * espera a B y B espera a A, ningún plan que salga de aquí se puede calcular.
  */
 export function DocumentsView({ canEdit }: Props): React.JSX.Element {
+  const { t } = useT()
   const [catalogo, setCatalogo] = useState<DocumentCatalogue | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -35,7 +38,7 @@ export function DocumentsView({ canEdit }: Props): React.JSX.Element {
 
   useEffect(() => {
     recargar().catch((cause: unknown) => {
-      setError(cause instanceof Error ? cause.message : 'No se pudo cargar el catálogo')
+      setError(errorText(t, cause, 'error.local.catalogo'))
     })
   }, [])
 
@@ -44,7 +47,7 @@ export function DocumentsView({ canEdit }: Props): React.JSX.Element {
     setError(null)
     accion()
       .then(recargar)
-      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : 'No se pudo guardar') })
+      .catch((cause: unknown) => { setError(errorText(t, cause, 'error.local.guardar')) })
       .finally(() => { setBusy(false) })
   }
 

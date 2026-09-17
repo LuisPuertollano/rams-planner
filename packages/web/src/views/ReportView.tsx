@@ -9,6 +9,7 @@ import {
 import { findingText, severityLabel } from '../findings.js'
 import { days, euros, fullDate, hours, monthLabel, percent, shortDate, utilizationClass } from '../format.js'
 import { useT, type Diccionario } from '../i18n/index.js'
+import { errorText } from '../errors.js'
 
 interface Props {
   readonly projects: readonly Project[]
@@ -71,7 +72,7 @@ export function ReportView({ projects }: Props): React.JSX.Element {
       .then(setInforme)
       .catch((cause: unknown) => {
         setInforme(null)
-        setError(cause instanceof Error ? cause.message : 'No se pudo calcular el informe')
+        setError(errorText(t, cause, 'error.local.informe'))
       })
       .finally(() => { setBusy(false) })
   }
