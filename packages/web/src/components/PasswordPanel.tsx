@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { changeOwnPassword } from '../api.js'
+import { useT } from '../i18n/index.js'
 
 interface Props {
   readonly onClose: () => void
@@ -19,6 +20,7 @@ const MINIMO = 12
  * cuenta de otro.
  */
 export function PasswordPanel({ onClose, onChanged }: Props): React.JSX.Element {
+  const { t } = useT()
   const [actual, setActual] = useState('')
   const [nueva, setNueva] = useState('')
   const [repetida, setRepetida] = useState('')
@@ -27,11 +29,11 @@ export function PasswordPanel({ onClose, onChanged }: Props): React.JSX.Element 
 
   const problema =
     nueva.length > 0 && nueva.length < MINIMO
-      ? `La nueva tiene que tener ${String(MINIMO)} caracteres o más.`
+      ? t('clave.corta', MINIMO)
       : repetida.length > 0 && nueva !== repetida
-        ? 'Las dos copias de la nueva no coinciden.'
+        ? t('clave.distintas')
         : nueva.length > 0 && nueva === actual
-          ? 'La nueva tiene que ser distinta de la actual.'
+          ? t('clave.igual')
           : null
 
   const enviar = (event: React.FormEvent): void => {
@@ -42,7 +44,7 @@ export function PasswordPanel({ onClose, onChanged }: Props): React.JSX.Element 
     changeOwnPassword(actual, nueva)
       .then(onChanged)
       .catch((cause: unknown) => {
-        setError(cause instanceof Error ? cause.message : 'No se pudo cambiar la contraseña')
+        setError(cause instanceof Error ? cause.message : t('clave.error'))
       })
       .finally(() => { setBusy(false) })
   }
@@ -52,9 +54,9 @@ export function PasswordPanel({ onClose, onChanged }: Props): React.JSX.Element 
       <button className="backdrop" onClick={onClose} aria-label="Cerrar" />
       <aside className="why" role="dialog" aria-label="Cambiar mi contraseña">
       <div className="why__head">
-        <h3 style={{ margin: 0 }}>Cambiar mi contraseña</h3>
+        <h3 style={{ margin: 0 }}>{t('clave.titulo')}</h3>
         <button className="button" onClick={onClose} style={{ marginLeft: 'auto' }}>
-          Cerrar
+          {t('clave.cerrar')}
         </button>
       </div>
 
@@ -62,7 +64,7 @@ export function PasswordPanel({ onClose, onChanged }: Props): React.JSX.Element 
         {error === null ? null : <div className="error-banner">{error}</div>}
 
         <label className="login__campo">
-          <span>Contraseña actual</span>
+          <span>{t('clave.actual')}</span>
           <input
             className="input"
             type="password"
@@ -75,7 +77,7 @@ export function PasswordPanel({ onClose, onChanged }: Props): React.JSX.Element 
         </label>
 
         <label className="login__campo">
-          <span>Contraseña nueva ({MINIMO} caracteres o más)</span>
+          <span>{t('clave.nueva', MINIMO)}</span>
           <input
             className="input"
             type="password"
@@ -87,7 +89,7 @@ export function PasswordPanel({ onClose, onChanged }: Props): React.JSX.Element 
         </label>
 
         <label className="login__campo">
-          <span>Repite la nueva</span>
+          <span>{t('clave.repite')}</span>
           <input
             className="input"
             type="password"
@@ -101,9 +103,7 @@ export function PasswordPanel({ onClose, onChanged }: Props): React.JSX.Element 
         {problema === null ? null : <p className="faint">{problema}</p>}
 
         <p className="faint">
-          Al cambiarla se cierran todas tus sesiones, ésta incluida: tendrás que volver a entrar con la
-          nueva. Es a propósito — si la cambias porque alguien más la conocía, dejar sesiones vivas no
-          arregla nada.
+          {t('clave.aviso')}
         </p>
 
         <button
@@ -111,7 +111,7 @@ export function PasswordPanel({ onClose, onChanged }: Props): React.JSX.Element 
           type="submit"
           disabled={busy || problema !== null || actual === '' || nueva === ''}
         >
-          {busy ? 'Cambiando…' : 'Cambiar y volver a entrar'}
+          {busy ? t('clave.enviando') : t('clave.enviar')}
         </button>
       </form>
       </aside>

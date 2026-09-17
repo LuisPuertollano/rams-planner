@@ -14,7 +14,17 @@ import {
   type RunData,
   type TaskRow,
 } from './api.js'
-import { euros, hours, percent } from './format.js'
+import { dateTime, euros, fijarLocale, hours, percent } from './format.js'
+import {
+  IDIOMAS,
+  NOMBRE_DEL_IDIOMA,
+  TraductorProvider,
+  crearTraductor,
+  idiomaInicial,
+  recordarIdioma,
+  useT,
+  type Idioma,
+} from './i18n/index.js'
 import { activePeriods } from './periods.js'
 import { EditPanel } from './components/EditPanel.js'
 import { ImportButton } from './components/ImportButton.js'
@@ -48,30 +58,73 @@ type Tab =
  */
 const TABS: readonly {
   id: Tab
-  label: string
-  hint: string
+  /** La clave del diccionario. El texto vive en `i18n/`, no aquí. */
+  label: 'tab.carga' | 'tab.saturacion' | 'tab.plan' | 'tab.cronograma' | 'tab.equipo'
+  | 'tab.calendario' | 'tab.competencias' | 'tab.documentos' | 'tab.reparto' | 'tab.hallazgos'
+  | 'tab.comparar' | 'tab.registro' | 'tab.admin'
+  hint: 'tab.carga.pista' | 'tab.saturacion.pista' | 'tab.plan.pista' | 'tab.cronograma.pista'
+  | 'tab.equipo.pista' | 'tab.calendario.pista' | 'tab.competencias.pista' | 'tab.documentos.pista'
+  | 'tab.reparto.pista' | 'tab.hallazgos.pista' | 'tab.comparar.pista' | 'tab.registro.pista'
+  | 'tab.admin.pista'
   permission: readonly string[]
   /** El permiso hace falta en toda la herramienta, no sobre un proyecto. */
   everywhere?: true
 }[] = [
-  { id: 'matriz', label: 'Carga', hint: 'Cuántas horas tiene comprometida cada persona, cada mes, en cada proyecto', permission: ['carga.ver'] },
+  { id: 'matriz', label: 'tab.carga', hint: 'tab.carga.pista', permission: ['carga.ver'] },
   // La saturación es del equipo entero: con la carga de un solo proyecto, la
   // ocupación de una persona no es su ocupación.
-  { id: 'saturacion', label: 'Saturación', hint: 'Quién se pasa de capacidad, cuándo y por cuánto', permission: ['carga.ver'], everywhere: true },
-  { id: 'plan', label: 'Plan', hint: 'El árbol de trabajo con sus fechas calculadas', permission: ['plan.ver'] },
-  { id: 'cronograma', label: 'Cronograma', hint: 'El plan en el tiempo, con el camino crítico', permission: ['plan.ver'] },
-  { id: 'equipo', label: 'Equipo', hint: 'De qué está hecha la capacidad: calendario, dedicación, ausencias y tarifa de cada persona', permission: ['equipo.ver'] },
-  { id: 'calendario', label: 'Calendario', hint: 'Quién está fuera, cuándo, y qué capacidad le queda al equipo cada día', permission: ['equipo.ver'] },
-  { id: 'competencias', label: 'Competencias', hint: 'Quién sabe hacer qué, y dónde el equipo tiene un único especialista', permission: ['competencias.ver'] },
-  { id: 'documentos', label: 'Documentos', hint: 'Qué entregables hay y cuál es condición necesaria de cuál. Se declara una vez y vale para todos los proyectos', permission: ['documentos.ver'] },
-  { id: 'reparto', label: 'Reparto', hint: 'Qué trabajo se podría mover, a quién, y qué arreglaría. Propuestas, no decisiones', permission: ['reparto.ver'] },
-  { id: 'hallazgos', label: 'Hallazgos', hint: 'Todo lo que el motor quiere decirte', permission: ['carga.ver', 'plan.ver'] },
-  { id: 'comparar', label: 'Comparar', hint: 'En qué se diferencia el plan de hoy del que congelaste', permission: ['ejecuciones.ver'] },
-  { id: 'registro', label: 'Registro', hint: 'Quién cambió qué y cuándo, con su comentario', permission: ['historial.ver'] },
-  { id: 'admin', label: 'Administración', hint: 'Quién entra, qué rol tiene y qué deja hacer cada rol', permission: ['roles.gestionar', 'usuarios.gestionar'] },
+  { id: 'saturacion', label: 'tab.saturacion', hint: 'tab.saturacion.pista', permission: ['carga.ver'], everywhere: true },
+  { id: 'plan', label: 'tab.plan', hint: 'tab.plan.pista', permission: ['plan.ver'] },
+  { id: 'cronograma', label: 'tab.cronograma', hint: 'tab.cronograma.pista', permission: ['plan.ver'] },
+  { id: 'equipo', label: 'tab.equipo', hint: 'tab.equipo.pista', permission: ['equipo.ver'] },
+  { id: 'calendario', label: 'tab.calendario', hint: 'tab.calendario.pista', permission: ['equipo.ver'] },
+  { id: 'competencias', label: 'tab.competencias', hint: 'tab.competencias.pista', permission: ['competencias.ver'] },
+  { id: 'documentos', label: 'tab.documentos', hint: 'tab.documentos.pista', permission: ['documentos.ver'] },
+  { id: 'reparto', label: 'tab.reparto', hint: 'tab.reparto.pista', permission: ['reparto.ver'] },
+  { id: 'hallazgos', label: 'tab.hallazgos', hint: 'tab.hallazgos.pista', permission: ['carga.ver', 'plan.ver'] },
+  { id: 'comparar', label: 'tab.comparar', hint: 'tab.comparar.pista', permission: ['ejecuciones.ver'] },
+  { id: 'registro', label: 'tab.registro', hint: 'tab.registro.pista', permission: ['historial.ver'] },
+  { id: 'admin', label: 'tab.admin', hint: 'tab.admin.pista', permission: ['roles.gestionar', 'usuarios.gestionar'] },
 ]
 
+/**
+ * El idioma envuelve a toda la aplicación.
+ *
+ * Está fuera de `App` porque el traductor tiene que existir antes de que se
+ * pinte nada: un componente que se monta y luego cambia de idioma parpadea, y
+ * la pantalla de entrada es justo la primera que alguien ve.
+ */
 export function App(): React.JSX.Element {
+  const [idioma, setIdioma] = useState<Idioma>(() => idiomaInicial())
+  const traductor = useMemo(() => crearTraductor(idioma), [idioma])
+
+  // El `locale` de los números se fija **durante el pintado**, no después.
+  // En un `useEffect` llegaría tarde: los hijos ya se habrían pintado con el
+  // idioma anterior y se vería un «1,648 h» inglés en una pantalla en
+  // castellano hasta el siguiente cambio de estado. Es idempotente, así que
+  // repetirlo en cada pintado no cuesta nada.
+  fijarLocale(traductor.locale)
+
+  useEffect(() => {
+    recordarIdioma(idioma)
+    document.documentElement.lang = idioma
+  }, [idioma])
+
+  return (
+    <TraductorProvider value={traductor}>
+      <Planner idioma={idioma} onIdioma={setIdioma} />
+    </TraductorProvider>
+  )
+}
+
+function Planner({
+  idioma,
+  onIdioma,
+}: {
+  readonly idioma: Idioma
+  readonly onIdioma: (idioma: Idioma) => void
+}): React.JSX.Element {
+  const { t, locale } = useT()
   const [me, setMe] = useState<MeResponse | null>(null)
   const [state, setState] = useState<AppState | null>(null)
   const [data, setData] = useState<RunData | null>(null)
@@ -96,14 +149,14 @@ export function App(): React.JSX.Element {
   useEffect(() => {
     fetchMe()
       .then(setMe)
-      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : 'Error al cargar') })
+      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : t('app.errorCargar')) })
   }, [])
 
   const entrado = me !== null && (me.user !== null || me.openInstallation)
 
   useEffect(() => {
     if (!entrado) return
-    load().catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : 'Error al cargar') })
+    load().catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : t('app.errorCargar')) })
   }, [entrado, load])
 
   useEffect(() => {
@@ -127,12 +180,15 @@ export function App(): React.JSX.Element {
 
   const onFreeze = (): void => {
     if (state?.run == null) return
-    const name = window.prompt('Nombre de la línea base', `Plan ${new Date().toLocaleDateString('es-ES')}`)
+    const name = window.prompt(
+      t('lineaBase.pide'),
+      t('lineaBase.porDefecto', new Date().toLocaleDateString(locale)),
+    )
     if (name === null || name.trim() === '') return
     setBusy(true)
     freezeBaseline(state.run.id, name.trim())
       .then(load)
-      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : 'No se pudo congelar') })
+      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : t('lineaBase.error')) })
       .finally(() => { setBusy(false) })
   }
 
@@ -140,18 +196,18 @@ export function App(): React.JSX.Element {
     setBusy(true)
     setError(null)
     setNotice(null)
-    recalculate(level ? 'nivelación de recursos' : 'recálculo desde la interfaz', level)
+    recalculate(level ? t('calculo.razonNivelacion') : t('calculo.razonInterfaz'), level)
       .then(async (summary) => {
         if (level) {
           setNotice(
             summary.converged === true
-              ? `Nivelado: ${String(summary.leveledTasks ?? 0)} tarea(s) retrasadas para que el plan quepa en la capacidad del equipo. Compara con la ejecución anterior para ver qué ha costado.`
-              : `Nivelación parcial: ${String(summary.leveledTasks ?? 0)} tarea(s) retrasadas, pero quedan sobrecargas que ningún retraso arregla. Mira los hallazgos.`,
+              ? t('calculo.nivelado', summary.leveledTasks ?? 0)
+              : t('calculo.niveladoParcial', summary.leveledTasks ?? 0),
           )
         }
         await load()
       })
-      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : 'No se pudo recalcular') })
+      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : t('calculo.error')) })
       .finally(() => { setBusy(false) })
   }
 
@@ -203,7 +259,7 @@ export function App(): React.JSX.Element {
   const puede = (code: string): boolean => can(me, code)
 
   if (me === null) {
-    return <div className="login"><div className="login__card"><h1>Cargando…</h1></div></div>
+    return <div className="login"><div className="login__card"><h1>{t('app.cargando')}</h1></div></div>
   }
 
   if (!entrado) {
@@ -214,8 +270,8 @@ export function App(): React.JSX.Element {
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          <h1>RAMS Planner</h1>
-          <span>carga de trabajo, explicada hasta el último minuto</span>
+          <h1>{t('app.nombre')}</h1>
+          <span>{t('app.lema')}</span>
         </div>
 
         <nav className="tabs" role="tablist">
@@ -226,33 +282,54 @@ export function App(): React.JSX.Element {
               aria-selected={tab === item.id}
               className="tab"
               onClick={() => { setTab(item.id) }}
-              title={item.hint}
+              title={t(item.hint)}
             >
-              {item.label}
+              {t(item.label)}
             </button>
           ))}
         </nav>
 
-        {state?.run === null || state === null || tab === 'admin' || tab === 'registro' || tab === 'documentos' ? null : (
-          <span className="run-chip" title={`Hash de entradas: ${state.run.inputHash}`}>
-            ejecución <b>{state.run.id.slice(0, 8)}</b> · motor {state.run.engineVersion} ·{' '}
-            {new Date(state.run.startedAt).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })} ·{' '}
-            {state.run.durationMs ?? 0} ms
+        {state?.run === null ||
+        state === null ||
+        tab === 'admin' ||
+        tab === 'registro' ||
+        tab === 'documentos' ? null : (
+          <span className="run-chip" title={t('ejecucion.hash', state.run.inputHash)}>
+            {t(
+              'ejecucion.chip',
+              state.run.id.slice(0, 8),
+              state.run.engineVersion,
+              dateTime(state.run.startedAt),
+              state.run.durationMs ?? 0,
+            )}
           </span>
         )}
 
         <button
           className="button"
           onClick={() => { setTheme(theme === 'dark' ? 'light' : theme === 'light' ? 'auto' : 'dark') }}
-          title="Tema: automático, claro u oscuro"
+          title={t('boton.tema')}
         >
           {theme === 'auto' ? '◐' : theme === 'light' ? '☀' : '☾'}
         </button>
+        <select
+          className="input input--idioma"
+          value={idioma}
+          title={t('boton.idioma')}
+          aria-label={t('boton.idioma')}
+          onChange={(event) => { onIdioma(event.target.value as Idioma) }}
+        >
+          {IDIOMAS.map((codigo) => (
+            // Cada idioma, escrito en su propio idioma: quien abre esto sin
+            // entender la pantalla necesita reconocer el suyo, no leerlo.
+            <option key={codigo} value={codigo}>{NOMBRE_DEL_IDIOMA[codigo]}</option>
+          ))}
+        </select>
         {!puede('importar') ? null : (
           <ImportButton
             onImported={() => {
               load().catch((cause: unknown) => {
-                setError(cause instanceof Error ? cause.message : 'Error al recargar')
+                setError(cause instanceof Error ? cause.message : t('app.errorRecargar'))
               })
             }}
           />
@@ -261,14 +338,19 @@ export function App(): React.JSX.Element {
           <a
             className="button"
             href={`/api/runs/${state.run.id}/export.csv?bucket=month`}
-            title="Descargar la carga mensual en CSV, con el runId en cada fila"
+            title={t('boton.exportarTitulo')}
           >
-            Exportar
+            {t('boton.exportar')}
           </a>
         )}
         {!puede('lineabase.crear') ? null : (
-          <button className="button" onClick={onFreeze} disabled={busy || state?.run == null} title="Congelar el plan actual como línea base">
-            Línea base
+          <button
+            className="button"
+            onClick={onFreeze}
+            disabled={busy || state?.run == null}
+            title={t('boton.lineaBaseTitulo')}
+          >
+            {t('boton.lineaBase')}
           </button>
         )}
         {!puede('nivelar') ? null : (
@@ -276,14 +358,14 @@ export function App(): React.JSX.Element {
             className="button"
             onClick={() => { onRecalculate(true) }}
             disabled={busy}
-            title="Retrasar tareas hasta que el plan quepa en la capacidad del equipo. Crea una ejecución nueva; el plan original no se toca"
+            title={t('boton.nivelarTitulo')}
           >
-            Nivelar
+            {t('boton.nivelar')}
           </button>
         )}
         {!puede('calcular') ? null : (
           <button className="button button--primary" onClick={() => { onRecalculate(false) }} disabled={busy}>
-            {busy ? 'Calculando…' : 'Recalcular'}
+            {busy ? t('boton.calculando') : t('boton.recalcular')}
           </button>
         )}
         {me.user === null ? null : (
@@ -291,24 +373,24 @@ export function App(): React.JSX.Element {
             {me.user.displayName}
             <button
               className="button"
-              title="Cambiar mi contraseña"
+              title={t('boton.contrasenaTitulo')}
               onClick={() => { setCambiandoClave(true) }}
             >
-              Contraseña
+              {t('boton.contrasena')}
             </button>
             <button
               className="button"
-              title="Salir"
+              title={t('boton.salir')}
               onClick={() => {
                 signOut()
                   .then(fetchMe)
                   .then(setMe)
                   .catch((cause: unknown) => {
-                    setError(cause instanceof Error ? cause.message : 'No se pudo salir')
+                    setError(cause instanceof Error ? cause.message : t('app.errorRecargar'))
                   })
               }}
             >
-              Salir
+              {t('boton.salir')}
             </button>
           </span>
         )}
@@ -317,18 +399,14 @@ export function App(): React.JSX.Element {
       <main className="content">
         {visibleTabs.length > 0 ? null : (
           <div className="empty">
-            <h3>Tu cuenta no tiene todavía ningún permiso</h3>
-            <p style={{ maxWidth: '52ch', margin: '0 auto' }}>
-              Has entrado bien, pero nadie te ha concedido aún un rol. Quien administre la herramienta puede
-              hacerlo desde <b>Administración → Usuarios y roles</b>.
-            </p>
+            <h3>{t('vacio.sinPermisos.titulo')}</h3>
+            <p style={{ maxWidth: '52ch', margin: '0 auto' }}>{t('vacio.sinPermisos.texto')}</p>
           </div>
         )}
         {!me.openInstallation ? null : (
           <div className="error-banner">
-            Esta instalación no tiene ningún usuario dado de alta, así que está abierta a cualquiera que
-            llegue a ella. Crea el primero con{' '}
-            <code>node packages/api/dist/cli.js crear-superadmin &lt;correo&gt; &lt;nombre&gt;</code>.
+            {t('abierta.aviso', '')}{' '}
+            <code>node packages/api/dist/cli.js crear-superadmin &lt;correo&gt; &lt;nombre&gt;</code>
           </div>
         )}
         {error === null ? null : <div className="error-banner">{error}</div>}
@@ -336,7 +414,7 @@ export function App(): React.JSX.Element {
           <div className="notice">
             {notice}
             <button className="button" onClick={() => { setNotice(null) }}>
-              Entendido
+              {t('app.entendido')}
             </button>
           </div>
         )}
@@ -348,16 +426,16 @@ export function App(): React.JSX.Element {
         tab === 'documentos' ? null : (
           <div className="stat-row">
             <div className="stat">
-              <div className="stat__label">Trabajo planificado</div>
+              <div className="stat__label">{t('stat.planificado')}</div>
               <div className="stat__value">{hours(totals.planned)} h</div>
               <div className="stat__hint">
                 {totals.hasCapacity
-                  ? `sobre ${hours(totals.capacity)} h de capacidad en esos meses`
-                  : 'en los proyectos que puedes ver'}
+                  ? t('stat.planificado.sobre', hours(totals.capacity))
+                  : t('stat.planificado.recortado')}
               </div>
             </div>
             <div className="stat">
-              <div className="stat__label">Ocupación del equipo</div>
+              <div className="stat__label">{t('stat.ocupacion')}</div>
               <div className="stat__value">
                 {totals.hasCapacity
                   ? percent(
@@ -368,33 +446,29 @@ export function App(): React.JSX.Element {
                   : '—'}
               </div>
               <div className="stat__hint">
-                {totals.hasCapacity
-                  ? 'media de los meses con trabajo'
-                  : 'la capacidad es de todo el equipo: hace falta ver la carga en toda la herramienta'}
+                {totals.hasCapacity ? t('stat.ocupacion.media') : t('stat.ocupacion.sinCapacidad')}
               </div>
             </div>
             <div className="stat">
-              <div className="stat__label">Personas sobrecargadas</div>
+              <div className="stat__label">{t('stat.sobrecargadas')}</div>
               <div className="stat__value">{totals.hasCapacity ? totals.overallocated : '—'}</div>
               <div className="stat__hint">
-                {totals.hasCapacity ? 'en al menos un mes' : 'sólo con la carga de toda la herramienta'}
+                {totals.hasCapacity ? t('stat.sobrecargadas.pista') : t('stat.sobrecargadas.sinCapacidad')}
               </div>
             </div>
             {!totals.showCost ? null : (
               <div className="stat">
-                <div className="stat__label">Coste comprometido</div>
+                <div className="stat__label">{t('stat.coste')}</div>
                 <div className="stat__value">{euros(totals.cost)}</div>
                 <div className="stat__hint">
-                  {totals.cost === 0
-                    ? 'sale a cero: al equipo le faltan tarifas'
-                    : 'horas por la tarifa vigente de cada día'}
+                  {totals.cost === 0 ? t('stat.coste.cero') : t('stat.coste.pista')}
                 </div>
               </div>
             )}
             <div className="stat">
-              <div className="stat__label">Tareas críticas</div>
+              <div className="stat__label">{t('stat.criticas')}</div>
               <div className="stat__value">{totals.critical}</div>
-              <div className="stat__hint">sin holgura: retrasarlas retrasa el plan</div>
+              <div className="stat__hint">{t('stat.criticas.pista')}</div>
             </div>
           </div>
         )}
@@ -402,20 +476,20 @@ export function App(): React.JSX.Element {
         {visibleTabs.length === 0 ? null : (
         <section className="panel">
           <div className="panel__head">
-            <h2>{activeTab?.label}</h2>
-            <p>{activeTab?.hint}</p>
+            <h2>{activeTab === undefined ? '' : t(activeTab.label)}</h2>
+            <p>{activeTab === undefined ? '' : t(activeTab.hint)}</p>
             <span className="spacer faint" style={{ fontSize: 12 }}>
               {tab === 'admin'
-                ? '✎ lo que marques aquí es lo que la API deja hacer'
+                ? t('nota.admin')
                 : tab === 'documentos'
-                  ? '✎ la fila es condición necesaria de la columna'
+                  ? t('nota.documentos')
                 : tab === 'registro'
-                  ? '🔒 sólo lectura · el registro lo escribe la base de datos, no la aplicación'
+                  ? t('nota.registro')
                 : tab === 'equipo' || tab === 'competencias'
-                  ? '✎ todo declarado · cada cambio recalcula el plan'
+                  ? t('nota.declarado')
                   : tab === 'plan'
-                    ? '✎ declarado · 🔒 derivado, no editable'
-                    : '🔒 columnas derivadas · no editables'}
+                    ? t('nota.plan')
+                    : t('nota.derivado')}
             </span>
           </div>
           <div className={tab === 'hallazgos' ? 'panel__body panel__body--flush' : 'panel__body panel__body--flush'}>
@@ -434,7 +508,7 @@ export function App(): React.JSX.Element {
               <SkillsView
                 onChanged={() => {
                   load().catch((cause: unknown) => {
-                    setError(cause instanceof Error ? cause.message : 'Error al recargar')
+                    setError(cause instanceof Error ? cause.message : t('app.errorRecargar'))
                   })
                 }}
               />
@@ -445,39 +519,35 @@ export function App(): React.JSX.Element {
               <ResourcesView
                 onChanged={() => {
                   load().catch((cause: unknown) => {
-                    setError(cause instanceof Error ? cause.message : 'Error al recargar')
+                    setError(cause instanceof Error ? cause.message : t('app.errorRecargar'))
                   })
                 }}
               />
             ) : state === null ? (
               <div className="empty">
-                <h3>Cargando…</h3>
+                <h3>{t('app.cargando')}</h3>
               </div>
             ) : data === null ? (
               // Base de datos vacía. Es la primera pantalla que ve alguien que
               // instala esto, así que dice por dónde se empieza en vez de
               // quedarse en blanco.
               <div className="empty">
-                <h3>Aquí no hay nada todavía</h3>
-                <p style={{ maxWidth: '52ch', margin: '0 auto' }}>
-                  El orden que funciona es este: primero el <b>Equipo</b>, porque de ahí sale la capacidad y el
-                  coste; después el plan, importando un CSV o creándolo a mano.
-                </p>
+                <h3>{t('vacio.nada.titulo')}</h3>
+                <p style={{ maxWidth: '52ch', margin: '0 auto' }}>{t('vacio.nada.texto')}</p>
                 <div className="stat-row" style={{ justifyContent: 'center', marginTop: 20 }}>
                   {!puede('equipo.ver') ? null : (
                     <button className="button" onClick={() => { setTab('equipo') }}>
-                      Ir al equipo
+                      {t('vacio.nada.irEquipo')}
                     </button>
                   )}
                   {!puede('importar') ? null : (
                     <a className="button" href="/api/import/plantilla.csv">
-                      Descargar la plantilla CSV
+                      {t('vacio.nada.plantilla')}
                     </a>
                   )}
                 </div>
                 <p className="faint" style={{ marginTop: 20, fontSize: 12 }}>
-                  ¿Sólo quieres verla funcionar? <code>pnpm --filter @planner/api seed:demo</code> carga tres
-                  proyectos que se solapan.
+                  {t('vacio.nada.demo', '')} <code>pnpm --filter @planner/api seed:demo</code>
                 </p>
               </div>
             ) : tab === 'matriz' ? (
@@ -501,7 +571,7 @@ export function App(): React.JSX.Element {
                 onEditProject={setEditingProject}
                 onChanged={() => {
                   load().catch((cause: unknown) => {
-                    setError(cause instanceof Error ? cause.message : 'Error al recargar')
+                    setError(cause instanceof Error ? cause.message : t('app.errorRecargar'))
                   })
                 }}
               />
@@ -510,7 +580,7 @@ export function App(): React.JSX.Element {
                 projects={state.projects}
                 onChanged={() => {
                   load().catch((cause: unknown) => {
-                    setError(cause instanceof Error ? cause.message : 'Error al recargar')
+                    setError(cause instanceof Error ? cause.message : t('app.errorRecargar'))
                   })
                 }}
               />
@@ -556,7 +626,7 @@ export function App(): React.JSX.Element {
           onClose={() => { setEditingProject(null) }}
           onChanged={() => {
             load().catch((cause: unknown) => {
-              setError(cause instanceof Error ? cause.message : 'Error al recargar')
+              setError(cause instanceof Error ? cause.message : t('app.errorRecargar'))
             })
           }}
         />
@@ -570,7 +640,7 @@ export function App(): React.JSX.Element {
           onClose={() => { setEditing(null) }}
           onChanged={() => {
             load().catch((cause: unknown) => {
-              setError(cause instanceof Error ? cause.message : 'Error al recargar')
+              setError(cause instanceof Error ? cause.message : t('app.errorRecargar'))
             })
           }}
         />

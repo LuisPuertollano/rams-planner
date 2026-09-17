@@ -35,6 +35,12 @@ para eso y nadie te lo puede quitar. Al cambiarla se cierran todas tus sesiones
 y vuelves a entrar con la nueva, que es lo que tiene sentido si la vieja la
 conocía alguien más.
 
+**El idioma.** El selector de la barra de arriba cambia la herramienta a
+castellano, inglés, alemán o francés, y se recuerda. Si es la primera vez,
+arranca en el idioma de tu navegador. De momento están traducidos el armazón
+—entrada, pestañas, botones, tarjetas— y **todas las fechas y números**; el
+interior de las tablas y los mensajes del motor siguen en castellano.
+
 **Verás sólo lo que tu rol te deja ver.** Las pestañas y los botones que no
 puedes usar no aparecen, así que si un compañero tiene una pestaña que tú no
 tienes, no es un fallo: es el reparto de permisos. Quien administre la

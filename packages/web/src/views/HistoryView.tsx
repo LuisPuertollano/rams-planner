@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchRecentChanges, type ChangeEvent, type Project } from '../api.js'
+import { dateTime } from '../format.js'
 import { Cambios, ENTIDAD, OPERACION, SIN_NOMBRE } from './history-shared.js'
 
 interface Props {
@@ -92,10 +93,7 @@ export function HistoryView({ projects }: Props): React.JSX.Element {
           {visibles.map((event) => (
             <tr key={event.id}>
               <td className="muted" style={{ whiteSpace: 'nowrap' }}>
-                {new Date(event.occurredAt).toLocaleString('es-ES', {
-                  dateStyle: 'short',
-                  timeStyle: 'short',
-                })}
+                {dateTime(event.occurredAt)}
               </td>
               <td>
                 {event.actorName ?? <span className="faint">sin sesión (CLI o importación)</span>}

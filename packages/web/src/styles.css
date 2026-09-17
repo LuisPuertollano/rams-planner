@@ -518,3 +518,6 @@ a.button { text-decoration: none; display: inline-block; }
 /* La diagonal no es una casilla vacía: es una casilla que no existe. */
 .matriz__diagonal { background-image: linear-gradient(var(--bg-sunken), var(--bg-sunken)); }
 .matriz__ciclo { background: color-mix(in srgb, var(--severity-blocking) 18%, transparent); }
+
+/* El selector de idioma: al lado del tema, y del ancho de lo que dice. */
+.input--idioma { width: auto; padding: 5px 8px; font-size: 12px; }
