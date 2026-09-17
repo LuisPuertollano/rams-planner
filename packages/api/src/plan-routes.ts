@@ -66,14 +66,14 @@ export function registerPlanRoutes(app: FastifyInstance, pool: Pool): void {
   }
 
   /** La estructura editable: quién está asignado a qué y qué depende de qué. */
-  app.get('/api/plan/structure', async () =>
+  app.get('/api/plan/structure', { config: { permission: 'plan.ver' } }, async () =>
     withTransaction(pool, async (db) => ({
       assignments: await readAssignments(db),
       dependencies: await readDependencies(db),
     })),
   )
 
-  app.post('/api/projects', async (request, reply) => {
+  app.post('/api/projects', { config: { permission: 'plan.estructura' } }, async (request, reply) => {
     const body = z
       .object({
         code: z.string().min(1).max(60),
@@ -93,7 +93,7 @@ export function registerPlanRoutes(app: FastifyInstance, pool: Pool): void {
    * esta misma llamada con distinto destino: guardar como plantilla, crear a
    * partir de una plantilla, y duplicar un proyecto.
    */
-  app.post('/api/projects/:projectId/duplicate', async (request, reply) => {
+  app.post('/api/projects/:projectId/duplicate', { config: { permission: 'plantillas.usar' } }, async (request, reply) => {
     const { projectId } = z.object({ projectId: z.string().uuid() }).parse(request.params)
     const body = z
       .object({
@@ -111,7 +111,7 @@ export function registerPlanRoutes(app: FastifyInstance, pool: Pool): void {
     )
   })
 
-  app.patch('/api/projects/:projectId', async (request, reply) => {
+  app.patch('/api/projects/:projectId', { config: { permission: 'plan.estructura' } }, async (request, reply) => {
     const { projectId } = z.object({ projectId: z.string().uuid() }).parse(request.params)
     const body = z
       .object({
@@ -128,14 +128,14 @@ export function registerPlanRoutes(app: FastifyInstance, pool: Pool): void {
     })
   })
 
-  app.delete('/api/projects/:projectId', async (request, reply) => {
+  app.delete('/api/projects/:projectId', { config: { permission: 'plan.estructura' } }, async (request, reply) => {
     const { projectId } = z.object({ projectId: z.string().uuid() }).parse(request.params)
     return write(reply, 'baja del proyecto', 'baja de un proyecto', async (db) => {
       await softDeleteProject(db, projectId)
     })
   })
 
-  app.post('/api/nodes', async (request, reply) => {
+  app.post('/api/nodes', { config: { permission: 'plan.estructura' } }, async (request, reply) => {
     const body = z
       .object({
         projectId: z.string().uuid(),
@@ -148,7 +148,7 @@ export function registerPlanRoutes(app: FastifyInstance, pool: Pool): void {
     return write(reply, `alta de «${body.name}»`, `alta de «${body.name}»`, (db) => createNode(db, body))
   })
 
-  app.patch('/api/nodes/:nodeId', async (request, reply) => {
+  app.patch('/api/nodes/:nodeId', { config: { permission: 'plan.editar' } }, async (request, reply) => {
     const { nodeId } = z.object({ nodeId: z.string().uuid() }).parse(request.params)
     const body = z.object({ name: z.string().min(1).max(300) }).parse(request.body)
     return write(reply, 'renombrado', `renombrado de ${nodeId}`, async (db) => {
@@ -156,12 +156,12 @@ export function registerPlanRoutes(app: FastifyInstance, pool: Pool): void {
     })
   })
 
-  app.delete('/api/nodes/:nodeId', async (request, reply) => {
+  app.delete('/api/nodes/:nodeId', { config: { permission: 'plan.estructura' } }, async (request, reply) => {
     const { nodeId } = z.object({ nodeId: z.string().uuid() }).parse(request.params)
     return write(reply, 'baja de una rama del plan', 'baja de una rama del plan', (db) => softDeleteNode(db, nodeId))
   })
 
-  app.post('/api/assignments', async (request, reply) => {
+  app.post('/api/assignments', { config: { permission: 'asignaciones.editar' } }, async (request, reply) => {
     const body = z
       .object({
         nodeId: z.string().uuid(),
@@ -174,14 +174,14 @@ export function registerPlanRoutes(app: FastifyInstance, pool: Pool): void {
     )
   })
 
-  app.delete('/api/assignments/:assignmentId', async (request, reply) => {
+  app.delete('/api/assignments/:assignmentId', { config: { permission: 'asignaciones.editar' } }, async (request, reply) => {
     const { assignmentId } = z.object({ assignmentId: z.string().uuid() }).parse(request.params)
     return write(reply, 'asignación retirada', 'cambio de asignaciones', async (db) => {
       await softDeleteAssignment(db, assignmentId)
     })
   })
 
-  app.post('/api/dependencies', async (request, reply) => {
+  app.post('/api/dependencies', { config: { permission: 'dependencias.editar' } }, async (request, reply) => {
     const body = z
       .object({
         predecessorNodeId: z.string().uuid(),
@@ -195,7 +195,7 @@ export function registerPlanRoutes(app: FastifyInstance, pool: Pool): void {
     )
   })
 
-  app.delete('/api/dependencies/:id', async (request, reply) => {
+  app.delete('/api/dependencies/:id', { config: { permission: 'dependencias.editar' } }, async (request, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params)
     return write(reply, 'dependencia retirada', 'cambio de dependencias', async (db) => {
       await deleteDependency(db, id)

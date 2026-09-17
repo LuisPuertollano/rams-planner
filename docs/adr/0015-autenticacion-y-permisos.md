@@ -1,6 +1,6 @@
 # ADR-0015 · Autenticación y permisos
 
-**Estado:** propuesta · **Fecha:** 2026-09-16
+**Estado:** aceptada (queda un detalle abierto) · **Fecha:** 2026-09-16 · **Revisada:** 2026-09-17
 
 ## Contexto
 
@@ -23,7 +23,32 @@ segunda es autorización y hay que diseñarla.
 
 ## Decisión
 
-*Pendiente de las preguntas abiertas.* Lo que sí está decidido:
+El despliegue es **red local o VPN**, nunca internet abierto. Eso quita de encima
+el registro público, la recuperación por correo, los captchas y los límites
+anti-bots: el riesgo aquí no es un atacante anónimo, es que un compañero vea lo
+que no le toca. Se resuelve con roles, no con fortificación.
+
+- **Login propio**, sin SSO. Basta para una instalación de equipo y no ata la
+  herramienta a un servicio externo. Si algún día hay Entra ID o Google
+  Workspace de por medio, se añade sin rehacer nada.
+- **TLS delante, y esto no es opcional.** En `http://` la contraseña y la cookie
+  de sesión viajan en claro por la red. La VPN cifra el túnel desde fuera, pero
+  dentro de la red del servidor no protege nada. Un proxy inverso (nginx, Caddy)
+  con certificado interno.
+- **El permiso es por pantalla y acción**, no por endpoint suelto ni por pantalla
+  entera. Unas 28 casillas del tipo «ver la carga», «ver costes», «editar
+  tareas», «editar tarifas». Es el grano en el que se puede decidir sin
+  necesitar un manual, y permite lo que de verdad se pide: que alguien vea el
+  plan sin poder tocarlo.
+- **Los permisos son por proyecto.** Un rol se concede sobre un proyecto
+  concreto, y también de forma global para quien trabaja en todos. El permiso
+  efectivo sobre un proyecto es la unión de los dos.
+- **El superadministrador es un rol fijo que la hoja no puede editar.** Lo tiene
+  todo y no se le puede quitar nada desde la propia interfaz. Es la única forma
+  de que desmarcar una casilla no te deje fuera de tu herramienta sin más salida
+  que abrir la base de datos a mano.
+
+Y lo que ya estaba decidido y no depende de nada de lo anterior:
 
 - **La autorización no se implementa sólo en la interfaz.** Esconder un botón no
   es un permiso. Cualquier regla se hace cumplir en la API y, donde se pueda, en
@@ -41,25 +66,41 @@ segunda es autorización y hay que diseñarla.
 - **Un permiso denegado se explica.** Igual que un hallazgo: qué hace falta para
   hacer eso, no un 403 pelado.
 
-## Preguntas abiertas
+## El catálogo se deriva del código, y se hace cumplir
 
-Son decisiones del usuario, no técnicas, y cambian la implementación entera:
+Una hoja de permisos sólo vale si está completa. Una lista escrita a mano se
+desincroniza a la tercera funcionalidad nueva, y lo peor es cómo falla: el
+endpoint nuevo no aparece en la hoja y queda **abierto para todos** sin que nadie
+lo haya decidido.
 
-1. **¿Login propio o el SSO de la empresa?** Un login propio es autosuficiente y
-   funciona en una instalación aislada. Con SSO (OIDC contra Entra ID, Google
-   Workspace…) no hay contraseñas que guardar ni que perder, pero ata la
-   herramienta a un servicio externo y complica el despliegue local.
-2. **¿Qué roles hacen falta de verdad?** Un esbozo para discutir:
-   - *lectura* — ve el plan y la carga; no ve costes ni tarifas.
-   - *planificador* — edita plan, equipo y competencias.
-   - *responsable* — además ve costes y tarifas.
-   - *administración* — gestiona usuarios.
-3. **¿Los costes se ocultan o se agregan?** Ocultarlos del todo deja la pestaña
-   de carga a medias. Enseñar sólo totales por proyecto, sin tarifas
-   individuales, suele ser lo que la gente quiere de verdad.
-4. **¿Alguien debe ver sólo sus propios proyectos?** Si la respuesta es sí, el
-   permiso deja de ser un rol global y pasa a ser por proyecto, que es bastante
-   más trabajo.
+Por eso el catálogo vive en `packages/api/src/permissions.ts` y es la fuente
+única de la que salen la comprobación de cada petición, la hoja que ve el
+superadministrador y la documentación de qué significa cada función. Y por eso:
+
+- **Cada ruta declara su permiso** en su propia definición, no en una tabla
+  aparte.
+- **Una prueba registra las rutas de verdad** —con las mismas funciones que usa
+  el servidor— y audita lo que salga. Una ruta sin permiso, o con un permiso que
+  no está en el catálogo, rompe CI con el método y la ruta en el mensaje.
+- **El servidor tampoco arranca** si encuentra una. Es mejor no arrancar que
+  arrancar con un agujero que nadie ve.
+- Los permisos que no protegen una ruta entera sino lo que se devuelve —los
+  importes— o lo que se pide —nivelar es un `POST /api/calculate` con una
+  bandera— declaran en qué ruta se aplican, y otra prueba comprueba que esa ruta
+  sigue existiendo. Renombrar un endpoint sin actualizar el catálogo deja el
+  permiso apuntando al vacío, y eso también se caza.
+
+Es el mismo trato que la regla de dependencias del núcleo: la regla se hace
+cumplir, no se recuerda.
+
+## Lo que queda abierto
+
+**Los costes: ¿se ocultan o se agregan?** De momento `costes.ver` los oculta
+entero: sin ese permiso la API **no envía** los importes, no los esconde en
+pantalla. Es la opción segura y la que se implementa. Queda por decidir si hace
+falta un punto intermedio —totales por proyecto sin tarifas individuales—, que
+es lo que suele querer la gente en la práctica. Cambiarlo más adelante es añadir
+un permiso al catálogo, no rehacer nada.
 
 ## Por qué no se ha implementado ya
 

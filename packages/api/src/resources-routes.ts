@@ -73,14 +73,14 @@ export function registerResourceRoutes(app: FastifyInstance, pool: Pool): void {
     return { run: await calculate(pool, scenarioId, reason) }
   }
 
-  app.get('/api/resources', async () =>
+  app.get('/api/resources', { config: { permission: 'equipo.ver' } }, async () =>
     withTransaction(pool, async (db) => ({
       resources: await readResourceDetails(db),
       calendars: await readCalendars(db),
     })),
   )
 
-  app.post('/api/resources', async (request, reply) => {
+  app.post('/api/resources', { config: { permission: 'equipo.editar' } }, async (request, reply) => {
     const body = z
       .object({
         code: z.string().min(1).max(60),
@@ -96,7 +96,7 @@ export function registerResourceRoutes(app: FastifyInstance, pool: Pool): void {
     })
   })
 
-  app.patch('/api/resources/:resourceId', async (request, reply) => {
+  app.patch('/api/resources/:resourceId', { config: { permission: 'equipo.editar' } }, async (request, reply) => {
     const { resourceId } = z.object({ resourceId: z.string().uuid() }).parse(request.params)
     const body = z
       .object({
@@ -114,14 +114,14 @@ export function registerResourceRoutes(app: FastifyInstance, pool: Pool): void {
     })
   })
 
-  app.delete('/api/resources/:resourceId', async (request, reply) => {
+  app.delete('/api/resources/:resourceId', { config: { permission: 'equipo.editar' } }, async (request, reply) => {
     const { resourceId } = z.object({ resourceId: z.string().uuid() }).parse(request.params)
     return write(reply, 'baja del recurso', `baja del recurso ${resourceId}`, async (db) => {
       await softDeleteResource(db, resourceId)
     })
   })
 
-  app.post('/api/resources/:resourceId/availability', async (request, reply) => {
+  app.post('/api/resources/:resourceId/availability', { config: { permission: 'ausencias.editar' } }, async (request, reply) => {
     const { resourceId } = z.object({ resourceId: z.string().uuid() }).parse(request.params)
     const body = z
       .object({
@@ -136,14 +136,14 @@ export function registerResourceRoutes(app: FastifyInstance, pool: Pool): void {
     })
   })
 
-  app.delete('/api/availability/:id', async (request, reply) => {
+  app.delete('/api/availability/:id', { config: { permission: 'ausencias.editar' } }, async (request, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params)
     return write(reply, 'disponibilidad retirada', 'cambio de disponibilidad', async (db) => {
       await deleteAvailability(db, id)
     })
   })
 
-  app.post('/api/resources/:resourceId/absences', async (request, reply) => {
+  app.post('/api/resources/:resourceId/absences', { config: { permission: 'ausencias.editar' } }, async (request, reply) => {
     const { resourceId } = z.object({ resourceId: z.string().uuid() }).parse(request.params)
     const body = z
       .object({
@@ -159,14 +159,14 @@ export function registerResourceRoutes(app: FastifyInstance, pool: Pool): void {
     })
   })
 
-  app.delete('/api/absences/:id', async (request, reply) => {
+  app.delete('/api/absences/:id', { config: { permission: 'ausencias.editar' } }, async (request, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params)
     return write(reply, 'ausencia retirada', 'cambio de ausencias', async (db) => {
       await deleteAbsence(db, id)
     })
   })
 
-  app.post('/api/resources/:resourceId/rates', async (request, reply) => {
+  app.post('/api/resources/:resourceId/rates', { config: { permission: 'tarifas.editar' } }, async (request, reply) => {
     const { resourceId } = z.object({ resourceId: z.string().uuid() }).parse(request.params)
     const body = z
       .object({
@@ -181,7 +181,7 @@ export function registerResourceRoutes(app: FastifyInstance, pool: Pool): void {
     })
   })
 
-  app.delete('/api/rates/:id', async (request, reply) => {
+  app.delete('/api/rates/:id', { config: { permission: 'tarifas.editar' } }, async (request, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params)
     return write(reply, 'tarifa retirada', 'cambio de tarifas', async (db) => {
       await deleteCostRate(db, id)

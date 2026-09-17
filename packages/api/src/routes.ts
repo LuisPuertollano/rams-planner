@@ -44,7 +44,7 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
   })
 
   /** Estado inicial: la ejecución vigente, los proyectos y el equipo. */
-  app.get('/api/state', async () =>
+  app.get('/api/state', { config: { permission: 'plan.ver' } }, async () =>
     withDb(async (db) => {
       const run = await latestRun(db)
       const projects = await readProjects(db)
@@ -55,7 +55,7 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
     }),
   )
 
-  app.post('/api/calculate', async (request) => {
+  app.post('/api/calculate', { config: { permission: 'calcular' } }, async (request) => {
     const body = z
       .object({ reason: z.string().max(200).optional(), level: z.boolean().default(false) })
       .parse(request.body ?? {})
@@ -66,14 +66,14 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
   })
 
   /** Las últimas ejecuciones, para poder compararlas entre sí. */
-  app.get('/api/runs', async () => ({ runs: await withDb((db) => recentRuns(db)) }))
+  app.get('/api/runs', { config: { permission: 'ejecuciones.ver' } }, async () => ({ runs: await withDb((db) => recentRuns(db)) }))
 
-  app.get('/api/runs/:runId/tasks', async (request) => {
+  app.get('/api/runs/:runId/tasks', { config: { permission: 'plan.ver' } }, async (request) => {
     const { runId } = z.object({ runId: z.string().uuid() }).parse(request.params)
     return { runId, tasks: await withDb((db) => readTasks(db, runId)) }
   })
 
-  app.get('/api/runs/:runId/load', async (request) => {
+  app.get('/api/runs/:runId/load', { config: { permission: 'carga.ver' } }, async (request) => {
     const { runId } = z.object({ runId: z.string().uuid() }).parse(request.params)
     const query = z.object({ bucket: bucketSchema, byNode: z.coerce.boolean().default(false) }).parse(request.query)
     return {
@@ -83,7 +83,7 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
     }
   })
 
-  app.get('/api/runs/:runId/utilization', async (request) => {
+  app.get('/api/runs/:runId/utilization', { config: { permission: 'carga.ver' } }, async (request) => {
     const { runId } = z.object({ runId: z.string().uuid() }).parse(request.params)
     const query = z.object({ bucket: bucketSchema }).parse(request.query)
     return {
@@ -94,7 +94,7 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
   })
 
   /** Capacidad y carga día a día: el calendario del equipo. */
-  app.get('/api/runs/:runId/capacity', async (request) => {
+  app.get('/api/runs/:runId/capacity', { config: { permission: 'equipo.ver' } }, async (request) => {
     const { runId } = z.object({ runId: z.string().uuid() }).parse(request.params)
     const query = z
       .object({
@@ -108,13 +108,13 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
     }
   })
 
-  app.get('/api/runs/:runId/findings', async (request) => {
+  app.get('/api/runs/:runId/findings', { config: { permission: 'plan.ver' } }, async (request) => {
     const { runId } = z.object({ runId: z.string().uuid() }).parse(request.params)
     return { runId, findings: await withDb((db) => readFindings(db, runId)) }
   })
 
   /** El panel «¿por qué?»: la traza de derivación de una entidad. */
-  app.get('/api/runs/:runId/explain/:targetId', async (request) => {
+  app.get('/api/runs/:runId/explain/:targetId', { config: { permission: 'plan.ver' } }, async (request) => {
     const { runId, targetId } = z
       .object({ runId: z.string().uuid(), targetId: z.string().uuid() })
       .parse(request.params)
@@ -122,7 +122,7 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
   })
 
   /** Edición de datos DECLARADOS. Lo derivado no se toca nunca por aquí (P1). */
-  app.patch('/api/tasks/:nodeId', async (request, reply) => {
+  app.patch('/api/tasks/:nodeId', { config: { permission: 'plan.editar' } }, async (request, reply) => {
     const { nodeId } = z.object({ nodeId: z.string().uuid() }).parse(request.params)
     const body = z
       .object({
@@ -178,7 +178,7 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
   })
 
   /** Congelar la ejecución como línea base. Le pone nombre a una foto del plan. */
-  app.post('/api/runs/:runId/freeze', async (request) => {
+  app.post('/api/runs/:runId/freeze', { config: { permission: 'lineabase.crear' } }, async (request) => {
     const { runId } = z.object({ runId: z.string().uuid() }).parse(request.params)
     const body = z
       .object({ name: z.string().min(1).max(120), note: z.string().max(500).optional() })
@@ -191,7 +191,7 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
   })
 
   /** Diff entre dos ejecuciones: es un JOIN entre dos run_id, nada más. */
-  app.get('/api/runs/:baseRunId/diff/:targetRunId', async (request) => {
+  app.get('/api/runs/:baseRunId/diff/:targetRunId', { config: { permission: 'ejecuciones.ver' } }, async (request) => {
     const { baseRunId, targetRunId } = z
       .object({ baseRunId: z.string().uuid(), targetRunId: z.string().uuid() })
       .parse(request.params)
@@ -203,7 +203,7 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
    * Excel. Cualquier error aborta la transacción entera: no hay importaciones a
    * medias que luego nadie sabe deshacer.
    */
-  app.post('/api/import/plan', async (request, reply) => {
+  app.post('/api/import/plan', { config: { permission: 'importar' } }, async (request, reply) => {
     const text = typeof request.body === 'string' ? request.body : ''
     if (text.trim() === '') return reply.status(400).send({ error: 'El cuerpo debe ser el CSV en texto plano' })
 
@@ -223,7 +223,7 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
   })
 
   /** Plantilla del CSV de importación, para no tener que adivinar las columnas. */
-  app.get('/api/import/plantilla.csv', async (_request, reply) => {
+  app.get('/api/import/plantilla.csv', { config: { permission: 'importar' } }, async (_request, reply) => {
     const columns = [
       'proyecto', 'nombre_proyecto', 'fase', 'tarea', 'dias',
       'predecesoras', 'recurso', 'dedicacion', 'disciplina', 'deadline', 'no_antes_de',
@@ -252,7 +252,7 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
   })
 
   /** Exportación de la carga. El fichero lleva el runId: sigue siendo auditable fuera. */
-  app.get('/api/runs/:runId/export.csv', async (request, reply) => {
+  app.get('/api/runs/:runId/export.csv', { config: { permission: 'exportar' } }, async (request, reply) => {
     const { runId } = z.object({ runId: z.string().uuid() }).parse(request.params)
     const query = z.object({ bucket: bucketSchema }).parse(request.query)
 
@@ -281,7 +281,7 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
   })
 
   /** Historial de cambios de una entidad: quién, cuándo y con qué comentario. */
-  app.get('/api/history/:entityId', async (request) => {
+  app.get('/api/history/:entityId', { config: { permission: 'historial.ver' } }, async (request) => {
     const { entityId } = z.object({ entityId: z.string().uuid() }).parse(request.params)
     const { rows } = await pool.query<{
       occurred_at: Date

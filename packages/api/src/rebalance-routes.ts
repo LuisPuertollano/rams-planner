@@ -25,7 +25,7 @@ export function registerRebalanceRoutes(app: FastifyInstance, pool: Pool): void 
    * guardada: son una recomendación de ahora mismo, no un resultado que haya
    * que poder auditar dentro de tres años.
    */
-  app.get('/api/rebalance', async (request) => {
+  app.get('/api/rebalance', { config: { permission: 'reparto.ver' } }, async (request) => {
     const query = z
       .object({ threshold: z.coerce.number().int().min(1_000).max(30_000).default(10_000) })
       .parse(request.query)
@@ -43,7 +43,7 @@ export function registerRebalanceRoutes(app: FastifyInstance, pool: Pool): void 
   })
 
   /** Aplica un movimiento: quita la asignación de quien la tenía y la pone en otro. */
-  app.post('/api/rebalance/apply', async (request) => {
+  app.post('/api/rebalance/apply', { config: { permission: 'reparto.aplicar' } }, async (request) => {
     const body = z
       .object({
         assignmentId: z.string().uuid(),
