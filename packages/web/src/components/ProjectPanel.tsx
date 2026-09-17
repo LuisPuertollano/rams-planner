@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { duplicateProject, patchProject, removeProject, type Project } from '../api.js'
+import { EntityHistory } from './EntityHistory.js'
 
 interface Props {
   readonly project: Project
@@ -201,6 +202,8 @@ export function ProjectPanel({ project, onClose, onChanged }: Props): React.JSX.
               </button>
             </div>
           </div>
+
+          <EntityHistory entityId={project.id} />
 
           <div className="card">
             <h3 className="card__title">Quitar el proyecto</h3>
