@@ -434,6 +434,17 @@ Un **deadline** no mueve nunca una tarea: avisa. Una **restricción** sí la mue
 y cuando entra en conflicto con una dependencia, gana la restricción y se emite
 un hallazgo visible. Nunca se te mueve una fecha en silencio.
 
+Cada hallazgo trae tres cosas: su **código** —estable, el mismo hoy que dentro de
+dos años—, **qué ha pasado esta vez** con nombres, fechas y cifras, y debajo,
+en gris, **qué significa ese código siempre**. Esa última línea es la que
+convierte un aviso en algo que se puede arreglar.
+
+Los hallazgos salen **en el idioma que tengas puesto**, los cuatro. El motor no
+escribe la frase: manda el código y los datos, y la frase se monta aquí. Por eso
+un cálculo de hace un año se lee hoy en alemán sin volver a calcularlo. Si
+apareciera un hallazgo de un código que esta versión no conoce, se enseña la
+frase original en castellano en vez de dejar un hueco.
+
 ### Comparar
 
 El diff entre dos cálculos: qué tareas se han movido, cuántos días y cuánto

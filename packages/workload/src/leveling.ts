@@ -14,7 +14,7 @@
  * poder comparar el plan que quieres con el plan que cabe.
  */
 
-import { addDays, calendarDate, sortFindings, type Finding } from '@planner/domain'
+import { addDays, calendarDate, sortFindings, type Finding, type FindingPayload } from '@planner/domain'
 import { planInstant, workingMinutesBetween } from '@planner/calendar'
 import { schedulePlan, type PlanSnapshot, type ScheduleOutput, type TaskResult } from '@planner/scheduler'
 import { computeWorkload, type WorkloadOutput } from './timephase.js'
@@ -47,6 +47,11 @@ export function levelPlan(snapshot: PlanSnapshot, options: LevelingOptions = {})
   const maxDelay = options.maxDelayMinutes ?? 500 * WORKING_DAY
 
   const delays = new Map<string, number>()
+  // Los hallazgos hablan de personas y de tareas, no de identificadores.
+  const nombreDeNodo = new Map(snapshot.nodes.map((node) => [node.id, node.name]))
+  const nombreDeRecurso = new Map(snapshot.resources.map((resource) => [resource.id, resource.displayName]))
+  const nombreNodo = (nodeId: string): string => nombreDeNodo.get(nodeId) ?? nodeId
+  const nombreRecurso = (resourceId: string): string => nombreDeRecurso.get(resourceId) ?? resourceId
   const priorityOf = new Map(snapshot.projects.map((project) => [project.id, project.priority]))
   const assignmentsByNode = new Map<string, string[]>()
   for (const assignment of snapshot.assignments) {
@@ -125,7 +130,11 @@ export function levelPlan(snapshot: PlanSnapshot, options: LevelingOptions = {})
     const sticky = beingPushed.get(stickyKey)
     const chosen = candidates.find((candidate) => candidate.nodeId === sticky) ?? candidates[0]
     if (chosen === undefined) {
-      findings.push(impossible(conflict, 'todas las tareas implicadas tienen una restricción dura'))
+      findings.push(
+        impossible(conflict, nombreRecurso(conflict.resourceId), 'restriccion-dura', {
+          reason: 'todas las tareas implicadas tienen una restricción dura',
+        }),
+      )
       return finish(false)
     }
 
@@ -135,7 +144,12 @@ export function levelPlan(snapshot: PlanSnapshot, options: LevelingOptions = {})
     const current = delays.get(chosen.nodeId) ?? 0
     const increment = pushPastConflict(chosen.result, conflict.blockEnd, schedule)
     if (current + increment > maxDelay) {
-      findings.push(impossible(conflict, `«${chosen.nodeId}» ya acumula el retraso máximo permitido`))
+      findings.push(
+        impossible(conflict, nombreRecurso(conflict.resourceId), 'retraso-maximo', {
+          task: nombreNodo(chosen.nodeId),
+          reason: `«${nombreNodo(chosen.nodeId)}» ya acumula el retraso máximo permitido`,
+        }),
+      )
       return finish(false)
     }
 
@@ -153,7 +167,9 @@ export function levelPlan(snapshot: PlanSnapshot, options: LevelingOptions = {})
       schedule = schedulePlan(snapshot, { levelingDelays: delays })
       workload = computeWorkload(snapshot, schedule)
       findings.push(
-        impossible(conflict, 'el retraso necesario se sale del horizonte del cálculo'),
+        impossible(conflict, nombreRecurso(conflict.resourceId), 'fuera-del-horizonte', {
+          reason: 'el retraso necesario se sale del horizonte del cálculo',
+        }),
       )
       return finish(false)
     }
@@ -162,14 +178,19 @@ export function levelPlan(snapshot: PlanSnapshot, options: LevelingOptions = {})
 
   const remaining = firstConflict(workload, unresolvable)
   if (remaining !== undefined) {
-    findings.push(impossible(remaining, `se agotaron las ${String(maxIterations)} iteraciones`))
+    findings.push(
+      impossible(remaining, nombreRecurso(remaining.resourceId), 'iteraciones-agotadas', {
+        iterations: maxIterations,
+        reason: `se agotaron las ${String(maxIterations)} iteraciones`,
+      }),
+    )
     return finish(false)
   }
   return finish(true)
 
   function finish(converged: boolean): LevelingResult {
     for (const [resourceId, summary] of tooBig) {
-      findings.push(tooBigForTheDay(resourceId, summary))
+      findings.push(tooBigForTheDay(resourceId, nombreRecurso(resourceId), summary))
     }
     for (const [nodeId, delay] of delays) {
       findings.push({
@@ -178,9 +199,9 @@ export function levelPlan(snapshot: PlanSnapshot, options: LevelingOptions = {})
         entityType: 'task',
         entityId: nodeId,
         message:
-          `Para que quepa en la capacidad del equipo, esta tarea se retrasa ` +
+          `Para que quepa en la capacidad del equipo, «${nombreNodo(nodeId)}» se retrasa ` +
           `${(delay / WORKING_DAY).toFixed(0)} día(s) laborable(s).`,
-        payload: { delayMinutes: delay },
+        payload: { task: nombreNodo(nodeId), delayMinutes: delay },
       })
     }
     return {
@@ -278,6 +299,7 @@ function firstConflict(workload: WorkloadOutput, skip: ReadonlySet<string>): Con
  */
 function tooBigForTheDay(
   resourceId: string,
+  resource: string,
   summary: { first: string; last: string; days: number; worst: Conflict },
 ): Finding {
   const hours = (minutes: number): string => (minutes / 60).toFixed(1).replace('.', ',')
@@ -289,18 +311,35 @@ function tooBigForTheDay(
     occursOn: summary.worst.date as never,
     message:
       `${String(summary.days)} día(s) entre el ${summary.first} y el ${summary.last} tienen una sola asignación ` +
-      `que ya no cabe en la jornada. El peor, el ${summary.worst.date}: pide ` +
+      `de «${resource}» que ya no cabe en la jornada. El peor, el ${summary.worst.date}: pide ` +
       `${hours(summary.worst.largestSingleMinutes)} h y la persona tiene ${hours(summary.worst.capacityMinutes)} h. ` +
       'Moverla de fecha no arregla nada: hay que cambiar la dedicación, la duración o el calendario.',
     payload: {
+      variant: 'no-cabe-en-la-jornada',
+      resource,
+      first: summary.first,
+      last: summary.last,
       days: summary.days,
+      peakDate: summary.worst.date,
       largestSingleMinutes: summary.worst.largestSingleMinutes,
       capacityMinutes: summary.worst.capacityMinutes,
     },
   }
 }
 
-function impossible(conflict: Conflict, reason: string): Finding {
+/**
+ * La nivelación se rinde en un día concreto.
+ *
+ * `variant` dice por qué, y `reason` guarda la frase castellana de siempre para
+ * que un hallazgo antiguo siga legible. El texto que se enseña se construye de
+ * la variante, no de esa frase.
+ */
+function impossible(
+  conflict: Conflict,
+  resource: string,
+  variant: 'restriccion-dura' | 'retraso-maximo' | 'fuera-del-horizonte' | 'iteraciones-agotadas',
+  extra: FindingPayload & { readonly reason: string },
+): Finding {
   return {
     severity: 'error',
     code: 'LEVELING_IMPOSSIBLE',
@@ -308,8 +347,15 @@ function impossible(conflict: Conflict, reason: string): Finding {
     entityId: conflict.resourceId,
     occursOn: conflict.date as never,
     message:
-      `La nivelación no puede resolver la sobrecarga del ${conflict.date}: ${reason}. ` +
-      'La sobrecarga se deja visible en vez de esconderla.',
-    payload: { plannedMinutes: conflict.plannedMinutes, capacityMinutes: conflict.capacityMinutes },
+      `La nivelación no puede resolver la sobrecarga de «${resource}» del ${conflict.date}: ` +
+      `${extra.reason}. La sobrecarga se deja visible en vez de esconderla.`,
+    payload: {
+      variant,
+      resource,
+      date: conflict.date,
+      plannedMinutes: conflict.plannedMinutes,
+      capacityMinutes: conflict.capacityMinutes,
+      ...extra,
+    },
   }
 }

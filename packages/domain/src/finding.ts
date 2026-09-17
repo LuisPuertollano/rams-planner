@@ -21,14 +21,36 @@ export type FindingCode =
   | 'LEVELING_DELAYED'
   | 'REBALANCE_NO_CANDIDATE'
 
+/**
+ * Los datos del hallazgo, no su frase.
+ *
+ * El contrato es: **el `payload` lleva todo lo que la frase necesita**, con los
+ * nombres ya resueltos —nunca un identificador donde el lector espera un
+ * nombre—. De ahí sale el texto traducido, sin volver a preguntar a nadie.
+ *
+ * Cuando un mismo `code` describe varias situaciones distintas, el `payload`
+ * trae una clave **`variant`** que dice cuál. Se hace así, y no partiendo el
+ * código en cinco, porque los códigos están guardados en la base de datos y en
+ * los informes de hace dos años: añadir uno es barato, cambiar uno no.
+ */
+export type FindingPayload = Readonly<Record<string, string | number | boolean | null>>
+
 export interface Finding {
   readonly severity: FindingSeverity
   readonly code: FindingCode
   readonly entityType: string
   readonly entityId: string
   readonly occursOn?: CalendarDate
+  /**
+   * La frase en castellano, tal y como la escribió el motor.
+   *
+   * Es el **respaldo**, no la fuente: la interfaz construye el texto desde
+   * `code` y `payload`, y usa esto sólo si un código todavía no tiene
+   * traducción. Se guarda igualmente, porque un hallazgo de una ejecución de
+   * hace dos años tiene que poder leerse aunque el catálogo haya cambiado.
+   */
   readonly message: string
-  readonly payload?: Readonly<Record<string, string | number | boolean | null>>
+  readonly payload?: FindingPayload
 }
 
 const ORDER: Record<FindingSeverity, number> = { blocking: 0, error: 1, warning: 2, info: 3 }

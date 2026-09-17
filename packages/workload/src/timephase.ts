@@ -85,7 +85,7 @@ export function computeWorkload(
           message:
             `El reparto manual suma ${formatWorkMinutesAsHours(asWorkMinutes(declared))} h y la asignación ` +
             `declara ${formatWorkMinutesAsHours(asWorkMinutes(workMinutes))} h. Se respeta el reparto manual.`,
-          payload: { declared, expected: workMinutes },
+          payload: { resource: resource.displayName, declared, expected: workMinutes },
         })
       }
       for (const entry of assignment.manualContour) {
@@ -104,6 +104,7 @@ export function computeWorkload(
         message:
           `«${resource.displayName}» no tiene ningún día laborable dentro de la tarea, así que su ` +
           'trabajo no se puede repartir. Revisa su calendario o las fechas de la tarea.',
+        payload: { resource: resource.displayName },
       })
       continue
     }
@@ -266,8 +267,11 @@ function detectOverallocation(
       `${String(summary.days)} día(s) de ${summary.month}. El peor, el ${summary.peakDate}: ` +
       `${Number.isFinite(summary.peakBp) ? `${(summary.peakBp / 100).toFixed(0)} %` : 'sin capacidad ese día'}.`,
     payload: {
+      resource: resourcesById.get(summary.resourceId)?.displayName ?? summary.resourceId,
       month: summary.month,
       days: summary.days,
+      peakDate: summary.peakDate,
+      // -1 significa «ese día no tenía capacidad», que es distinto de un 0 %.
       peakUtilizationBp: Number.isFinite(summary.peakBp) ? summary.peakBp : -1,
     },
   }))

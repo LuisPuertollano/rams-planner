@@ -288,6 +288,11 @@ export async function readFindings(
     projectId: string | null
     occursOn: string | null
     message: string
+    /**
+     * Los datos del hallazgo, de los que la interfaz construye la frase en el
+     * idioma que toque. El `message` viaja igual, de respaldo.
+     */
+    payload: Readonly<Record<string, string | number | boolean | null>>
   }[]
 > {
   const { rows } = await db.query<{
@@ -299,8 +304,9 @@ export async function readFindings(
     project_id: string | null
     occurs_on: string | null
     message: string
+    payload: Readonly<Record<string, string | number | boolean | null>> | null
   }>(
-    `SELECT f.severity, f.code, f.entity_type, f.entity_id, f.occurs_on::text, f.message,
+    `SELECT f.severity, f.code, f.entity_type, f.entity_id, f.occurs_on::text, f.message, f.payload,
             n.project_id,
             COALESCE(n.name, res.display_name) AS entity_name
      FROM finding f
@@ -320,6 +326,7 @@ export async function readFindings(
     projectId: row.project_id,
     occursOn: row.occurs_on,
     message: row.message,
+    payload: row.payload ?? {},
   }))
 }
 

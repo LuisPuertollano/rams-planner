@@ -174,4 +174,57 @@ export const es = {
   'informe.tldr.riesgo': '%s tarea(s) en riesgo: %s fuera de su fecha límite, %s sin holgura y %s que deberían estar terminadas.',
   'informe.tldr.hallazgos': 'El último cálculo dejó %s bloqueante(s), %s error(es) y %s aviso(s).',
   'informe.tldr.sin-fechas': '%s tarea(s) sin fechas calculadas: no entran en ningún total de este informe.',
+
+  // --- Hallazgos: la voz del motor ------------------------------------------
+  // La frase se construye del `code` y del `payload`, nunca del texto que
+  // manda el servidor. Ese texto es el respaldo, para un hallazgo de una
+  // ejecución antigua cuyo código ya no esté en el catálogo.
+  'hallazgo.gravedad.blocking': 'bloqueante',
+  'hallazgo.gravedad.error': 'error',
+  'hallazgo.gravedad.warning': 'aviso',
+  'hallazgo.gravedad.info': 'información',
+  'hallazgo.sinCapacidad': 'sin capacidad ese día',
+  'hallazgo.vacio.titulo': 'Ningún hallazgo',
+  'hallazgo.vacio.detalle':
+    'El plan no tiene ciclos, ni conflictos de restricción, ni nadie por encima de su capacidad.',
+
+  'hallazgo.DEPENDENCY_CYCLE': 'Hay un ciclo de dependencias: %s. El cálculo no puede continuar; rompe uno de los enlaces.',
+  'hallazgo.CONSTRAINT_CONFLICT.start_no_later_than': '«%s» no puede empezar antes del %s: sus predecesoras la empujan a %s.',
+  'hallazgo.CONSTRAINT_CONFLICT.finish_no_later_than': '«%s» terminaría el %s, después del límite %s.',
+  'hallazgo.CONSTRAINT_CONFLICT.must_start_on': '«%s» tiene que empezar el %s, pero sus predecesoras no lo permiten hasta %s. Gana la restricción y el conflicto queda visible.',
+  'hallazgo.CONSTRAINT_CONFLICT.must_finish_on': '«%s» tiene que terminar el %s, lo que exige empezar el %s, antes de lo que permiten sus predecesoras.',
+  'hallazgo.RESOURCE_OVERALLOCATED': '«%s» supera su capacidad %s día(s) de %s. El peor, el %s: %s.',
+  'hallazgo.RESOURCE_NO_CAPACITY': '«%s» no tiene ningún día laborable dentro de la tarea, así que su trabajo no se puede repartir. Revisa su calendario o las fechas de la tarea.',
+  'hallazgo.DEADLINE_MISSED': '«%s» termina el %s, después de su fecha objetivo %s.',
+  'hallazgo.BUDGET_EXCEEDED': '«%s» planifica %s h frente a las %s h del esfuerzo estándar.',
+  'hallazgo.TASK_UNASSIGNED': '«%s» tiene trabajo estimado pero nadie asignado.',
+  'hallazgo.SKILL_MISSING': '«%s» está en «%s», que pide %s, y no la tiene declarada.',
+  'hallazgo.SKILL_BELOW_LEVEL': '«%s» está en «%s» con %s de nivel %s; la tarea pide %s.',
+  'hallazgo.TASK_NO_WORK': '«%s» ocupa %s h de calendario pero no consume trabajo de nadie.',
+  'hallazgo.ORPHAN_TASK': 'Esta rama del plan no cuelga de ningún proyecto.',
+  'hallazgo.CONTOUR_MISMATCH': 'El reparto manual de «%s» suma %s h y la asignación declara %s h. Se respeta el reparto manual.',
+  'hallazgo.LEVELING_IMPOSSIBLE.no-cabe-en-la-jornada': '%s día(s) entre el %s y el %s tienen una sola asignación de «%s» que ya no cabe en la jornada. El peor, el %s: pide %s h y la persona tiene %s h. Moverla de fecha no arregla nada: hay que cambiar la dedicación, la duración o el calendario.',
+  'hallazgo.LEVELING_IMPOSSIBLE.restriccion-dura': 'La nivelación no puede resolver la sobrecarga de «%s» del %s: todas las tareas implicadas tienen una restricción dura. La sobrecarga se deja visible en vez de esconderla.',
+  'hallazgo.LEVELING_IMPOSSIBLE.retraso-maximo': 'La nivelación no puede resolver la sobrecarga de «%s» del %s: «%s» ya acumula el retraso máximo permitido. La sobrecarga se deja visible en vez de esconderla.',
+  'hallazgo.LEVELING_IMPOSSIBLE.fuera-del-horizonte': 'La nivelación no puede resolver la sobrecarga de «%s» del %s: el retraso necesario se sale del horizonte del cálculo. La sobrecarga se deja visible en vez de esconderla.',
+  'hallazgo.LEVELING_IMPOSSIBLE.iteraciones-agotadas': 'La nivelación no puede resolver la sobrecarga de «%s» del %s: se agotaron las %s iteraciones. La sobrecarga se deja visible en vez de esconderla.',
+  'hallazgo.LEVELING_DELAYED': 'Para que quepa en la capacidad del equipo, «%s» se retrasa %s día(s) laborable(s).',
+  'hallazgo.REBALANCE_NO_CANDIDATE': '«%s» está sobrecargado y no hay nadie que pueda recoger su trabajo: o falta la competencia, o el resto tampoco tiene hueco.',
+
+  // Qué significa cada uno, para que el hallazgo enseñe además de avisar.
+  'hallazgo.que.DEPENDENCY_CYCLE': 'Hay un ciclo de dependencias. El motor se detiene en vez de romper un enlace por su cuenta.',
+  'hallazgo.que.CONSTRAINT_CONFLICT': 'Una restricción dura contradice a las dependencias. Gana la restricción y el conflicto queda visible.',
+  'hallazgo.que.RESOURCE_OVERALLOCATED': 'La carga supera la capacidad. El dato es diario; aquí se resume por mes.',
+  'hallazgo.que.RESOURCE_NO_CAPACITY': 'Hay trabajo asignado en días sin capacidad.',
+  'hallazgo.que.DEADLINE_MISSED': 'La fecha objetivo es blanda: no mueve la tarea, sólo avisa.',
+  'hallazgo.que.BUDGET_EXCEEDED': 'El trabajo planificado supera el esfuerzo estándar del paquete.',
+  'hallazgo.que.TASK_UNASSIGNED': 'Hay trabajo estimado sin nadie asignado.',
+  'hallazgo.que.SKILL_MISSING': 'Quien está asignado no tiene declarada una competencia que la tarea pide.',
+  'hallazgo.que.SKILL_BELOW_LEVEL': 'La competencia está declarada, pero por debajo del nivel que la tarea pide.',
+  'hallazgo.que.TASK_NO_WORK': 'La tarea ocupa tiempo pero no consume trabajo de nadie.',
+  'hallazgo.que.ORPHAN_TASK': 'Una rama del árbol sin proyecto. No entra en ningún total.',
+  'hallazgo.que.CONTOUR_MISMATCH': 'El reparto manual no suma el trabajo declarado. Se respeta el reparto manual.',
+  'hallazgo.que.LEVELING_IMPOSSIBLE': 'Retrasar tareas no arregla esta sobrecarga. Se deja visible en vez de esconderla.',
+  'hallazgo.que.LEVELING_DELAYED': 'La nivelación retrasó esta tarea. El plan declarado no se ha tocado.',
+  'hallazgo.que.REBALANCE_NO_CANDIDATE': 'No hay a quién pasarle el trabajo: o falta la competencia, o nadie tiene hueco.',
 } as const

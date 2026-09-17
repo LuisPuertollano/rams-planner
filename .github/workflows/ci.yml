@@ -35,6 +35,9 @@ jobs:
       - name: Regla de dependencia (el núcleo no conoce a los adaptadores)
         run: pnpm check:deps
 
+      - name: Ningún hallazgo del motor sin traducir
+        run: pnpm check:hallazgos
+
       - name: Tests y cobertura
         run: pnpm test:coverage
 

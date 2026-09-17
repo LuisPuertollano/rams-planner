@@ -156,6 +156,7 @@ export function registerReportRoutes(app: FastifyInstance, pool: Pool): void {
           entityName: hallazgo.entityName,
           message: hallazgo.message,
           occursOn: hallazgo.occursOn,
+          payload: hallazgo.payload,
         })),
         costsHidden: !verCostes,
         peopleHidden: !verCarga,

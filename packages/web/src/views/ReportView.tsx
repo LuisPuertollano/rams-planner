@@ -6,6 +6,7 @@ import {
   type Report,
   type ReportRisk,
 } from '../api.js'
+import { findingText, severityLabel } from '../findings.js'
 import { days, euros, fullDate, hours, monthLabel, percent, shortDate, utilizationClass } from '../format.js'
 import { useT, type Diccionario } from '../i18n/index.js'
 
@@ -343,10 +344,10 @@ export function ReportView({ projects }: Props): React.JSX.Element {
                     <tr key={`${hallazgo.code}-${String(indice)}`}>
                       <td>
                         <span className={`severity severity-${hallazgo.severity}`} />
-                        {hallazgo.code}
+                        {severityLabel(t, hallazgo.severity)}
                       </td>
                       <td>{hallazgo.entityName ?? '—'}</td>
-                      <td>{hallazgo.message}</td>
+                      <td>{findingText(t, hallazgo)}</td>
                     </tr>
                   ))}
                 </tbody>

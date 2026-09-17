@@ -119,7 +119,11 @@ describe('restricciones', () => {
     const output = run(
       new PlanBuilder()
         .task('a', { durationMinutes: 2400 })
-        .task('b', { constraintKind: 'must_start_on', constraintDate: d('2026-03-03') })
+        .task('b', {
+          name: 'Montar el Safety Case',
+          constraintKind: 'must_start_on',
+          constraintDate: d('2026-03-03'),
+        })
         .link('a', 'b')
         .build(),
     )
@@ -127,6 +131,14 @@ describe('restricciones', () => {
     const conflict = output.findings.find((finding) => finding.code === 'CONSTRAINT_CONFLICT')
     expect(conflict?.severity).toBe('error')
     expect(conflict?.entityId).toBe('b')
+    // El hallazgo habla de la tarea por su nombre, no por su identificador: un
+    // ««2a7bcc2b-de40…» tiene que empezar el…» no lo lee nadie.
+    expect(conflict?.message).toContain('Montar el Safety Case')
+    expect(conflict?.message).not.toContain('b»')
+    // Y lleva de qué clase de restricción habla, que es lo que distingue las
+    // cuatro frases que este código puede decir.
+    expect(conflict?.payload?.['variant']).toBe('must_start_on')
+    expect(conflict?.payload?.['task']).toBe('Montar el Safety Case')
   })
 
   it('SNLT y FNLT no mueven nada, sólo avisan', () => {

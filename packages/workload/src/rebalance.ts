@@ -259,6 +259,7 @@ export function proposeRebalance(
       message:
         `«${nombreDe.get(resourceId) ?? resourceId}» está sobrecargado y no hay nadie que pueda ` +
         'recoger su trabajo: o falta la competencia, o el resto tampoco tiene hueco.',
+      payload: { resource: nombreDe.get(resourceId) ?? resourceId },
     })
   }
 
