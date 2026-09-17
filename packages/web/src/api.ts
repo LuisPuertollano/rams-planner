@@ -157,7 +157,12 @@ export async function fetchRunData(runId: string): Promise<RunData> {
   const [tasks, load, utilization, findings] = await Promise.all([
     get<{ tasks: readonly TaskRow[] }>(`/api/runs/${runId}/tasks`),
     get<{ cells: readonly LoadCell[] }>(`/api/runs/${runId}/load?bucket=month`),
-    get<{ cells: readonly UtilizationCell[] }>(`/api/runs/${runId}/utilization?bucket=month`),
+    // La saturación es del equipo entero y pide ver la carga en toda la
+    // herramienta. Quien sólo tiene un proyecto no la recibe, y eso no puede
+    // tumbar la pantalla: se queda sin las filas de capacidad, no sin plan.
+    get<{ cells: readonly UtilizationCell[] }>(`/api/runs/${runId}/utilization?bucket=month`).catch(
+      () => ({ cells: [] as readonly UtilizationCell[] }),
+    ),
     get<{ findings: readonly FindingRow[] }>(`/api/runs/${runId}/findings`),
   ])
   return { tasks: tasks.tasks, load: load.cells, utilization: utilization.cells, findings: findings.findings }
@@ -626,6 +631,12 @@ export interface SessionUser {
 
 export interface PermissionDefinition {
   readonly code: string
+  /**
+   * `project`: se puede conceder sobre un proyecto concreto. `global`: sólo
+   * cuenta concedido en toda la herramienta, porque no habla de un proyecto
+   * —el equipo, las tarifas, las ejecuciones del motor son de todos.
+   */
+  readonly scope: 'project' | 'global'
   readonly screen: string
   readonly label: string
   readonly detail: string
@@ -676,17 +687,38 @@ export async function signOut(): Promise<void> {
   await fetch('/api/auth/logout', { method: 'POST' })
 }
 
-/** ¿Puede esto? Sin proyecto: en algún sitio. Con proyecto: ahí. */
-export function can(
-  permissions: EffectivePermissions | null,
-  code: string,
-  projectId?: string,
-): boolean {
-  if (permissions === null) return true // instalación todavía sin usuarios
+/**
+ * ¿Puede esto? Es la copia cliente de la comprobación del servidor, y sirve
+ * sólo para no enseñar botones que van a devolver un 403. Quien manda es la API.
+ *
+ * Toma la respuesta entera de `/api/auth/me` y no sólo los permisos porque hace
+ * falta el catálogo: una función **global** —el equipo, las tarifas, el
+ * motor— no cuenta concedida sobre un proyecto suelto, y sin saber de cuáles es
+ * cada código, la interfaz enseñaría un botón que el servidor deniega.
+ */
+export function can(me: MeResponse | null, code: string, projectId?: string): boolean {
+  // Todavía cargando, o instalación sin usuarios: no se esconde nada.
+  if (me === null || me.permissions === null) return true
+  const permissions = me.permissions
   if (permissions.isSuperadmin) return true
   if (permissions.global.includes(code)) return true
+
+  const scope = me.catalogue.find((item) => item.code === code)?.scope ?? 'project'
+  // Una función de toda la herramienta concedida sobre un proyecto no vale.
+  if (scope === 'global') return false
+
   if (projectId !== undefined) return permissions.byProject[projectId]?.includes(code) ?? false
   return Object.values(permissions.byProject).some((lista) => lista.includes(code))
+}
+
+/**
+ * ¿Puede esto **en toda la herramienta**? Para lo que no es de un proyecto:
+ * la saturación del equipo se calcula con todos los proyectos a la vez, y con
+ * un trozo daría un número que engaña.
+ */
+export function canEverywhere(me: MeResponse | null, code: string): boolean {
+  if (me === null || me.permissions === null) return true
+  return me.permissions.isSuperadmin || me.permissions.global.includes(code)
 }
 
 export interface Role {

@@ -30,6 +30,11 @@ let app: FastifyInstance | null = null
 let sinCostes = ''
 /** Sesión de alguien que puede recalcular pero no nivelar ni tocar plantillas. */
 let basica = ''
+/** Sesión de alguien con permisos amplios pero sólo dentro de un proyecto. */
+let soloEnMio = ''
+/** El proyecto que esa cuenta sí puede tocar, y otro que no. */
+let proyectoMio = ''
+let proyectoAjeno = ''
 
 /** La aplicación ya montada. Un `!` en cada línea sólo escondería el fallo. */
 function aplicacion(): FastifyInstance {
@@ -37,15 +42,19 @@ function aplicacion(): FastifyInstance {
   return app
 }
 
-/** Da de alta una cuenta con exactamente estos permisos y devuelve su cookie. */
-async function cuentaCon(permisos: readonly string[]): Promise<string> {
+/**
+ * Da de alta una cuenta con exactamente estos permisos y devuelve su cookie.
+ * Con `projectId` el rol se concede **sólo sobre ese proyecto**, que es lo que
+ * hay que poder probar.
+ */
+async function cuentaCon(permisos: readonly string[], projectId: string | null = null): Promise<string> {
   if (pool === null || app === null) return ''
   const correo = `${unico('prueba')}@ejemplo.test`
   await withTransaction(pool, async (db) => {
     const userId = await createUser(db, { email: correo, displayName: 'Cuenta de prueba', password: CLAVE })
     const roleId = await createRole(db, { code: unico('rol'), name: 'Rol de prueba' })
     await setRolePermissions(db, roleId, permisos)
-    await grantRole(db, userId, roleId, null)
+    await grantRole(db, userId, roleId, projectId)
   })
   const respuesta = await app.inject({
     method: 'POST',
@@ -61,7 +70,38 @@ beforeAll(async () => {
   app = await buildServer(pool, { logLevel: 'silent' })
   sinCostes = await cuentaCon(['carga.ver', 'plan.ver', 'equipo.ver', 'exportar', 'ejecuciones.ver'])
   basica = await cuentaCon(['carga.ver', 'plan.ver', 'plan.estructura', 'calcular', 'plantillas.usar'])
+
+  // Dos proyectos de verdad: uno que la cuenta acotada puede tocar y otro que
+  // no. Sin los dos, «no puede salirse del suyo» no se puede comprobar.
+  const superadmin = await cuentaCon([
+    'plan.ver', 'plan.estructura', 'plan.editar', 'carga.ver', 'costes.ver',
+    'asignaciones.editar', 'dependencias.editar', 'equipo.ver', 'equipo.editar', 'calcular',
+  ])
+  proyectoMio = await creaProyecto(superadmin, 'MIO')
+  proyectoAjeno = await creaProyecto(superadmin, 'AJENO')
+
+  soloEnMio = await cuentaCon(
+    [
+      'plan.ver', 'plan.editar', 'plan.estructura', 'carga.ver', 'costes.ver',
+      'asignaciones.editar', 'dependencias.editar',
+      // Globales a propósito: el rol las lleva, pero concedido sobre un
+      // proyecto no deberían contar.
+      'equipo.editar', 'calcular',
+    ],
+    proyectoMio,
+  )
 }, 60_000)
+
+async function creaProyecto(cookie: string, prefijo: string): Promise<string> {
+  const respuesta = await aplicacion().inject({
+    method: 'POST',
+    url: '/api/projects',
+    headers: { cookie },
+    payload: { code: unico(prefijo), name: `Proyecto ${prefijo}`, statusStart: '2026-03-02' },
+  })
+  expect(respuesta.statusCode).toBe(200)
+  return respuesta.json<{ result: string }>().result
+}
 
 afterAll(async () => {
   await app?.close()
@@ -204,5 +244,148 @@ describeSiHayBase('nivelar y las plantillas: la misma ruta, dos decisiones', () 
     })
     expect(convertir.statusCode).toBe(403)
     expect(convertir.json<{ permiso: string }>().permiso).toBe('plantillas.gestionar')
+  })
+})
+
+
+describeSiHayBase('un rol concedido sobre un proyecto no se sale de él', () => {
+  it('edita el proyecto donde se lo concedieron', async () => {
+    const respuesta = await aplicacion().inject({
+      method: 'PATCH',
+      url: `/api/projects/${proyectoMio}`,
+      headers: { cookie: soloEnMio },
+      payload: { name: 'Renombrado desde dentro' },
+    })
+    expect(respuesta.statusCode).toBe(200)
+  })
+
+  it('no edita el de al lado, aunque el permiso sea el mismo', async () => {
+    const respuesta = await aplicacion().inject({
+      method: 'PATCH',
+      url: `/api/projects/${proyectoAjeno}`,
+      headers: { cookie: soloEnMio },
+      payload: { name: 'Esto no debería colar' },
+    })
+    expect(respuesta.statusCode).toBe(403)
+    expect(respuesta.json<{ error: string }>().error).toContain('en este proyecto')
+  })
+
+  it('tampoco por debajo: una tarea del proyecto ajeno se deniega por su nodo', async () => {
+    const nodo = await aplicacion().inject({
+      method: 'POST',
+      url: '/api/nodes',
+      headers: { cookie: soloEnMio },
+      payload: { projectId: proyectoAjeno, kind: 'task', name: 'Tarea colada', durationMinutes: 480 },
+    })
+    expect(nodo.statusCode).toBe(403)
+  })
+
+  it('una tarea del proyecto propio sí, y editarla también', async () => {
+    const creado = await aplicacion().inject({
+      method: 'POST',
+      url: '/api/nodes',
+      headers: { cookie: soloEnMio },
+      payload: { projectId: proyectoMio, kind: 'task', name: 'Tarea propia', durationMinutes: 480 },
+    })
+    expect(creado.statusCode).toBe(200)
+    const nodeId = creado.json<{ result: string }>().result
+
+    const editado = await aplicacion().inject({
+      method: 'PATCH',
+      url: `/api/nodes/${nodeId}`,
+      headers: { cookie: soloEnMio },
+      payload: { name: 'Tarea propia, renombrada' },
+    })
+    expect(editado.statusCode).toBe(200)
+  })
+
+  it('un identificador que no existe se deniega, no se confirma que no existe', async () => {
+    const respuesta = await aplicacion().inject({
+      method: 'PATCH',
+      url: '/api/nodes/00000000-0000-4000-8000-0000000000ff',
+      headers: { cookie: soloEnMio },
+      payload: { name: 'Nada' },
+    })
+    expect(respuesta.statusCode).toBe(403)
+  })
+
+  it('las funciones de toda la herramienta no viajan dentro de un rol por proyecto', async () => {
+    // El rol lleva `equipo.editar` y `calcular`, pero concedido sobre un
+    // proyecto: el equipo y el motor son de todos, así que no cuentan.
+    const equipo = await aplicacion().inject({
+      method: 'POST',
+      url: '/api/resources',
+      headers: { cookie: soloEnMio },
+      payload: { code: unico('R'), displayName: 'Alguien nuevo' },
+    })
+    expect(equipo.statusCode).toBe(403)
+
+    const calculo = await aplicacion().inject({
+      method: 'POST',
+      url: '/api/calculate',
+      headers: { cookie: soloEnMio },
+      payload: {},
+    })
+    expect(calculo.statusCode).toBe(403)
+  })
+
+  it('crear un proyecto nuevo pide el permiso en toda la herramienta, y lo dice', async () => {
+    const respuesta = await aplicacion().inject({
+      method: 'POST',
+      url: '/api/projects',
+      headers: { cookie: soloEnMio },
+      payload: { code: unico('NUEVO'), name: 'Proyecto nuevo', statusStart: '2026-03-02' },
+    })
+    expect(respuesta.statusCode).toBe(403)
+    expect(respuesta.json<{ error: string }>().error).toContain('en toda la herramienta')
+  })
+})
+
+describeSiHayBase('lo que se lee también viene recortado', () => {
+  it('el estado sólo trae los proyectos que se pueden ver', async () => {
+    const respuesta = await aplicacion().inject({
+      method: 'GET',
+      url: '/api/state',
+      headers: { cookie: soloEnMio },
+    })
+    expect(respuesta.statusCode).toBe(200)
+    const projects = respuesta.json<{ projects: readonly { id: string }[] }>().projects
+    expect(projects.map((project) => project.id)).toEqual([proyectoMio])
+  })
+
+  it('la saturación del equipo pide ver la carga en toda la herramienta', async () => {
+    const estado = await aplicacion().inject({
+      method: 'GET',
+      url: '/api/state',
+      headers: { cookie: basica },
+    })
+    const runId = estado.json<{ run: { id: string } | null }>().run?.id
+    if (runId === undefined) return
+
+    const respuesta = await aplicacion().inject({
+      method: 'GET',
+      url: `/api/runs/${runId}/utilization?bucket=month`,
+      headers: { cookie: soloEnMio },
+    })
+    expect(respuesta.statusCode).toBe(403)
+  })
+
+  it('la carga de una ejecución llega sin las celdas de proyectos ajenos', async () => {
+    const estado = await aplicacion().inject({
+      method: 'GET',
+      url: '/api/state',
+      headers: { cookie: basica },
+    })
+    const runId = estado.json<{ run: { id: string } | null }>().run?.id
+    if (runId === undefined) return
+
+    const respuesta = await aplicacion().inject({
+      method: 'GET',
+      url: `/api/runs/${runId}/load?bucket=month`,
+      headers: { cookie: soloEnMio },
+    })
+    expect(respuesta.statusCode).toBe(200)
+    const cells = respuesta.json<{ cells: readonly { projectId: string }[] }>().cells
+    expect(cells.every((cell) => cell.projectId === proyectoMio)).toBe(true)
   })
 })

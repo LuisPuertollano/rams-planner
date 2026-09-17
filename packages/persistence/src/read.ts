@@ -277,17 +277,31 @@ export async function readTasks(db: Queryable, runId: string): Promise<readonly 
 export async function readFindings(
   db: Queryable,
   runId: string,
-): Promise<readonly { severity: string; code: string; entityType: string; entityId: string; entityName: string | null; occursOn: string | null; message: string }[]> {
+): Promise<
+  readonly {
+    severity: string
+    code: string
+    entityType: string
+    entityId: string
+    entityName: string | null
+    /** El proyecto del nodo señalado; `null` si el hallazgo es de una persona. */
+    projectId: string | null
+    occursOn: string | null
+    message: string
+  }[]
+> {
   const { rows } = await db.query<{
     severity: string
     code: string
     entity_type: string
     entity_id: string
     entity_name: string | null
+    project_id: string | null
     occurs_on: string | null
     message: string
   }>(
     `SELECT f.severity, f.code, f.entity_type, f.entity_id, f.occurs_on::text, f.message,
+            n.project_id,
             COALESCE(n.name, res.display_name) AS entity_name
      FROM finding f
      LEFT JOIN wbs_node n  ON n.id = f.entity_id
@@ -303,6 +317,7 @@ export async function readFindings(
     entityType: row.entity_type,
     entityId: row.entity_id,
     entityName: row.entity_name,
+    projectId: row.project_id,
     occursOn: row.occurs_on,
     message: row.message,
   }))

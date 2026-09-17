@@ -349,7 +349,12 @@ Tres cosas que conviene saber de esta hoja:
 2. **Las funciones marcadas con ● conviene pensarlas dos veces.** Son las que
    dejan ver costes y tarifas, cambiar el nivel de competencia de alguien o
    repartir permisos.
-3. **Superadministración no aparece como columna.** Lo tiene todo siempre. Es lo
+3. **Las marcadas «toda la herramienta» no se pueden acotar a un proyecto.** El
+   equipo, las tarifas, las competencias y los cálculos del motor son de todos
+   los proyectos a la vez, así que esas funciones sólo cuentan si el rol se
+   concede en toda la herramienta. En un rol concedido sobre un proyecto se
+   quedan fuera.
+4. **Superadministración no aparece como columna.** Lo tiene todo siempre. Es lo
    que evita que desmarcar la casilla equivocada te deje fuera de tu propia
    herramienta.
 
@@ -361,6 +366,12 @@ los dos: un rol por proyecto añade permisos, nunca los quita.
 Desactivar a alguien le cierra las sesiones abiertas en el acto. Las cuentas no
 se borran, porque su nombre tiene que seguir apareciendo en el historial de
 cambios.
+
+Un rol acotado a un proyecto tampoco deja **ver** los demás: quien lo tiene
+abre la herramienta y sólo encuentra su proyecto, en la carga, en el plan, en los
+hallazgos y en lo que exporte. La única excepción es la saturación del equipo,
+que pide ver la carga en toda la herramienta — la ocupación de una persona
+calculada con un solo proyecto no es su ocupación, es un número que engaña.
 
 ---
 
@@ -392,6 +403,11 @@ Es una heurística y está declarada como tal. Tres cosas que conviene saber:
 ---
 
 ## 5. Cosas que pasan y qué significan
+
+**«Falta un proyecto que yo sé que existe.»**
+Tu rol está concedido sobre otros proyectos, no sobre ése. No es que el proyecto
+no esté: es que no llega. Quien administre la herramienta puede concederte un rol
+sobre él desde **Administración → Usuarios y roles**.
 
 **«Veo la carga pero todos los importes salen a cero.»**
 No es un fallo de datos: es que tu rol no incluye **Ver costes y tarifas**. Los

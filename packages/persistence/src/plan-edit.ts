@@ -213,13 +213,21 @@ export async function softDeleteAssignment(db: Queryable, assignmentId: string):
 export interface AssignmentRow {
   readonly id: string
   readonly nodeId: string
+  /** El proyecto de la tarea. Viaja para poder recortar por permisos. */
+  readonly projectId: string
   readonly resourceId: string
   readonly unitsBp: number
 }
 
 export async function readAssignments(db: Queryable): Promise<readonly AssignmentRow[]> {
-  const { rows } = await db.query<{ id: string; node_id: string; resource_id: string; units_bp: number }>(
-    `SELECT a.id, a.node_id, a.resource_id, a.units_bp
+  const { rows } = await db.query<{
+    id: string
+    node_id: string
+    project_id: string
+    resource_id: string
+    units_bp: number
+  }>(
+    `SELECT a.id, a.node_id, n.project_id, a.resource_id, a.units_bp
      FROM assignment a JOIN wbs_node n ON n.id = a.node_id
      WHERE a.deleted_at IS NULL AND n.deleted_at IS NULL
      ORDER BY n.path`,
@@ -227,6 +235,7 @@ export async function readAssignments(db: Queryable): Promise<readonly Assignmen
   return rows.map((row) => ({
     id: row.id,
     nodeId: row.node_id,
+    projectId: row.project_id,
     resourceId: row.resource_id,
     unitsBp: row.units_bp,
   }))
@@ -267,6 +276,9 @@ export interface DependencyRow {
   readonly id: string
   readonly predecessorNodeId: string
   readonly successorNodeId: string
+  /** Los proyectos de los dos extremos. Una dependencia puede cruzarlos. */
+  readonly predecessorProjectId: string
+  readonly successorProjectId: string
   readonly kind: string
   readonly lagMinutes: number
 }
@@ -276,10 +288,15 @@ export async function readDependencies(db: Queryable): Promise<readonly Dependen
     id: string
     predecessor_node_id: string
     successor_node_id: string
+    predecessor_project_id: string
+    successor_project_id: string
     dependency_kind: string
     lag_minutes: number
   }>(
-    `SELECT d.id, d.predecessor_node_id, d.successor_node_id, d.dependency_kind, d.lag_minutes
+    `SELECT d.id, d.predecessor_node_id, d.successor_node_id,
+            p.project_id AS predecessor_project_id,
+            s.project_id AS successor_project_id,
+            d.dependency_kind, d.lag_minutes
      FROM dependency d
      JOIN wbs_node p ON p.id = d.predecessor_node_id AND p.deleted_at IS NULL
      JOIN wbs_node s ON s.id = d.successor_node_id   AND s.deleted_at IS NULL`,
@@ -288,6 +305,8 @@ export async function readDependencies(db: Queryable): Promise<readonly Dependen
     id: row.id,
     predecessorNodeId: row.predecessor_node_id,
     successorNodeId: row.successor_node_id,
+    predecessorProjectId: row.predecessor_project_id,
+    successorProjectId: row.successor_project_id,
     kind: row.dependency_kind,
     lagMinutes: row.lag_minutes,
   }))

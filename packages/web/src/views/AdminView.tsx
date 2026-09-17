@@ -127,7 +127,9 @@ export function AdminView({ projects, currentUserId }: Props): React.JSX.Element
           <p className="faint" style={{ padding: '0 16px', maxWidth: '90ch' }}>
             Cada casilla es lo que la herramienta deja o no deja hacer de verdad: no esconde botones, deniega
             la operación. Las funciones marcadas con <span className="sensible">●</span> conviene pensarlas dos
-            veces.{' '}
+            veces. Las marcadas <span className="tag">toda la herramienta</span> no se pueden acotar a un
+            proyecto —el equipo, las tarifas y las ejecuciones del motor son de todos los proyectos a la vez—,
+            así que en un rol concedido sólo sobre un proyecto no cuentan.{' '}
             {sistema.length === 0 ? null : (
               <>
                 <b>{sistema.map((rol) => rol.name).join(', ')}</b> lo tiene todo siempre y no aparece aquí: es
@@ -160,6 +162,14 @@ export function AdminView({ projects, currentUserId }: Props): React.JSX.Element
                         <div className="funcion__nombre">
                           {permiso.sensitive === true ? <span className="sensible">●</span> : null}
                           {permiso.label}
+                          {permiso.scope === 'global' ? (
+                            <span
+                              className="tag"
+                              title="Esta función no se puede acotar a un proyecto: sólo cuenta si el rol se concede en toda la herramienta"
+                            >
+                              toda la herramienta
+                            </span>
+                          ) : null}
                         </div>
                         <div className="funcion__detalle">{permiso.detail}</div>
                       </td>
@@ -268,7 +278,9 @@ function UsuariosYRoles({
       <p className="faint" style={{ padding: '0 16px', maxWidth: '90ch' }}>
         Un rol concedido <b>en toda la herramienta</b> vale en todos los proyectos. Concedido{' '}
         <b>en un proyecto</b>, vale sólo ahí. Lo que alguien puede hacer en un proyecto es la suma de los dos,
-        así que un rol por proyecto añade permisos, nunca los quita.
+        así que un rol por proyecto añade permisos, nunca los quita. De un rol concedido sobre un proyecto
+        sólo cuentan sus funciones por proyecto: las marcadas <span className="tag">toda la herramienta</span>{' '}
+        en la hoja se quedan fuera, y por eso conviene mirar la hoja antes de conceder.
       </p>
 
       <table className="grid">

@@ -59,6 +59,42 @@ describe('permisos por ruta', () => {
     expect(problemas.map((problema) => `${problema.route} ${problema.problem}`)).toEqual([])
   })
 
+  it('las rutas con un permiso por proyecto dicen de qué proyecto hablan', async () => {
+    // Es la mitad que un permiso declarado no garantiza. Sin esta línea, una
+    // ruta nueva con `plan.editar` dejaría pasar a quien puede editar en
+    // *cualquier* proyecto, y el rol acotado dejaría de acotar sin que nada
+    // lo dijera.
+    const rutas = await rutasRegistradas()
+    const porProyecto = rutas.filter(
+      (ruta) =>
+        ruta.permission !== undefined &&
+        PERMISSION_BY_CODE.get(ruta.permission)?.scope === 'project',
+    )
+    expect(porProyecto.length).toBeGreaterThan(10)
+    expect(porProyecto.filter((ruta) => ruta.project === undefined)).toEqual([])
+  })
+
+  it('una ruta por proyecto sin declararlo rompe el arranque', () => {
+    const problemas = auditRoutes([
+      { method: 'PATCH', url: '/api/inventada/:id', permission: 'plan.editar', project: undefined },
+    ])
+    expect(problemas).toHaveLength(1)
+    expect(problemas[0]?.problem).toContain('se concede por proyecto')
+  })
+
+  it('un permiso global con un proyecto declarado también lo rompe', () => {
+    const problemas = auditRoutes([
+      {
+        method: 'POST',
+        url: '/api/inventada',
+        permission: 'equipo.editar',
+        project: { from: 'request', refs: [{ in: 'params', name: 'projectId' }] },
+      },
+    ])
+    expect(problemas).toHaveLength(1)
+    expect(problemas[0]?.problem).toContain('sólo se concede en toda la herramienta')
+  })
+
   it('no hay permisos en el catálogo que no proteja nada', async () => {
     // Ya no queda ninguno suelto: la hoja de roles trajo las rutas que faltaban.
     expect(unusedPermissions(await rutasRegistradas())).toEqual([])
@@ -86,6 +122,26 @@ describe('permisos por ruta', () => {
 describe('catálogo de permisos', () => {
   it('no hay códigos repetidos', () => {
     expect(PERMISSION_BY_CODE.size).toBe(PERMISSIONS.length)
+  })
+
+  it('cada permiso dice si se puede acotar a un proyecto', () => {
+    for (const permission of PERMISSIONS) {
+      expect(['project', 'global']).toContain(permission.scope)
+    }
+    // Las dos formas existen: si un día se quedara sólo una, el alcance habría
+    // dejado de significar algo y esto lo diría.
+    expect(PERMISSIONS.some((permission) => permission.scope === 'project')).toBe(true)
+    expect(PERMISSIONS.some((permission) => permission.scope === 'global')).toBe(true)
+  })
+
+  it('lo que es de todo el equipo no se puede acotar a un proyecto', () => {
+    // Personas, tarifas, competencias y administración son de todos los
+    // proyectos a la vez. Marcar una de éstas como «por proyecto» prometería
+    // un recorte que no existe.
+    const deTodos = ['Equipo', 'Competencias', 'Administración']
+    for (const permission of PERMISSIONS) {
+      if (deTodos.includes(permission.screen)) expect(permission.scope).toBe('global')
+    }
   })
 
   it('cada permiso dice a qué pantalla pertenece y qué significa', () => {
