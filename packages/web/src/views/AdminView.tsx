@@ -13,6 +13,8 @@ import {
   type Project,
 } from '../api.js'
 import { fullDate } from '../format.js'
+import { useT, type Traductor } from '../i18n/index.js'
+import { permissionDetail, permissionLabel, screenName } from '../permissions.js'
 
 interface Props {
   readonly projects: readonly Project[]
@@ -40,6 +42,7 @@ export function AdminView({ projects, currentUserId }: Props): React.JSX.Element
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
+  const { t } = useT()
 
   const recargar = async (): Promise<void> => {
     const siguiente = await fetchAdminSheet()
@@ -51,7 +54,7 @@ export function AdminView({ projects, currentUserId }: Props): React.JSX.Element
 
   useEffect(() => {
     recargar().catch((cause: unknown) => {
-      setError(cause instanceof Error ? cause.message : 'No se pudo cargar la hoja')
+      setError(cause instanceof Error ? cause.message : t('admin.errorCargar'))
     })
   }, [])
 
@@ -62,7 +65,7 @@ export function AdminView({ projects, currentUserId }: Props): React.JSX.Element
     accion()
       .then(recargar)
       .then(() => { if (mensaje !== undefined) setAviso(mensaje) })
-      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : 'No se pudo guardar') })
+      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : t('admin.errorGuardar')) })
       .finally(() => { setBusy(false) })
   }
 
@@ -93,7 +96,7 @@ export function AdminView({ projects, currentUserId }: Props): React.JSX.Element
   }
 
   if (sheet === null) {
-    return <div className="empty"><h3>{error ?? 'Cargando la hoja…'}</h3></div>
+    return <div className="empty"><h3>{error ?? t('hoja.cargando')}</h3></div>
   }
 
   const editables = sheet.roles.filter((rol) => !rol.isSystem)
@@ -105,47 +108,41 @@ export function AdminView({ projects, currentUserId }: Props): React.JSX.Element
       {aviso === null ? null : (
         <div className="notice" style={{ margin: 12 }}>
           {aviso}
-          <button className="button" onClick={() => { setAviso(null) }}>Entendido</button>
+          <button className="button" onClick={() => { setAviso(null) }}>{t('admin.entendido')}</button>
         </div>
       )}
 
       <div className="toolbar">
         <button className="tab" aria-selected={pestana === 'hoja'} onClick={() => { setPestana('hoja') }}>
-          Hoja de permisos
+          {t('hoja.pestana.permisos')}
         </button>
         <button className="tab" aria-selected={pestana === 'usuarios'} onClick={() => { setPestana('usuarios') }}>
-          Usuarios y roles
+          {t('hoja.pestana.usuarios')}
         </button>
         <span className="faint">
-          {sheet.permissions.length} funciones · {sheet.roles.length} roles ·{' '}
-          {sheet.users.length === 1 ? '1 usuario' : `${sheet.users.length} usuarios`}
+          {t('hoja.resumen', sheet.permissions.length, sheet.roles.length, sheet.users.length)}
         </span>
       </div>
 
       {pestana === 'hoja' ? (
         <>
           <p className="faint" style={{ padding: '0 16px', maxWidth: '90ch' }}>
-            Cada casilla es lo que la herramienta deja o no deja hacer de verdad: no esconde botones, deniega
-            la operación. Las funciones marcadas con <span className="sensible">●</span> conviene pensarlas dos
-            veces. Las marcadas <span className="tag">toda la herramienta</span> no se pueden acotar a un
-            proyecto —el equipo, las tarifas y las ejecuciones del motor son de todos los proyectos a la vez—,
-            así que en un rol concedido sólo sobre un proyecto no cuentan.{' '}
-            {sistema.length === 0 ? null : (
-              <>
-                <b>{sistema.map((rol) => rol.name).join(', ')}</b> lo tiene todo siempre y no aparece aquí: es
-                lo que evita que desmarcar una casilla te deje fuera de tu propia herramienta.
-              </>
-            )}
+            {t('hoja.intro')}{' '}
+            {sistema.length === 0
+              ? null
+              : t('hoja.intro.sistema', sistema.map((rol) => rol.name).join(', '))}
           </p>
 
           <table className="grid grid--hoja">
             <thead>
               <tr>
-                <th style={{ minWidth: 320 }}>Función</th>
+                <th style={{ minWidth: 320 }}>{t('hoja.columna.funcion')}</th>
                 {editables.map((rol) => (
                   <th key={rol.id} title={rol.description ?? undefined}>
                     {rol.name}
-                    {tieneCambios(rol.id) ? <span className="sin-guardar" title="Sin guardar"> •</span> : null}
+                    {tieneCambios(rol.id) ? (
+                      <span className="sin-guardar" title={t('hoja.sinGuardar')}> •</span>
+                    ) : null}
                   </th>
                 ))}
               </tr>
@@ -154,24 +151,23 @@ export function AdminView({ projects, currentUserId }: Props): React.JSX.Element
               {porPantalla.map(({ pantalla, funciones }) => (
                 <Fragment key={pantalla}>
                   <tr className="row--total">
-                    <td colSpan={editables.length + 1}>{pantalla}</td>
+                    <td colSpan={editables.length + 1}>{screenName(t, pantalla)}</td>
                   </tr>
                   {funciones.map((permiso) => (
                     <tr key={permiso.code}>
                       <td>
                         <div className="funcion__nombre">
                           {permiso.sensitive === true ? <span className="sensible">●</span> : null}
-                          {permiso.label}
+                          {permissionLabel(t, permiso.code, permiso.label)}
                           {permiso.scope === 'global' ? (
-                            <span
-                              className="tag"
-                              title="Esta función no se puede acotar a un proyecto: sólo cuenta si el rol se concede en toda la herramienta"
-                            >
-                              toda la herramienta
+                            <span className="tag" title={t('hoja.tag.global.pista')}>
+                              {t('hoja.tag.global')}
                             </span>
                           ) : null}
                         </div>
-                        <div className="funcion__detalle">{permiso.detail}</div>
+                        <div className="funcion__detalle">
+                          {permissionDetail(t, permiso.code, permiso.detail)}
+                        </div>
                       </td>
                       {editables.map((rol) => (
                         <td key={rol.id} style={{ textAlign: 'center' }}>
@@ -179,7 +175,7 @@ export function AdminView({ projects, currentUserId }: Props): React.JSX.Element
                             type="checkbox"
                             checked={borrador[rol.id]?.has(permiso.code) ?? false}
                             disabled={busy}
-                            aria-label={`${rol.name}: ${permiso.label}`}
+                            aria-label={`${rol.name}: ${permissionLabel(t, permiso.code, permiso.label)}`}
                             onChange={() => { alternar(rol.id, permiso.code) }}
                           />
                         </td>
@@ -189,7 +185,7 @@ export function AdminView({ projects, currentUserId }: Props): React.JSX.Element
                 </Fragment>
               ))}
               <tr className="row--total">
-                <td>Guardar</td>
+                <td>{t('hoja.guardar')}</td>
                 {editables.map((rol) => (
                   <td key={rol.id} style={{ textAlign: 'center' }}>
                     <button
@@ -198,11 +194,11 @@ export function AdminView({ projects, currentUserId }: Props): React.JSX.Element
                       onClick={() => {
                         run(
                           async () => { await saveRolePermissions(rol.id, [...(borrador[rol.id] ?? [])]) },
-                          `Guardados los permisos de «${rol.name}».`,
+                          t('hoja.guardado', rol.name),
                         )
                       }}
                     >
-                      Guardar
+                      {t('hoja.guardar')}
                     </button>
                   </td>
                 ))}
@@ -215,25 +211,28 @@ export function AdminView({ projects, currentUserId }: Props): React.JSX.Element
               className="button"
               disabled={busy}
               onClick={() => {
-                const name = window.prompt('Nombre del rol nuevo')
+                const name = window.prompt(t('admin.rol.pideNombre'))
                 if (name === null || name.trim() === '') return
-                const code = window.prompt('Código corto (minúsculas, sin espacios)', name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_'))
+                const code = window.prompt(
+                  t('admin.rol.pideCodigo'),
+                  name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_'),
+                )
                 if (code === null || code.trim() === '') return
-                const description = window.prompt('Para qué es este rol', '') ?? ''
+                const description = window.prompt(t('admin.rol.pideDetalle'), '') ?? ''
                 run(async () => { await createRole(code.trim(), name.trim(), description) })
               }}
             >
-              + Rol
+              {t('admin.rol.nuevo')}
             </button>
-            <span className="faint">Quitar un rol:</span>
+            <span className="faint">{t('admin.rol.quitar')}</span>
             {editables.map((rol) => (
               <button
                 key={rol.id}
                 className="button"
                 disabled={busy}
-                title={`Quitar el rol «${rol.name}»`}
+                title={t('admin.rol.quitarPista', rol.name)}
                 onClick={() => {
-                  if (window.confirm(`¿Quitar el rol «${rol.name}»? Quien lo tuviera se queda sin él.`)) {
+                  if (window.confirm(t('admin.rol.quitarConfirma', rol.name))) {
                     run(async () => { await removeRole(rol.id) })
                   }
                 }}
@@ -250,6 +249,7 @@ export function AdminView({ projects, currentUserId }: Props): React.JSX.Element
           currentUserId={currentUserId}
           busy={busy}
           onRun={run}
+          t={t}
         />
       )}
     </>
@@ -262,12 +262,14 @@ function UsuariosYRoles({
   currentUserId,
   busy,
   onRun,
+  t,
 }: {
   readonly sheet: AdminSheet
   readonly projects: readonly Project[]
   readonly currentUserId: string | null
   readonly busy: boolean
   readonly onRun: (accion: () => Promise<void>, mensaje?: string) => void
+  readonly t: Traductor['t']
 }): React.JSX.Element {
   const nombreDeRol = new Map(sheet.roles.map((rol) => [rol.id, rol.name]))
   const esDeSistema = new Set(sheet.roles.filter((rol) => rol.isSystem).map((rol) => rol.id))
@@ -276,20 +278,16 @@ function UsuariosYRoles({
   return (
     <>
       <p className="faint" style={{ padding: '0 16px', maxWidth: '90ch' }}>
-        Un rol concedido <b>en toda la herramienta</b> vale en todos los proyectos. Concedido{' '}
-        <b>en un proyecto</b>, vale sólo ahí. Lo que alguien puede hacer en un proyecto es la suma de los dos,
-        así que un rol por proyecto añade permisos, nunca los quita. De un rol concedido sobre un proyecto
-        sólo cuentan sus funciones por proyecto: las marcadas <span className="tag">toda la herramienta</span>{' '}
-        en la hoja se quedan fuera, y por eso conviene mirar la hoja antes de conceder.
+        {t('admin.usuarios.intro')}
       </p>
 
       <table className="grid">
         <thead>
           <tr>
-            <th style={{ minWidth: 220 }}>Persona</th>
-            <th>Roles</th>
-            <th>Último acceso</th>
-            <th>Estado</th>
+            <th style={{ minWidth: 220 }}>{t('admin.col.persona')}</th>
+            <th>{t('admin.col.roles')}</th>
+            <th>{t('admin.col.ultimoAcceso')}</th>
+            <th>{t('admin.col.estado')}</th>
             <th />
           </tr>
         </thead>
@@ -304,7 +302,7 @@ function UsuariosYRoles({
                 </td>
                 <td style={{ textAlign: 'left' }}>
                   {suyos.length === 0 ? (
-                    <span className="faint">sin roles: no puede hacer nada</span>
+                    <span className="faint">{t('admin.sinRoles')}</span>
                   ) : (
                     suyos.map((concesion) => (
                       <span className="tag" key={concesion.id} style={{ marginRight: 6 }}>
@@ -316,7 +314,7 @@ function UsuariosYRoles({
                           <button
                             className="skill-head__drop"
                             disabled={busy}
-                            title="Retirar este rol"
+                            title={t('admin.retirarRol')}
                             onClick={() => { onRun(async () => { await revoke(concesion.id) }) }}
                           >
                             ✕
@@ -326,8 +324,8 @@ function UsuariosYRoles({
                     ))
                   )}
                 </td>
-                <td className="muted">{usuario.lastLoginAt === null ? 'nunca' : fullDate(usuario.lastLoginAt)}</td>
-                <td>{usuario.isActive ? 'activo' : 'desactivado'}</td>
+                <td className="muted">{usuario.lastLoginAt === null ? t('admin.nunca') : fullDate(usuario.lastLoginAt)}</td>
+                <td>{usuario.isActive ? t('admin.activo') : t('admin.desactivado')}</td>
                 <td style={{ whiteSpace: 'nowrap' }}>
                   <ConcederRol
                     sheet={sheet}
@@ -335,34 +333,35 @@ function UsuariosYRoles({
                     userId={usuario.id}
                     busy={busy}
                     onRun={onRun}
+                    t={t}
                   />{' '}
                   <button
                     className="button"
                     disabled={busy}
                     onClick={() => {
-                      const clave = window.prompt(`Contraseña nueva para ${usuario.displayName} (12 o más)`)
+                      const clave = window.prompt(t('admin.clave.pide', usuario.displayName))
                       if (clave === null || clave.length < 12) return
                       onRun(
                         async () => { await setUserPassword(usuario.id, clave) },
-                        `Contraseña cambiada. Sus sesiones abiertas se han cerrado.`,
+                        t('admin.clave.hecho'),
                       )
                     }}
                   >
-                    Clave
+                    {t('admin.clave')}
                   </button>{' '}
                   <button
                     className="button"
                     disabled={busy || usuario.id === currentUserId}
                     title={
                       usuario.id === currentUserId
-                        ? 'No puedes desactivar tu propia cuenta'
+                        ? t('admin.noTeDesactivas')
                         : usuario.isActive
-                          ? 'Desactivar: deja de poder entrar y se cierran sus sesiones'
-                          : 'Reactivar'
+                          ? t('admin.desactivar.pista')
+                          : t('admin.reactivar')
                     }
                     onClick={() => { onRun(async () => { await setUserActive(usuario.id, !usuario.isActive) }) }}
                   >
-                    {usuario.isActive ? 'Desactivar' : 'Reactivar'}
+                    {usuario.isActive ? t('admin.desactivar') : t('admin.reactivar')}
                   </button>
                 </td>
               </tr>
@@ -376,23 +375,21 @@ function UsuariosYRoles({
           className="button"
           disabled={busy}
           onClick={() => {
-            const displayName = window.prompt('Nombre de la persona')
+            const displayName = window.prompt(t('admin.usuario.pideNombre'))
             if (displayName === null || displayName.trim() === '') return
-            const email = window.prompt('Correo')
+            const email = window.prompt(t('admin.usuario.pideCorreo'))
             if (email === null || email.trim() === '') return
-            const password = window.prompt('Contraseña inicial (12 caracteres o más)')
+            const password = window.prompt(t('admin.usuario.pideClave'))
             if (password === null || password.length < 12) {
-              window.alert('La contraseña debe tener al menos 12 caracteres.')
+              window.alert(t('admin.usuario.claveCorta'))
               return
             }
             onRun(async () => { await createAppUser(email.trim(), displayName.trim(), password) })
           }}
         >
-          + Usuario
+          {t('admin.usuario.nuevo')}
         </button>
-        <span className="faint">
-          Un usuario recién creado no puede hacer nada hasta que se le concede un rol.
-        </span>
+        <span className="faint">{t('admin.usuario.sinRol')}</span>
       </div>
     </>
   )
@@ -404,12 +401,14 @@ function ConcederRol({
   userId,
   busy,
   onRun,
+  t,
 }: {
   readonly sheet: AdminSheet
   readonly projects: readonly Project[]
   readonly userId: string
   readonly busy: boolean
   readonly onRun: (accion: () => Promise<void>, mensaje?: string) => void
+  readonly t: Traductor['t']
 }): React.JSX.Element {
   const [abierto, setAbierto] = useState(false)
   const [roleId, setRoleId] = useState(sheet.roles[0]?.id ?? '')
@@ -417,8 +416,13 @@ function ConcederRol({
 
   if (!abierto) {
     return (
-      <button className="button" disabled={busy} onClick={() => { setAbierto(true) }} title="Conceder un rol a esta persona">
-        + Conceder
+      <button
+        className="button"
+        disabled={busy}
+        onClick={() => { setAbierto(true) }}
+        title={t('admin.conceder.pista')}
+      >
+        {t('admin.conceder')}
       </button>
     )
   }
@@ -431,11 +435,11 @@ function ConcederRol({
         ))}
       </select>
       <select className="input" value={projectId} onChange={(event) => { setProjectId(event.target.value) }}>
-        <option value="">en toda la herramienta</option>
+        <option value="">{t('admin.conceder.enTodo')}</option>
         {projects
           .filter((proyecto) => !proyecto.isTemplate)
           .map((proyecto) => (
-            <option key={proyecto.id} value={proyecto.id}>sólo en {proyecto.code}</option>
+            <option key={proyecto.id} value={proyecto.id}>{t('admin.conceder.soloEn', proyecto.code)}</option>
           ))}
       </select>
       <button
@@ -446,9 +450,9 @@ function ConcederRol({
           setAbierto(false)
         }}
       >
-        Conceder
+        {t('admin.conceder.hacer')}
       </button>
-      <button className="button" onClick={() => { setAbierto(false) }}>Cancelar</button>
+      <button className="button" onClick={() => { setAbierto(false) }}>{t('admin.cancelar')}</button>
     </span>
   )
 }

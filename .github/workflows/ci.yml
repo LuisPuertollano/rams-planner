@@ -38,6 +38,9 @@ jobs:
       - name: Ningún hallazgo del motor sin traducir
         run: pnpm check:hallazgos
 
+      - name: Ninguna función del catálogo de permisos sin traducir
+        run: pnpm check:permisos
+
       - name: Tests y cobertura
         run: pnpm test:coverage
 

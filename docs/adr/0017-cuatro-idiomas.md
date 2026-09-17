@@ -72,8 +72,10 @@ servidor: los mensajes de los hallazgos, las etiquetas del catálogo de permisos
 y los errores de la API. Eso último es la parte cara: hay que traducir desde el
 `code` y la carga útil que ya viajan, no desde la frase.
 
-Los **hallazgos** ya están hechos, así: [ADR-0020](0020-hallazgos-traducidos.md).
-Quedan las etiquetas de los permisos y los errores de la API.
+Los **hallazgos** ya están hechos, así: [ADR-0020](0020-hallazgos-traducidos.md),
+y el **catálogo de permisos** en [ADR-0021](0021-permisos-traducidos.md). Quedan
+los errores de la API, que es el trozo más incómodo: muchos no tienen todavía un
+`code` estable y hay que dárselo antes de poder traducirlos.
 
 Se hace por partes a propósito. La alternativa era un solo cambio de trescientas
 cadenas y cuatro traducciones, imposible de revisar de verdad; y una revisión

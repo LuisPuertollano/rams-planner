@@ -498,6 +498,14 @@ Tres cosas que conviene saber de esta hoja:
    que evita que desmarcar la casilla equivocada te deje fuera de tu propia
    herramienta.
 
+Esta pantalla está **en los cuatro idiomas**, incluido el detalle de cada
+función: es la que se lee para decidir, y una casilla cuyo texto no entiendes es
+una casilla que marcas a ciegas.
+
+Lo que **no** se traduce son los nombres de los roles, los códigos de proyecto y
+los nombres de las personas. No es un olvido: los pones tú. Un rol que hayáis
+llamado `Verantwortlicher` se llama así en las cuatro pantallas.
+
 **Usuarios y roles.** Dar de alta personas, cambiarles la contraseña,
 desactivarlas y concederles roles. Un rol se concede **en toda la herramienta** o
 **sólo en un proyecto**. Lo que alguien puede hacer en un proyecto es la suma de
