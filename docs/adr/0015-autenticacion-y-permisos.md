@@ -172,14 +172,25 @@ que no deja entrar a nadie hasta que alguien encuentre el comando— convierte
 cada despliegue nuevo en un problema de soporte. El primer superadministrador se
 crea con `crear-superadmin`, y desde ese momento la puerta se cierra sola.
 
-## Lo que queda abierto
+## Los costes: decidido
 
-**Los costes: ¿se ocultan o se agregan?** De momento `costes.ver` los oculta
-entero: sin ese permiso la API **no envía** los importes, no los esconde en
-pantalla. Es la opción segura y la que se implementa. Queda por decidir si hace
-falta un punto intermedio —totales por proyecto sin tarifas individuales—, que
-es lo que suele querer la gente en la práctica. Cambiarlo más adelante es añadir
-un permiso al catálogo, no rehacer nada.
+**No hay punto intermedio.** `costes.ver` se tiene o no se tiene, y quien lo
+tiene ve los importes; sin él, la API **no los envía**, no los esconde en
+pantalla. Se consideró un modo agregado —totales por proyecto sin tarifas
+individuales— y se descartó: son dos verdades distintas sobre el mismo dato y
+mantener las dos cuesta el doble de sitios donde equivocarse.
+
+Lo que sí hay es un recorte que nace del alcance por proyecto, y tiene dos
+mitades que conviene no confundir:
+
+- **Los importes de la carga son de un proyecto**, así que `costes.ver`
+  concedido sobre uno enseña los suyos y pone a cero los demás, celda a celda.
+  El CSV sale sin la columna de coste salvo que se puedan ver en **todos** los
+  proyectos que lleva el fichero: una columna con huecos miente igual que un
+  cero.
+- **La tarifa de una persona no es de ningún proyecto**, es lo que cobra
+  alguien. Por eso pide `costes.ver` **en toda la herramienta**: verla en el
+  proyecto A no da derecho a saberlo.
 
 ## Por qué se decidió antes de escribirlo
 

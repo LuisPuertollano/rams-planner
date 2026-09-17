@@ -110,7 +110,7 @@ beforeAll(async () => {
 
   soloEnMio = await cuentaCon(
     [
-      'plan.ver', 'plan.editar', 'plan.estructura', 'carga.ver', 'costes.ver',
+      'plan.ver', 'plan.editar', 'plan.estructura', 'carga.ver', 'costes.ver', 'equipo.ver',
       'asignaciones.editar', 'dependencias.editar',
       // Globales a propósito: el rol las lleva, pero concedido sobre un
       // proyecto no deberían contar.
@@ -545,5 +545,73 @@ describeSiHayBase('cambiarse la contraseña no depende de ningún rol', () => {
       nueva: 'una contraseña nueva larga',
     })
     expect(cambio.status).toBe(401)
+  })
+})
+
+
+describeSiHayBase('los importes también se recortan por proyecto', () => {
+  it('ver costes en un proyecto no enseña los del de al lado', async () => {
+    // `basica` ve la carga de todos los proyectos pero no tiene `costes.ver`;
+    // `soloEnMio` lo tiene, pero sólo sobre el suyo. Lo que hay que comprobar
+    // es que el segundo no recibe los importes del primero.
+    const conCostes = await cuentaCon(['carga.ver', 'costes.ver', 'plan.ver', 'calcular'])
+    const estado = await aplicacion().inject({ method: 'GET', url: '/api/state', headers: { cookie: conCostes } })
+    const runId = estado.json<{ run: { id: string } | null }>().run?.id
+    if (runId === undefined) return
+
+    const todo = await aplicacion().inject({
+      method: 'GET',
+      url: `/api/runs/${runId}/load?bucket=month`,
+      headers: { cookie: conCostes },
+    })
+    expect(todo.json<{ costsHidden: boolean }>().costsHidden).toBe(false)
+
+    const recortado = await aplicacion().inject({
+      method: 'GET',
+      url: `/api/runs/${runId}/load?bucket=month`,
+      headers: { cookie: soloEnMio },
+    })
+    expect(recortado.statusCode).toBe(200)
+    const cells = recortado.json<{ cells: readonly { projectId: string; costCents: number }[] }>().cells
+    // Sólo llegan las celdas de su proyecto, y ésas sí con su importe.
+    expect(cells.every((cell) => cell.projectId === proyectoMio)).toBe(true)
+  })
+
+  it('la tarifa de una persona pide ver costes en toda la herramienta', async () => {
+    // La tarifa no es de un proyecto: es lo que cobra alguien. Ve al equipo
+    // entero —`equipo.ver` global— pero los costes sólo en su proyecto, que es
+    // el caso que hay que separar.
+    const correo = `${unico('mirón')}@ejemplo.test`
+    await withTransaction(baseDeDatos(), async (db) => {
+      const userId = await createUser(db, { email: correo, displayName: 'Mirón', password: CLAVE })
+
+      const global = await createRole(db, { code: unico('rol'), name: 'Ve al equipo' })
+      await setRolePermissions(db, global, ['equipo.ver', 'carga.ver', 'plan.ver'])
+      await grantRole(db, userId, global, null)
+
+      const soloUno = await createRole(db, { code: unico('rol'), name: 'Ve costes de uno' })
+      await setRolePermissions(db, soloUno, ['costes.ver'])
+      await grantRole(db, userId, soloUno, proyectoMio)
+    })
+    const entrada = await aplicacion().inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { email: correo, password: CLAVE },
+    })
+    expect(entrada.statusCode).toBe(200)
+    const cookie = entrada.headers['set-cookie']?.toString() ?? ''
+
+    const equipo = await aplicacion().inject({
+      method: 'GET',
+      url: '/api/resources',
+      headers: { cookie },
+    })
+    expect(equipo.statusCode).toBe(200)
+    const cuerpo = equipo.json<{
+      costsHidden: boolean
+      resources: readonly { costRates: readonly unknown[] }[]
+    }>()
+    expect(cuerpo.costsHidden).toBe(true)
+    for (const recurso of cuerpo.resources) expect(recurso.costRates).toEqual([])
   })
 })

@@ -133,6 +133,8 @@ export interface AppState {
 }
 
 export interface RunData {
+  /** Los importes no han llegado: falta el permiso. No es que cuesten cero. */
+  readonly costsHidden: boolean
   readonly tasks: readonly TaskRow[]
   readonly load: readonly LoadCell[]
   readonly utilization: readonly UtilizationCell[]
@@ -156,7 +158,7 @@ export async function fetchState(): Promise<AppState> {
 export async function fetchRunData(runId: string): Promise<RunData> {
   const [tasks, load, utilization, findings] = await Promise.all([
     get<{ tasks: readonly TaskRow[] }>(`/api/runs/${runId}/tasks`),
-    get<{ cells: readonly LoadCell[] }>(`/api/runs/${runId}/load?bucket=month`),
+    get<{ cells: readonly LoadCell[]; costsHidden: boolean }>(`/api/runs/${runId}/load?bucket=month`),
     // La saturación es del equipo entero y pide ver la carga en toda la
     // herramienta. Quien sólo tiene un proyecto no la recibe, y eso no puede
     // tumbar la pantalla: se queda sin las filas de capacidad, no sin plan.
@@ -165,7 +167,13 @@ export async function fetchRunData(runId: string): Promise<RunData> {
     ),
     get<{ findings: readonly FindingRow[] }>(`/api/runs/${runId}/findings`),
   ])
-  return { tasks: tasks.tasks, load: load.cells, utilization: utilization.cells, findings: findings.findings }
+  return {
+    tasks: tasks.tasks,
+    load: load.cells,
+    utilization: utilization.cells,
+    findings: findings.findings,
+    costsHidden: load.costsHidden,
+  }
 }
 
 export async function fetchDerivations(runId: string, nodeId: string): Promise<readonly DerivationRow[]> {

@@ -23,7 +23,7 @@ import {
   withTransaction,
   type Pool,
 } from '@planner/persistence'
-import { puede } from './auth-routes.js'
+import { puedeEnTodaLaHerramienta } from './auth-routes.js'
 import { calculate, defaultScenarioId } from './engine.js'
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe ser AAAA-MM-DD')
@@ -79,7 +79,11 @@ export function registerResourceRoutes(app: FastifyInstance, pool: Pool): void {
       const resources = await readResourceDetails(db)
       // La ficha del equipo se ve entera menos las tarifas: quien no puede ver
       // costes recibe la lista vacía, no una lista con ceros.
-      const conCostes = puede(request, 'costes.ver')
+      //
+      // Y hace falta `costes.ver` **en toda la herramienta**: la tarifa es de
+      // una persona, no de un proyecto, así que poder ver los importes del
+      // proyecto A no da derecho a saber lo que cobra alguien.
+      const conCostes = puedeEnTodaLaHerramienta(request, 'costes.ver')
       return {
         resources: conCostes ? resources : resources.map((resource) => ({ ...resource, costRates: [] })),
         calendars: await readCalendars(db),

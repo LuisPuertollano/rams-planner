@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { LoadCell, Project, Resource, UtilizationCell } from '../api.js'
-import { hours, monthLabel, percent, utilizationColor } from '../format.js'
+import { euros, hours, monthLabel, percent, utilizationColor } from '../format.js'
 import { activePeriods } from '../periods.js'
 
 interface Props {
@@ -9,7 +9,16 @@ interface Props {
   readonly load: readonly LoadCell[]
   readonly utilization: readonly UtilizationCell[]
   readonly runId: string
+  /**
+   * Si los importes han llegado. El servidor los manda a cero cuando no hay
+   * permiso, así que sin este dato la matriz enseñaría «0 €» y eso se lee como
+   * «costó cero», que es distinto de no poder verlo.
+   */
+  readonly costsHidden: boolean
 }
+
+/** En qué se mide la matriz. El reparto del trabajo es el mismo; la unidad no. */
+type Unidad = 'horas' | 'euros'
 
 
 /**
@@ -19,18 +28,40 @@ interface Props {
  * derivados y por eso ninguna es editable: llevan el `runId` que las produjo en
  * el título, para que se pueda auditar de dónde sale cada número.
  */
-export function MatrixView({ resources, projects, load, utilization, runId }: Props): React.JSX.Element {
+export function MatrixView({
+  resources,
+  projects,
+  load,
+  utilization,
+  runId,
+  costsHidden,
+}: Props): React.JSX.Element {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
+  const [unidad, setUnidad] = useState<Unidad>('horas')
+  const enEuros = unidad === 'euros' && !costsHidden
+
+  /** El valor de una celda según la unidad. Lo demás de la matriz no cambia. */
+  const valorDe = useMemo(
+    () => (cell: LoadCell): number => (enEuros ? cell.costCents : cell.plannedMinutes),
+    [enEuros],
+  )
+  const formatea = useMemo(
+    () => (valor: number): string => (enEuros ? euros(valor) : `${hours(valor)}`),
+    [enEuros],
+  )
 
   const periods = useMemo(
     () => activePeriods(load.filter((cell) => cell.plannedMinutes > 0).map((cell) => cell.period)),
     [load],
   )
 
-  const byResourcePeriod = useMemo(() => index(load, (cell) => `${cell.resourceId}|${cell.period}`), [load])
+  const byResourcePeriod = useMemo(
+    () => index(load, (cell) => `${cell.resourceId}|${cell.period}`, valorDe),
+    [load, valorDe],
+  )
   const byResourceProjectPeriod = useMemo(
-    () => index(load, (cell) => `${cell.resourceId}|${cell.projectId}|${cell.period}`),
-    [load],
+    () => index(load, (cell) => `${cell.resourceId}|${cell.projectId}|${cell.period}`, valorDe),
+    [load, valorDe],
   )
   const utilByKey = useMemo(() => {
     const map = new Map<string, UtilizationCell>()
@@ -73,6 +104,38 @@ export function MatrixView({ resources, projects, load, utilization, runId }: Pr
   )
 
   return (
+    <>
+      <div className="toolbar">
+        <span className="faint">Medir en</span>
+        <button
+          className="tab"
+          aria-selected={!enEuros}
+          onClick={() => { setUnidad('horas') }}
+        >
+          Horas
+        </button>
+        <button
+          className="tab"
+          aria-selected={enEuros}
+          disabled={costsHidden}
+          title={
+            costsHidden
+              ? 'Te falta el permiso «Ver costes y tarifas»'
+              : 'Las mismas celdas, en euros: horas por la tarifa vigente de cada día'
+          }
+          onClick={() => { setUnidad('euros') }}
+        >
+          Euros
+        </button>
+        <span className="faint">
+          {costsHidden
+            ? 'Los importes no llegan: te falta el permiso «Ver costes y tarifas».'
+            : enEuros
+              ? 'La capacidad no aparece aquí: se mide en tiempo, no en dinero.'
+              : 'Cada celda es trabajo comprometido, no dedicación.'}
+        </span>
+      </div>
+
     <table className="grid">
       <thead>
         <tr>
@@ -101,6 +164,8 @@ export function MatrixView({ resources, projects, load, utilization, runId }: Pr
               plannedOf={(period) => byResourcePeriod.get(`${resource.id}|${period}`) ?? 0}
               utilOf={(period) => utilByKey.get(`${resource.id}|${period}`)}
               hasCapacity={utilization.length > 0}
+              enEuros={enEuros}
+              formatea={formatea}
               projects={resourceProjects.map((projectId) => ({
                 id: projectId,
                 label: projectName(projectId),
@@ -112,13 +177,14 @@ export function MatrixView({ resources, projects, load, utilization, runId }: Pr
         })}
         <tr className="row--total">
           <td>Equipo</td>
-          {totalsByPeriod.map((minutes, index) => (
-            <td key={periods[index]}>{hours(minutes)}</td>
+          {totalsByPeriod.map((valor, index) => (
+            <td key={periods[index]}>{formatea(valor)}</td>
           ))}
-          <td>{hours(totalsByPeriod.reduce((sum, value) => sum + value, 0))}</td>
+          <td>{formatea(totalsByPeriod.reduce((sum, value) => sum + value, 0))}</td>
         </tr>
       </tbody>
     </table>
+    </>
   )
 }
 
@@ -133,6 +199,10 @@ interface ResourceRowsProps {
   readonly utilOf: (period: string) => UtilizationCell | undefined
   /** Si llegó la capacidad del equipo. Sin ella la fila de saturación sobra. */
   readonly hasCapacity: boolean
+  /** La matriz está en euros: la capacidad, que es tiempo, no pinta nada. */
+  readonly enEuros: boolean
+  /** Cómo se escribe un valor en la unidad elegida. */
+  readonly formatea: (valor: number) => string
   readonly projects: readonly { id: string; label: string; minutesOf: (period: string) => number }[]
 }
 
@@ -146,6 +216,8 @@ function ResourceRows({
   plannedOf,
   utilOf,
   hasCapacity,
+  enEuros,
+  formatea,
   projects,
 }: ResourceRowsProps): React.JSX.Element {
   return (
@@ -159,24 +231,26 @@ function ResourceRows({
           <span className="faint">{resource.calendarCode === null ? '' : resource.calendarCode.replace('base_', '')}</span>
         </td>
         {periods.map((period) => {
-          const minutes = plannedOf(period)
+          const valor = plannedOf(period)
           return (
             <td
               key={period}
-              className={minutes === 0 ? 'cell--derived cell--zero' : 'cell--derived'}
+              className={valor === 0 ? 'cell--derived cell--zero' : 'cell--derived'}
               title={`Derivado de la ejecución ${runId.slice(0, 8)} · no editable`}
             >
-              {hours(minutes)}
+              {formatea(valor)}
             </td>
           )
         })}
-        <td>{hours(total)}</td>
+        <td>{formatea(total)}</td>
       </tr>
 
       {/* Sin permiso para ver la carga de toda la herramienta no llega la
           capacidad del equipo. La fila se quita entera: enseñarla a cero diría
-          que esa persona no tiene capacidad, que es distinto de no saberlo. */}
-      {!hasCapacity ? null : (
+          que esa persona no tiene capacidad, que es distinto de no saberlo.
+          En euros tampoco aparece: la capacidad de una persona es tiempo, y
+          poner horas en una tabla de importes sólo confunde. */}
+      {!hasCapacity || enEuros ? null : (
       <tr className="row--capacity">
         <td>capacidad · saturación</td>
         {periods.map((period) => {
@@ -203,10 +277,10 @@ function ResourceRows({
               <td>{project.label}</td>
               {periods.map((period) => (
                 <td key={period} className={project.minutesOf(period) === 0 ? 'cell--zero' : ''}>
-                  {hours(project.minutesOf(period))}
+                  {formatea(project.minutesOf(period))}
                 </td>
               ))}
-              <td>{hours(periods.reduce((sum, period) => sum + project.minutesOf(period), 0))}</td>
+              <td>{formatea(periods.reduce((sum, period) => sum + project.minutesOf(period), 0))}</td>
             </tr>
           ))
         : null}
@@ -214,8 +288,12 @@ function ResourceRows({
   )
 }
 
-function index(cells: readonly LoadCell[], key: (cell: LoadCell) => string): ReadonlyMap<string, number> {
+function index(
+  cells: readonly LoadCell[],
+  key: (cell: LoadCell) => string,
+  valor: (cell: LoadCell) => number,
+): ReadonlyMap<string, number> {
   const map = new Map<string, number>()
-  for (const cell of cells) map.set(key(cell), (map.get(key(cell)) ?? 0) + cell.plannedMinutes)
+  for (const cell of cells) map.set(key(cell), (map.get(key(cell)) ?? 0) + valor(cell))
   return map
 }
