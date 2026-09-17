@@ -12,6 +12,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { z } from 'zod'
 import {
   can,
+  changeOwnPassword,
   effectivePermissions,
   enterAuditContext,
   findSession,
@@ -30,6 +31,7 @@ import {
   PERMISSIONS,
   PERMISSION_BY_CODE,
   PUBLIC_ROUTES,
+  SESSION_ONLY_ROUTES,
   type PermissionScope,
   type ProjectSource,
 } from './permissions.js'
@@ -282,6 +284,9 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool): void {
       return reply.status(401).send({ error: 'Hay que entrar para hacer esto.', code: 'SIN_SESION' })
     }
 
+    // Sesión sí, permiso no: lo que uno hace sobre su propia cuenta.
+    if (SESSION_ONLY_ROUTES.has(rutaDeclarada)) return
+
     const config = request.routeOptions.config as RoutePermissionConfig | undefined
     const permiso = config?.permission
     if (permiso === undefined) {
@@ -355,6 +360,44 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool): void {
         catalogue: PERMISSIONS,
         openInstallation: false,
       })
+  })
+
+  /**
+   * Cambiar la propia contraseña.
+   *
+   * Existe porque la CLI dice «cámbiala al entrar» al crear una cuenta, y hasta
+   * ahora no había forma de hacerlo: la única salida era pedírselo a quien
+   * administra, que es exactamente lo que no debería hacer falta con una
+   * contraseña que ya conoce otra persona.
+   *
+   * Cambiarla cierra todas las sesiones, la de quien la cambia incluida: si se
+   * cambia porque alguien más la conocía, dejar sesiones vivas no arregla nada.
+   * Por eso se responde con la cookie borrada y hay que volver a entrar.
+   */
+  app.post('/api/auth/clave', async (request, reply) => {
+    const body = z
+      .object({ actual: z.string().min(1).max(200), nueva: z.string().min(12).max(200) })
+      .parse(request.body)
+
+    const usuario = request.usuario
+    if (usuario === undefined) {
+      return reply.status(401).send({ error: 'Hay que entrar para hacer esto.', code: 'SIN_SESION' })
+    }
+    if (body.actual === body.nueva) {
+      return reply.status(422).send({ error: 'La contraseña nueva tiene que ser distinta de la actual.' })
+    }
+
+    const cambiada = await withTransaction(pool, (db) =>
+      changeOwnPassword(db, usuario.id, body.actual, body.nueva),
+    )
+    if (!cambiada) {
+      // El mismo mensaje que al entrar mal: no confirma nada de la actual.
+      return reply.status(401).send({ error: 'La contraseña actual no es correcta.' })
+    }
+
+    return reply
+      .header('set-cookie', cookieFor(null, esHttps(request)))
+      .send({ ok: true, sesionCerrada: true })
   })
 
   app.post('/api/auth/logout', async (request, reply) => {

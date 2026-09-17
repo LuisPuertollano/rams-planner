@@ -29,6 +29,12 @@ Lo primero es una pantalla de entrada con correo y contraseña. La cuenta te la
 da quien administre la herramienta; no hay registro y no hay recuperación por
 correo, a propósito: esto se despliega en la red del equipo, no en internet.
 
+Si te han dado una contraseña generada, **cámbiala nada más entrar**: el botón
+**Contraseña**, arriba a la derecha junto a tu nombre. No hace falta permiso
+para eso y nadie te lo puede quitar. Al cambiarla se cierran todas tus sesiones
+y vuelves a entrar con la nueva, que es lo que tiene sentido si la vieja la
+conocía alguien más.
+
 **Verás sólo lo que tu rol te deja ver.** Las pestañas y los botones que no
 puedes usar no aparecen, así que si un compañero tiene una pestaña que tú no
 tienes, no es un fallo: es el reparto de permisos. Quien administre la
@@ -399,6 +405,7 @@ calculada con un solo proyecto no es su ocupación, es un número que engaña.
 | **Línea base** | Congela el cálculo actual con un nombre. Una línea base es un cálculo congelado, no una copia aparte |
 | **Nivelar** | Retrasa tareas hasta que el plan quepa en la capacidad del equipo |
 | **Recalcular** | Vuelve a calcular. Se usa poco: cada cambio recalcula solo |
+| **Contraseña** | Cambia la tuya. Cierra todas tus sesiones y te hace volver a entrar |
 | **Salir** | Cierra tu sesión |
 
 Si alguno de estos botones no te aparece, es que tu rol no incluye esa función.

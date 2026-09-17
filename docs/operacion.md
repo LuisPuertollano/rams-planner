@@ -180,6 +180,11 @@ Los dos últimos **generan la contraseña y la imprimen una vez**. No se pasan p
 argumento a propósito: un argumento queda en el historial del shell y en la
 lista de procesos de la máquina.
 
+Quien la recibe debería cambiarla en cuanto entre, con el botón **Contraseña**
+de la barra de arriba. No hace falta ningún permiso para eso, y es a propósito:
+una cuenta cuya contraseña conoce otra persona tiene que poder dejar de estarlo
+sin pedir permiso a nadie.
+
 `calculate` desde un cron nocturno es útil por una razón concreta: como el hash
 de entradas está guardado, dos ejecuciones con el mismo hash y resultados
 distintos significarían que el motor ha dejado de ser determinista. Es una
@@ -267,6 +272,17 @@ herramienta.
 
 Los cambios hechos con la CLI salen sin autor, porque no hay sesión detrás. Es
 correcto y conviene que se note.
+
+### La contraseña propia
+
+Cualquiera que entre puede cambiar la suya desde el botón **Contraseña**, sin
+ningún permiso y sin pasar por quien administra. Pide la actual —sin eso, un
+ordenador sin bloquear bastaría para quedarse con la cuenta de otro— y al
+cambiarla **cierra todas las sesiones de esa persona, la suya incluida**.
+
+Es la única ruta de la API que pide sesión pero no permiso, y la lista donde
+está declarada tiene una sola entrada por ese motivo: lo que entre ahí deja de
+estar sujeto a los roles para siempre.
 
 ### Cuando alguien se va
 

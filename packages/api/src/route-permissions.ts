@@ -12,7 +12,12 @@
  */
 
 import type { FastifyInstance } from 'fastify'
-import { PERMISSION_BY_CODE, PUBLIC_ROUTES, type ProjectSource } from './permissions.js'
+import {
+  PERMISSION_BY_CODE,
+  PUBLIC_ROUTES,
+  SESSION_ONLY_ROUTES,
+  type ProjectSource,
+} from './permissions.js'
 
 /** Lo que una ruta cuelga de `config`. Es todo lo que el guardián necesita saber. */
 export interface RoutePermissionConfig {
@@ -83,12 +88,23 @@ export function auditRoutes(routes: readonly RegisteredRoute[]): readonly RouteP
       }
       continue
     }
+    if (SESSION_ONLY_ROUTES.has(route.url)) {
+      if (route.permission !== undefined) {
+        problems.push({
+          route: name,
+          problem:
+            `sólo pide sesión y además declara «${route.permission}». Un permiso aquí dejaría que un ` +
+            'rol se lo quitara a alguien; decide una de las dos cosas.',
+        })
+      }
+      continue
+    }
     if (route.permission === undefined) {
       problems.push({
         route: name,
         problem:
           'no declara permiso. Añade `config: { permission: "..." }` con un código del catálogo, ' +
-          'o inclúyela en PUBLIC_ROUTES con su razón.',
+          'o inclúyela en PUBLIC_ROUTES o SESSION_ONLY_ROUTES con su razón.',
       })
       continue
     }

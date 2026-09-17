@@ -14,7 +14,15 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { FastifyInstance } from 'fastify'
-import { createPool, createRole, createUser, grantRole, setRolePermissions, withTransaction } from '@planner/persistence'
+import {
+  createPool,
+  createRole,
+  createUser,
+  grantRole,
+  setRolePermissions,
+  withTransaction,
+  type Pool,
+} from '@planner/persistence'
 import { buildServer } from './build-server.js'
 
 const url = process.env['DATABASE_URL']
@@ -35,6 +43,12 @@ let soloEnMio = ''
 /** El proyecto que esa cuenta sí puede tocar, y otro que no. */
 let proyectoMio = ''
 let proyectoAjeno = ''
+
+/** El pool, para las pruebas que escriben directamente en la base. */
+function baseDeDatos(): Pool {
+  if (pool === null) throw new Error('sin DATABASE_URL: esta prueba no debería haberse ejecutado')
+  return pool
+}
 
 /** La aplicación ya montada. Un `!` en cada línea sólo escondería el fallo. */
 function aplicacion(): FastifyInstance {
@@ -469,5 +483,67 @@ describeSiHayBase('el historial dice quién', () => {
     const eventos = (respuesta.body as { events: readonly { entityName: string | null }[] }).events
     expect(eventos.length).toBeGreaterThan(0)
     expect(eventos.some((evento) => evento.entityName !== null)).toBe(true)
+  })
+})
+
+
+describeSiHayBase('cambiarse la contraseña no depende de ningún rol', () => {
+  it('quien no tiene ningún permiso puede cambiarla igualmente', async () => {
+    const correo = `${unico('nadie')}@ejemplo.test`
+    await withTransaction(baseDeDatos(), async (db) => {
+      await createUser(db, { email: correo, displayName: 'Sin roles', password: CLAVE })
+    })
+
+    const entrada = await fetch(`${base}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: correo, password: CLAVE }),
+    })
+    expect(entrada.status).toBe(200)
+    const cookie = entrada.headers.get('set-cookie') ?? ''
+
+    // No puede hacer nada más: es una cuenta sin roles.
+    expect((await pedir('GET', '/api/state', cookie)).status).toBe(403)
+
+    // Pero esto sí, y es el punto: ningún rol se lo puede quitar.
+    const nueva = 'otra contraseña bien larga'
+    const cambio = await pedir('POST', '/api/auth/clave', cookie, { actual: CLAVE, nueva })
+    expect(cambio.status).toBe(200)
+
+    // Cambiarla cierra la sesión: la cookie de antes ya no vale.
+    expect((await pedir('GET', '/api/auth/estado', cookie)).status).toBe(401)
+
+    // Y la nueva entra, la vieja no.
+    const conVieja = await fetch(`${base}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: correo, password: CLAVE }),
+    })
+    expect(conVieja.status).toBe(401)
+    const conNueva = await fetch(`${base}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: correo, password: nueva }),
+    })
+    expect(conNueva.status).toBe(200)
+  })
+
+  it('con la contraseña actual equivocada no cambia nada', async () => {
+    const cambio = await pedir('POST', '/api/auth/clave', basica, {
+      actual: 'esta no es',
+      nueva: 'una contraseña nueva larga',
+    })
+    expect(cambio.status).toBe(401)
+
+    // Y la sesión sigue viva: un intento fallido no expulsa a nadie.
+    expect((await pedir('GET', '/api/state', basica)).status).toBe(200)
+  })
+
+  it('sin sesión no se puede cambiar la de nadie', async () => {
+    const cambio = await pedir('POST', '/api/auth/clave', '', {
+      actual: CLAVE,
+      nueva: 'una contraseña nueva larga',
+    })
+    expect(cambio.status).toBe(401)
   })
 })
