@@ -57,12 +57,20 @@ de hace dos años, un motor más nuevo hablando con una interfaz más vieja— s
 enseña el `message` que mandó el servidor. En castellano, y eso es mejor que un
 hueco o que un código pelado.
 
-Que eso no pase por descuido lo impide una prueba: recorre `FindingCode`, exige
-clave para cada uno y **también al revés**, que no haya claves de códigos que ya
-no existen. `@planner/domain` entra en la interfaz como dependencia de
-desarrollo sólo para eso; nada de lo que se compila para el navegador lo
-importa. Una copia de la lista de códigos en el fichero de la prueba se
-olvidaría de actualizar justo en el caso que la prueba existe para cazar.
+Que eso no pase por descuido lo impide `pnpm check:hallazgos`: lee el catálogo
+de `FindingCode` y las claves del diccionario **del disco**, exige clave para
+cada código y **también al revés**, que no haya claves de códigos que ya no
+existen — una errata en el nombre de un código se lee exactamente igual que una
+clave válida.
+
+Vive en `tools/`, al lado de la regla de dependencia, por la misma razón: es una
+regla **entre paquetes**, y ninguno de los dos la puede comprobar solo. El
+primer intento fue que la interfaz importara `@planner/domain` en su prueba, y
+CI lo tiró abajo enseguida: el `lint` con tipos corre antes del `build`, así que
+en un checkout limpio `FindingCode` no resuelve. La lección, que es la de
+siempre en este repositorio: la interfaz es un adaptador que habla con la API
+por HTTP, no por tipos. Leer los dos ficheros como texto no ata nada y no
+necesita compilar nada.
 
 ### El texto se rellena caso a caso, a mano
 
@@ -108,6 +116,10 @@ ADR-0017.
 - Un código nuevo en el motor obliga a tocar cuatro diccionarios y un `switch`.
   Lo obliga CI, no la memoria, y es la mitad del coste de que un cliente alemán
   lea una frase en castellano.
+- La comprobación lee el código fuente con expresiones regulares, no con el
+  compilador. Es lo que permite que no dependa del `build`, y el coste es que
+  un cambio de forma en la declaración de `FindingCode` la despistaría. Por eso
+  revienta —en vez de dar verde— si lee menos códigos de los que cabe esperar.
 - La frase castellana sigue guardándose en la base de datos aunque casi nunca se
   enseñe. Es lo que permite leer un hallazgo antiguo, y ocupa lo que ocupa.
 - El interior de las tablas sigue en castellano en los cuatro idiomas, igual que
