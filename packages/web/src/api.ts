@@ -1021,6 +1021,12 @@ export interface ReportProjectLine {
   readonly blockingFindings: number
 }
 
+/** El peor mes de alguien y cuánto. Van juntos o no van. */
+export interface WorstMonth {
+  readonly period: string
+  readonly utilizationBp: number
+}
+
 export interface ReportPersonLine {
   readonly resourceId: string
   readonly code: string
@@ -1028,8 +1034,7 @@ export interface ReportPersonLine {
   readonly plannedMinutes: number
   readonly capacityMinutes: number
   readonly utilizationBp: number | null
-  readonly worstPeriod: string | null
-  readonly worstUtilizationBp: number | null
+  readonly worst: WorstMonth | null
   readonly projects: readonly string[]
 }
 

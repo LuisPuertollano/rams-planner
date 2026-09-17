@@ -126,8 +126,7 @@ describe('el informe', () => {
     const ana = informe.people[0]
     // De media va al 110 %, que no le pasa en ningún mes.
     expect(ana?.utilizationBp).toBe(11_000)
-    expect(ana?.worstPeriod).toBe('2026-05')
-    expect(ana?.worstUtilizationBp).toBe(20_000)
+    expect(ana?.worst).toEqual({ period: '2026-05', utilizationBp: 20_000 })
     expect(informe.totals.overloadedPeople).toBe(1)
     expect(punto(informe, 'sobrecarga')?.labels).toEqual(['Ana', '2026-05'])
   })
@@ -321,5 +320,157 @@ describe('la capacidad contra la que se compara', () => {
     // Con el equipo entero saldría un 5 %, que es cierto y no dice nada.
     expect(informe.totals.utilizationBp).toBe(5_000)
     expect(informe.people.map((p) => p.displayName)).toEqual(['Ana'])
+  })
+})
+
+describe('los casos que no se ven hasta que pasan', () => {
+  it('con dos personas pasadas, el resumen cita a la peor', () => {
+    const informe = buildReport(
+      entrada({
+        resources: [
+          { id: 'r1', code: 'ANA', displayName: 'Ana' },
+          { id: 'r2', code: 'BEA', displayName: 'Bea' },
+        ],
+        load: [
+          { resourceId: 'r1', projectId: 'p1', period: '2026-02', plannedMinutes: 11_000, costCents: 0 },
+          { resourceId: 'r2', projectId: 'p1', period: '2026-02', plannedMinutes: 12_000, costCents: 0 },
+        ],
+        capacity: [
+          { resourceId: 'r1', period: '2026-02', capacityMinutes: 10_000 },
+          { resourceId: 'r2', period: '2026-02', capacityMinutes: 10_000 },
+        ],
+      }),
+    )
+
+    expect(informe.totals.overloadedPeople).toBe(2)
+    expect(punto(informe, 'sobrecarga')?.labels[0]).toBe('Bea')
+    // 120 % pasa del 100 pero no es para ponerse rojo.
+    expect(punto(informe, 'sobrecarga')?.severity).toBe('warning')
+  })
+
+  it('el peor mes puede ser el último, no sólo el primero', () => {
+    const informe = buildReport(
+      entrada({
+        resources: [{ id: 'r1', code: 'ANA', displayName: 'Ana' }],
+        load: [
+          { resourceId: 'r1', projectId: 'p1', period: '2026-02', plannedMinutes: 2_000, costCents: 0 },
+          { resourceId: 'r1', projectId: 'p1', period: '2026-03', plannedMinutes: 15_000, costCents: 0 },
+        ],
+        capacity: [
+          { resourceId: 'r1', period: '2026-02', capacityMinutes: 10_000 },
+          { resourceId: 'r1', period: '2026-03', capacityMinutes: 10_000 },
+        ],
+      }),
+    )
+
+    expect(informe.people[0]?.worst).toEqual({ period: '2026-03', utilizationBp: 15_000 })
+  })
+
+  it('a igual trabajo, las personas salen por nombre', () => {
+    const informe = buildReport(
+      entrada({
+        resources: [
+          { id: 'r2', code: 'ZOE', displayName: 'Zoe' },
+          { id: 'r1', code: 'ANA', displayName: 'Ana' },
+        ],
+        load: [
+          { resourceId: 'r2', projectId: 'p1', period: '2026-02', plannedMinutes: 600, costCents: 0 },
+          { resourceId: 'r1', projectId: 'p1', period: '2026-02', plannedMinutes: 600, costCents: 0 },
+        ],
+      }),
+    )
+
+    expect(informe.people.map((p) => p.displayName)).toEqual(['Ana', 'Zoe'])
+  })
+
+  it('un mes con trabajo y sin capacidad no inventa una saturación', () => {
+    const informe = buildReport(
+      entrada({
+        resources: [{ id: 'r1', code: 'ANA', displayName: 'Ana' }],
+        load: [
+          { resourceId: 'r1', projectId: 'p1', period: '2026-02', plannedMinutes: 600, costCents: 50 },
+          { resourceId: 'r1', projectId: 'p1', period: '2026-03', plannedMinutes: 600, costCents: 50 },
+        ],
+        // Marzo sin capacidad: de baja, o fuera del equipo ese mes.
+        capacity: [{ resourceId: 'r1', period: '2026-02', capacityMinutes: 10_000 }],
+      }),
+    )
+
+    expect(informe.months.map((mes) => mes.utilizationBp)).toEqual([600, null])
+    expect(informe.people[0]?.worst).toEqual({ period: '2026-02', utilizationBp: 600 })
+  })
+
+  it('un mes con capacidad y sin trabajo sale a cero, no desaparece', () => {
+    const informe = buildReport(
+      entrada({
+        resources: [{ id: 'r1', code: 'ANA', displayName: 'Ana' }],
+        load: [
+          { resourceId: 'r1', projectId: 'p1', period: '2026-02', plannedMinutes: 600, costCents: 50 },
+        ],
+        capacity: [
+          { resourceId: 'r1', period: '2026-02', capacityMinutes: 10_000 },
+          { resourceId: 'r1', period: '2026-03', capacityMinutes: 10_000 },
+        ],
+      }),
+    )
+
+    const marzo = informe.months.find((mes) => mes.period === '2026-03')
+    expect(marzo).toEqual({
+      period: '2026-03',
+      plannedMinutes: 0,
+      capacityMinutes: 10_000,
+      utilizationBp: 0,
+      costCents: 0,
+    })
+  })
+
+  it('la holgura negativa es un riesgo por sí sola, aunque no haya fecha límite', () => {
+    const informe = buildReport(
+      entrada({
+        tasks: [
+          tarea({ nodeId: 'apretada', totalSlackMinutes: -960 }),
+          // Y ésta llega tarde, pero la holgura pesa más.
+          tarea({ nodeId: 'tarde', path: '999', scheduledFinish: '2026-02-01' }),
+        ],
+      }),
+    )
+
+    expect(informe.risks.map((r) => r.kind)).toEqual(['holgura-negativa', 'retraso'])
+    expect(informe.risks[0]?.amount).toBe(960)
+  })
+
+  it('un hallazgo bloqueante pinta el resumen de rojo; uno de error, de amarillo', () => {
+    const hallazgo = (severity: string): {
+      severity: string
+      code: string
+      projectId: string | null
+      entityName: string | null
+      message: string
+      occursOn: string | null
+    } => ({ severity, code: 'X', projectId: 'p1', entityName: null, message: 'algo', occursOn: null })
+
+    const bloqueante = buildReport(entrada({ findings: [hallazgo('blocking')] }))
+    expect(punto(bloqueante, 'hallazgos')?.severity).toBe('error')
+    expect(bloqueante.projects[0]?.blockingFindings).toBe(1)
+
+    const error = buildReport(entrada({ findings: [hallazgo('error')] }))
+    expect(punto(error, 'hallazgos')?.severity).toBe('warning')
+    expect(error.projects[0]?.blockingFindings).toBe(0)
+  })
+
+  it('una tarea sin trabajo declarado no cuenta para el avance', () => {
+    const informe = buildReport(
+      entrada({
+        tasks: [
+          tarea({ nodeId: 'sin-horas', workMinutes: null, percentCompleteBp: 0 }),
+          tarea({ nodeId: 'cero-horas', workMinutes: 0, percentCompleteBp: 0 }),
+          tarea({ nodeId: 'con-horas', workMinutes: 600, percentCompleteBp: 10_000 }),
+        ],
+      }),
+    )
+
+    // Si contaran, el avance saldría a un tercio en vez de entero.
+    expect(informe.totals.percentCompleteBp).toBe(10_000)
+    expect(informe.totals.tasksInPeriod).toBe(3)
   })
 })

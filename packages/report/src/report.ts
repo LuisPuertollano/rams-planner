@@ -147,6 +147,15 @@ export interface ProjectLine {
   readonly blockingFindings: number
 }
 
+/**
+ * El peor mes de alguien y cuánto. Van juntos o no van: un mes sin su cifra no
+ * dice nada, y una cifra sin su mes tampoco.
+ */
+export interface WorstMonth {
+  readonly period: string
+  readonly utilizationBp: number
+}
+
 export interface PersonLine {
   readonly resourceId: string
   readonly code: string
@@ -154,9 +163,8 @@ export interface PersonLine {
   readonly plannedMinutes: number
   readonly capacityMinutes: number
   readonly utilizationBp: number | null
-  /** El peor mes del periodo y cuánto. Un promedio esconde justo esto. */
-  readonly worstPeriod: string | null
-  readonly worstUtilizationBp: number | null
+  /** El peor mes del periodo. Un promedio esconde justo esto. */
+  readonly worst: WorstMonth | null
   /** Códigos de los proyectos en los que trabaja dentro del periodo. */
   readonly projects: readonly string[]
 }
@@ -218,10 +226,19 @@ export interface Report {
   readonly findings: readonly ReportFinding[]
 }
 
+/** Alguien que va pasado, con su pico. Interno: no sale en la respuesta. */
+interface Pico {
+  readonly persona: PersonLine
+  readonly worst: WorstMonth
+}
+
 const COMPLETO = 10_000
 
 /** Por encima de esto se considera que alguien va pasado del 100 %. */
 const SOBRECARGA_BP = 10_000
+
+/** Y por encima de esto, el aviso deja de ser amarillo. */
+const MUY_PASADO_BP = 13_000
 
 export function buildReport(input: ReportInput): Report {
   const proyectos = [...input.projects].sort((a, b) => a.code.localeCompare(b.code))
@@ -246,13 +263,14 @@ export function buildReport(input: ReportInput): Report {
   const capacidadPorMes = agrupa(capacidad, (c) => c.period, (c) => c.capacityMinutes)
   const totalCapacidad = [...meses].reduce((acumulado, mes) => acumulado + (capacidadPorMes.get(mes) ?? 0), 0)
 
-  const personas = input.peopleHidden ? [] : lineasDePersona(input, carga, capacidad, meses)
-  const sobrecargadas = personas.filter(
-    (p) => p.worstUtilizationBp !== null && p.worstUtilizationBp > SOBRECARGA_BP,
+  const personas = input.peopleHidden ? [] : lineasDePersona(proyectos, carga, capacidad, meses, input)
+  const sobrecargadas = personas.flatMap((persona) =>
+    persona.worst !== null && persona.worst.utilizationBp > SOBRECARGA_BP
+      ? [{ persona, worst: persona.worst }]
+      : [],
   )
-  const peor = sobrecargadas.reduce<PersonLine | null>(
-    (mayor, actual) =>
-      mayor === null || (actual.worstUtilizationBp ?? 0) > (mayor.worstUtilizationBp ?? 0) ? actual : mayor,
+  const peor = sobrecargadas.reduce<Pico | null>(
+    (mayor, actual) => (mayor === null || actual.worst.utilizationBp > mayor.worst.utilizationBp ? actual : mayor),
     null,
   )
 
@@ -316,7 +334,7 @@ function resumen(
   input: ReportInput,
   totals: ReportTotals,
   meses: ReadonlySet<string>,
-  peor: PersonLine | null,
+  peor: Pico | null,
   riesgos: readonly RiskLine[],
 ): readonly Highlight[] {
   const puntos: Highlight[] = [
@@ -364,15 +382,17 @@ function resumen(
     puntos.push({ kind: 'coste', severity: 'neutral', numbers: { costCents: totals.costCents }, labels: [] })
   }
 
-  if (totals.overloadedPeople > 0) {
+  // El guardián es «hay alguien pasado», que es lo mismo que «hay un peor».
+  // Contarlo dos veces dejaría un caso imposible que habría que explicar.
+  if (peor !== null) {
     puntos.push({
       kind: 'sobrecarga',
-      severity: (peor?.worstUtilizationBp ?? 0) >= 13_000 ? 'error' : 'warning',
+      severity: peor.worst.utilizationBp >= MUY_PASADO_BP ? 'error' : 'warning',
       numbers: {
         people: totals.overloadedPeople,
-        worstUtilizationBp: peor?.worstUtilizationBp ?? 0,
+        worstUtilizationBp: peor.worst.utilizationBp,
       },
-      labels: peor === null ? [] : [peor.displayName, peor.worstPeriod ?? ''],
+      labels: [peor.persona.displayName, peor.worst.period],
     })
   }
 
@@ -479,12 +499,12 @@ function lineasDeProyecto(
 }
 
 function lineasDePersona(
-  input: ReportInput,
+  proyectos: readonly ReportProject[],
   carga: readonly ReportLoadCell[],
   capacidad: readonly ReportCapacityCell[],
   meses: ReadonlySet<string>,
+  input: ReportInput,
 ): readonly PersonLine[] {
-  const porCodigo = new Map(input.projects.map((p) => [p.id, p.code]))
   const conTrabajo = new Set(carga.map((c) => c.resourceId))
 
   const lineas = input.resources
@@ -499,18 +519,14 @@ function lineasDePersona(
       // El peor mes, no el promedio: un 200 % en mayo y un 20 % en junio dan
       // un 110 % de media que no le pasa a nadie.
       const planificadoPorMes = agrupa(suya, (c) => c.period, (c) => c.plannedMinutes)
-      let worstPeriod: string | null = null
-      let worstUtilizationBp: number | null = null
-      for (const mes of [...meses].sort()) {
+      let worst: WorstMonth | null = null
+      for (const period of [...meses].sort()) {
         const suMes = capacidad
-          .filter((c) => c.resourceId === recurso.id && c.period === mes)
+          .filter((c) => c.resourceId === recurso.id && c.period === period)
           .reduce((total, c) => total + c.capacityMinutes, 0)
         if (suMes === 0) continue
-        const uso = ratioBp(planificadoPorMes.get(mes) ?? 0, suMes)
-        if (worstUtilizationBp === null || uso > worstUtilizationBp) {
-          worstUtilizationBp = uso
-          worstPeriod = mes
-        }
+        const utilizationBp = ratioBp(planificadoPorMes.get(period) ?? 0, suMes)
+        if (worst === null || utilizationBp > worst.utilizationBp) worst = { period, utilizationBp }
       }
 
       return {
@@ -520,9 +536,13 @@ function lineasDePersona(
         plannedMinutes,
         capacityMinutes,
         utilizationBp: capacityMinutes === 0 ? null : ratioBp(plannedMinutes, capacityMinutes),
-        worstPeriod,
-        worstUtilizationBp,
-        projects: [...new Set(suya.map((c) => porCodigo.get(c.projectId) ?? c.projectId))].sort(),
+        worst,
+        // Se recorre la lista de proyectos, no la carga: así el código sale de
+        // donde está declarado y no hace falta un «por si acaso» que no puede
+        // pasar. De regalo, vienen ya ordenados.
+        projects: proyectos
+          .filter((proyecto) => suya.some((celda) => celda.projectId === proyecto.id))
+          .map((proyecto) => proyecto.code),
       }
     })
 
@@ -540,47 +560,51 @@ function riesgosDe(
   proyectos: readonly ReportProject[],
   asOf: string,
 ): readonly RiskLine[] {
-  const porCodigo = new Map(proyectos.map((p) => [p.id, p.code]))
   const riesgos: RiskLine[] = []
 
-  for (const tarea of [...enPeriodo].sort((a, b) => a.path.localeCompare(b.path))) {
-    const comun = {
-      nodeId: tarea.nodeId,
-      projectId: tarea.projectId,
-      projectCode: porCodigo.get(tarea.projectId) ?? '',
-      path: tarea.path,
-      name: tarea.name,
-      scheduledFinish: tarea.scheduledFinish,
-      deadline: tarea.deadline,
-      percentCompleteBp: tarea.percentCompleteBp,
-    }
+  for (const proyecto of proyectos) {
+    for (const tarea of enPeriodo.filter((t) => t.projectId === proyecto.id)) {
+      const comun = {
+        nodeId: tarea.nodeId,
+        projectId: tarea.projectId,
+        projectCode: proyecto.code,
+        path: tarea.path,
+        name: tarea.name,
+        scheduledFinish: tarea.scheduledFinish,
+        deadline: tarea.deadline,
+        percentCompleteBp: tarea.percentCompleteBp,
+      }
 
-    if (tarea.deadline !== null && tarea.scheduledFinish !== null && tarea.scheduledFinish > tarea.deadline) {
-      riesgos.push({ ...comun, kind: 'fecha-limite', amount: diasEntre(tarea.deadline, tarea.scheduledFinish) })
-      continue
-    }
-    if (tarea.totalSlackMinutes !== null && tarea.totalSlackMinutes < 0) {
-      riesgos.push({ ...comun, kind: 'holgura-negativa', amount: -tarea.totalSlackMinutes })
-      continue
-    }
-    if (
-      tarea.scheduledFinish !== null &&
-      tarea.scheduledFinish < asOf &&
-      tarea.percentCompleteBp < COMPLETO
-    ) {
-      riesgos.push({ ...comun, kind: 'retraso', amount: diasEntre(tarea.scheduledFinish, asOf) })
+      if (tarea.deadline !== null && tarea.scheduledFinish !== null && tarea.scheduledFinish > tarea.deadline) {
+        riesgos.push({ ...comun, kind: 'fecha-limite', amount: diasEntre(tarea.deadline, tarea.scheduledFinish) })
+        continue
+      }
+      if (tarea.totalSlackMinutes !== null && tarea.totalSlackMinutes < 0) {
+        riesgos.push({ ...comun, kind: 'holgura-negativa', amount: -tarea.totalSlackMinutes })
+        continue
+      }
+      if (
+        tarea.scheduledFinish !== null &&
+        tarea.scheduledFinish < asOf &&
+        tarea.percentCompleteBp < COMPLETO
+      ) {
+        riesgos.push({ ...comun, kind: 'retraso', amount: diasEntre(tarea.scheduledFinish, asOf) })
+      }
     }
   }
 
-  // Lo peor arriba: primero el tipo, después cuánto.
+  // Lo peor arriba: primero el tipo, después cuánto, y a igualdad por ruta,
+  // para que dos informes de la misma ejecución salgan idénticos.
   const peso: Readonly<Record<RiskKind, number>> = {
     'fecha-limite': 0,
     'holgura-negativa': 1,
     retraso: 2,
   }
-  return riesgos.sort((a, b) =>
-    peso[a.kind] === peso[b.kind] ? b.amount - a.amount : peso[a.kind] - peso[b.kind],
-  )
+  return riesgos.sort((a, b) => {
+    if (peso[a.kind] !== peso[b.kind]) return peso[a.kind] - peso[b.kind]
+    if (b.amount !== a.amount) return b.amount - a.amount
+    return a.path.localeCompare(b.path)
+  })
 }
 
 // ---------------------------------------------------------------------------

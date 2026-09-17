@@ -286,10 +286,10 @@ export function ReportView({ projects }: Props): React.JSX.Element {
                       <td className={utilizationClass(persona.utilizationBp)}>
                         {percent(persona.utilizationBp)}
                       </td>
-                      <td className={utilizationClass(persona.worstUtilizationBp)}>
-                        {persona.worstPeriod === null
+                      <td className={utilizationClass(persona.worst?.utilizationBp ?? null)}>
+                        {persona.worst === null
                           ? '—'
-                          : `${monthLabel(persona.worstPeriod)} · ${percent(persona.worstUtilizationBp)}`}
+                          : `${monthLabel(persona.worst.period)} · ${percent(persona.worst.utilizationBp)}`}
                       </td>
                       <td>{persona.projects.join(', ')}</td>
                     </tr>
