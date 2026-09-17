@@ -43,6 +43,12 @@ que no le toca. Se resuelve con roles, no con fortificación.
 - **Los permisos son por proyecto.** Un rol se concede sobre un proyecto
   concreto, y también de forma global para quien trabaja en todos. El permiso
   efectivo sobre un proyecto es la unión de los dos.
+- **Pero no todos los permisos se pueden acotar.** Las personas del equipo, sus
+  tarifas, sus competencias y las ejecuciones del motor son de todos los
+  proyectos a la vez: «editar el equipo, pero sólo en el proyecto A» no
+  describe nada. Cada función del catálogo dice de cuáles es (`scope`), y una
+  función global **sólo cuenta concedida en toda la herramienta**. Un rol
+  concedido sobre un proyecto lleva únicamente sus funciones por proyecto.
 - **El superadministrador es un rol fijo que la hoja no puede editar.** Lo tiene
   todo y no se le puede quitar nada desde la propia interfaz. Es la única forma
   de que desmarcar una casilla no te deje fuera de tu herramienta sin más salida
@@ -93,6 +99,15 @@ superadministrador y la documentación de qué significa cada función. Y por es
   bandera— declaran en qué ruta se aplican, y otra prueba comprueba que esa ruta
   sigue existiendo. Renombrar un endpoint sin actualizar el catálogo deja el
   permiso apuntando al vacío, y eso también se caza.
+- **Cada ruta con un permiso por proyecto dice de qué proyecto habla.** Es la
+  mitad que declarar el permiso no garantiza: sin ella, el guardián sólo puede
+  preguntar «¿puede en *algún* proyecto?», y un rol acotado deja de acotar. La
+  declaración es `project:` en el `config` de la ruta, y dice de dónde sale el
+  proyecto —un identificador de la ruta o del cuerpo, un nodo, una asignación,
+  una dependencia—, o que la acción es de toda la herramienta, o que la
+  respuesta la recorta el propio manejador. El arranque no deja pasar una ruta
+  por proyecto sin declararlo, ni una global que declare un proyecto que no
+  puede tener.
 
 Es el mismo trato que la regla de dependencias del núcleo: la regla se hace
 cumplir, no se recuerda.
@@ -120,6 +135,20 @@ cumplir, no se recuerda.
   por la puerta. Montan la aplicación entera, crean cuentas con permisos
   concretos y comprueban lo que contesta el servidor, que es lo único que
   cuenta.
+
+### Qué se ve, no sólo qué se puede hacer
+
+Denegar una escritura es la mitad fácil. La otra es que una lectura no devuelva
+lo que no toca: `/api/state`, la carga, los hallazgos, la estructura del plan y
+las propuestas de reparto salen **recortadas** a los proyectos que quien
+pregunta puede ver, y el CSV exportado lleva exactamente las mismas filas que la
+pantalla. Poder exportar no amplía lo que se puede mirar.
+
+Lo que no pertenece a ningún proyecto —la saturación de una persona, un hallazgo
+sobre alguien del equipo— pide el permiso **en toda la herramienta**. Servir un
+trozo daría un número que no significa nada: la ocupación de Ana calculada sólo
+con el proyecto que tú ves no es su ocupación. Y además delataría, por
+diferencia, la carga que no se puede ver.
 
 ### La instalación recién hecha
 

@@ -18,6 +18,8 @@ import {
   type Pool,
 } from '@planner/persistence'
 import { calculate, defaultScenarioId, resolveHorizonFor } from './engine.js'
+import { RECORTADO, desde, porAsignacion, porNodo } from './permissions.js'
+import { onlyVisible, visibleProjects } from './visibility.js'
 
 export function registerRebalanceRoutes(app: FastifyInstance, pool: Pool): void {
   /**
@@ -25,7 +27,7 @@ export function registerRebalanceRoutes(app: FastifyInstance, pool: Pool): void 
    * guardada: son una recomendación de ahora mismo, no un resultado que haya
    * que poder auditar dentro de tres años.
    */
-  app.get('/api/rebalance', { config: { permission: 'reparto.ver' } }, async (request) => {
+  app.get('/api/rebalance', { config: { permission: 'reparto.ver', project: RECORTADO } }, async (request) => {
     const query = z
       .object({ threshold: z.coerce.number().int().min(1_000).max(30_000).default(10_000) })
       .parse(request.query)
@@ -38,12 +40,28 @@ export function registerRebalanceRoutes(app: FastifyInstance, pool: Pool): void 
       const { proposals, findings } = proposeRebalance(snapshot, timephased, capacity, {
         thresholdBp: query.threshold,
       })
-      return { thresholdBp: query.threshold, proposals, findings }
+      // Una propuesta dice quién suelta trabajo y quién lo recoge: eso es carga
+      // de otra persona, y sólo se enseña sobre proyectos que se pueden ver.
+      const visibles = visibleProjects(request, 'reparto.ver')
+      return {
+        thresholdBp: query.threshold,
+        proposals: onlyVisible(visibles, proposals, (proposal) => proposal.projectId),
+        // Los hallazgos del reparto hablan de personas, no de proyectos: se
+        // sirven enteros o no se sirven.
+        findings: visibles === 'all' ? findings : [],
+      }
     })
   })
 
   /** Aplica un movimiento: quita la asignación de quien la tenía y la pone en otro. */
-  app.post('/api/rebalance/apply', { config: { permission: 'reparto.aplicar' } }, async (request) => {
+  app.post('/api/rebalance/apply', {
+    config: {
+      permission: 'reparto.aplicar',
+      // De dónde sale el trabajo y a dónde va: los dos, porque quitar una
+      // asignación del proyecto ajeno es tan cambio como ponerla en el tuyo.
+      project: desde(porAsignacion('assignmentId', 'body'), porNodo('nodeId', 'body')),
+    },
+  }, async (request) => {
     const body = z
       .object({
         assignmentId: z.string().uuid(),

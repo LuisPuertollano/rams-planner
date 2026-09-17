@@ -12,12 +12,20 @@
  */
 
 import type { FastifyInstance } from 'fastify'
-import { PERMISSION_BY_CODE, PUBLIC_ROUTES } from './permissions.js'
+import { PERMISSION_BY_CODE, PUBLIC_ROUTES, type ProjectSource } from './permissions.js'
+
+/** Lo que una ruta cuelga de `config`. Es todo lo que el guardián necesita saber. */
+export interface RoutePermissionConfig {
+  readonly permission?: string
+  /** Obligatorio si el permiso es por proyecto; prohibido si es global. */
+  readonly project?: ProjectSource
+}
 
 export interface RegisteredRoute {
   readonly method: string
   readonly url: string
   readonly permission: string | undefined
+  readonly project: ProjectSource | undefined
 }
 
 /** Empieza a anotar las rutas que se registren a partir de ahora. */
@@ -25,11 +33,16 @@ export function collectRoutePermissions(app: FastifyInstance): RegisteredRoute[]
   const routes: RegisteredRoute[] = []
   app.addHook('onRoute', (route) => {
     if (!route.url.startsWith('/api/')) return
-    const config = route.config as { permission?: string } | undefined
+    const config = route.config as RoutePermissionConfig | undefined
     const methods = Array.isArray(route.method) ? route.method : [route.method]
     for (const method of methods) {
       if (method === 'HEAD' || method === 'OPTIONS') continue
-      routes.push({ method, url: route.url, permission: config?.permission })
+      routes.push({
+        method,
+        url: route.url,
+        permission: config?.permission,
+        project: config?.project,
+      })
     }
   })
   return routes
@@ -50,6 +63,12 @@ export interface RouteProblem {
  *     que algo quede abierto: sin que nadie lo decida.
  *   - **Con un permiso que no existe**: una errata en el código deja la ruta
  *     pidiendo algo que nadie puede tener nunca, y se descubre en producción.
+ *   - **Con un permiso por proyecto y sin decir cuál**: el guardián no sabría
+ *     sobre qué proyecto preguntar y acabaría dejando pasar a quien puede en
+ *     *alguno*. Es exactamente el agujero que los roles por proyecto existen
+ *     para cerrar, así que aquí se exige declararlo.
+ *   - **Con un permiso global y un proyecto declarado**: alguien creyó que ese
+ *     permiso se podía acotar. No se puede, y el código diría lo contrario.
  */
 export function auditRoutes(routes: readonly RegisteredRoute[]): readonly RouteProblem[] {
   const problems: RouteProblem[] = []
@@ -73,10 +92,31 @@ export function auditRoutes(routes: readonly RegisteredRoute[]): readonly RouteP
       })
       continue
     }
-    if (!PERMISSION_BY_CODE.has(route.permission)) {
+    const definicion = PERMISSION_BY_CODE.get(route.permission)
+    if (definicion === undefined) {
       problems.push({
         route: name,
         problem: `declara «${route.permission}», que no está en el catálogo de permisos.`,
+      })
+      continue
+    }
+    if (definicion.scope === 'project' && route.project === undefined) {
+      problems.push({
+        route: name,
+        problem:
+          `declara «${route.permission}», que se concede por proyecto, pero no dice de qué proyecto ` +
+          'habla la petición. Añade `project: { from: ... }` al `config` de la ruta: `params`/`body` ' +
+          'con el nombre del campo, `node`/`assignment`/`dependency` para deducirlo, `global` si la ' +
+          'acción es de toda la herramienta, o `filtered` si la respuesta se recorta sola.',
+      })
+      continue
+    }
+    if (definicion.scope === 'global' && route.project !== undefined) {
+      problems.push({
+        route: name,
+        problem:
+          `declara «${route.permission}», que sólo se concede en toda la herramienta, y además un ` +
+          'proyecto. Quita el `project` o cambia el permiso por uno que sea por proyecto.',
       })
     }
   }

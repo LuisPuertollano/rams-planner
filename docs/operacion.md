@@ -205,7 +205,9 @@ docker compose exec api node packages/api/dist/cli.js \
 ```
 
 La contraseña sale por pantalla una sola vez. A partir de ahí hay que entrar
-para hacer nada.
+para hacer nada — **en el acto**, sin reiniciar el servidor: mientras la
+instalación está abierta, la herramienta comprueba en cada petición si ya hay
+alguien dado de alta, y en cuanto lo hay deja de preguntarlo.
 
 ### Repartir permisos
 
@@ -220,6 +222,33 @@ tienen `roles.gestionar` o `usuarios.gestionar`:
   conceder roles, de forma global o **sólo sobre un proyecto**. Lo que alguien
   puede hacer en un proyecto es la unión de sus roles globales y los de ese
   proyecto: un rol por proyecto suma, nunca resta.
+
+### Lo que no se puede acotar a un proyecto
+
+En la hoja, algunas funciones salen marcadas **«toda la herramienta»**. Son las
+que no hablan de un proyecto: las personas del equipo, sus tarifas, sus
+competencias, las ejecuciones del motor y la propia administración. «Editar el
+equipo, pero sólo en el proyecto A» no describe nada, así que esas funciones
+**sólo cuentan concedidas en toda la herramienta**.
+
+La consecuencia práctica: si concedes un rol sobre un proyecto, de ese rol sólo
+llegan sus funciones por proyecto. Un «Responsable» concedido sobre ARBOL-2 podrá
+editar el plan de ARBOL-2 y ver su carga, pero no dará de alta a nadie en el
+equipo ni lanzará un cálculo. Para eso hace falta el rol concedido en toda la
+herramienta.
+
+### Lo que se ve, no sólo lo que se puede hacer
+
+Un rol acotado a un proyecto tampoco **ve** los demás. El estado inicial, la
+carga, los hallazgos, la estructura del plan y las propuestas de reparto llegan
+recortados a lo que esa persona puede ver, y el CSV que exporte lleva
+exactamente las mismas filas que su pantalla.
+
+La saturación del equipo es la excepción y conviene entender por qué: la
+ocupación de una persona calculada sólo con el proyecto que tú ves no es su
+ocupación, es un número que engaña. Así que **ver la carga** acotado a un
+proyecto da las horas de ese proyecto, y la columna de capacidad y saturación
+pide el permiso en toda la herramienta.
 
 Vienen tres roles editables de fábrica —**Lectura**, **Planificación** y
 **Responsable**— y uno fijo, **Superadministración**, que lo tiene todo y no

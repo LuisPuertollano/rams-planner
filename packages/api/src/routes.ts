@@ -28,6 +28,8 @@ import {
   type Pool,
 } from '@planner/persistence'
 import { puede } from './auth-routes.js'
+import { EN_TODA_LA_HERRAMIENTA, RECORTADO, desde, porNodo } from './permissions.js'
+import { onlyVisible, visibleProjects } from './visibility.js'
 import { toCsv } from './csv.js'
 import { calculate, defaultScenarioId } from './engine.js'
 import { ImportError, importPlanCsv } from './import-plan.js'
@@ -45,10 +47,11 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
   })
 
   /** Estado inicial: la ejecución vigente, los proyectos y el equipo. */
-  app.get('/api/state', { config: { permission: 'plan.ver' } }, async () =>
+  app.get('/api/state', { config: { permission: 'plan.ver', project: RECORTADO } }, async (request) =>
     withDb(async (db) => {
       const run = await latestRun(db)
-      const projects = await readProjects(db)
+      const visibles = visibleProjects(request, 'plan.ver')
+      const projects = onlyVisible(visibles, await readProjects(db), (project) => project.id)
       const resources = await readResources(db)
       const baselines = await readBaselines(db)
       const fields = await readFieldValues(db)
@@ -74,15 +77,20 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
   /** Las últimas ejecuciones, para poder compararlas entre sí. */
   app.get('/api/runs', { config: { permission: 'ejecuciones.ver' } }, async () => ({ runs: await withDb((db) => recentRuns(db)) }))
 
-  app.get('/api/runs/:runId/tasks', { config: { permission: 'plan.ver' } }, async (request) => {
+  app.get('/api/runs/:runId/tasks', { config: { permission: 'plan.ver', project: RECORTADO } }, async (request) => {
     const { runId } = z.object({ runId: z.string().uuid() }).parse(request.params)
-    return { runId, tasks: await withDb((db) => readTasks(db, runId)) }
+    const tasks = await withDb((db) => readTasks(db, runId))
+    return {
+      runId,
+      tasks: onlyVisible(visibleProjects(request, 'plan.ver'), tasks, (task) => task.projectId),
+    }
   })
 
-  app.get('/api/runs/:runId/load', { config: { permission: 'carga.ver' } }, async (request) => {
+  app.get('/api/runs/:runId/load', { config: { permission: 'carga.ver', project: RECORTADO } }, async (request) => {
     const { runId } = z.object({ runId: z.string().uuid() }).parse(request.params)
     const query = z.object({ bucket: bucketSchema, byNode: z.coerce.boolean().default(false) }).parse(request.query)
-    const cells = await withDb((db) => readLoad(db, runId, query.bucket, { byNode: query.byNode }))
+    const todas = await withDb((db) => readLoad(db, runId, query.bucket, { byNode: query.byNode }))
+    const cells = onlyVisible(visibleProjects(request, 'carga.ver'), todas, (cell) => cell.projectId)
     // Sin `costes.ver` los importes no se ocultan en pantalla: no se envían. Lo
     // que no sale del servidor no se recupera mirando la respuesta en el
     // inspector del navegador.
@@ -95,7 +103,7 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
     }
   })
 
-  app.get('/api/runs/:runId/utilization', { config: { permission: 'carga.ver' } }, async (request) => {
+  app.get('/api/runs/:runId/utilization', { config: { permission: 'carga.ver', project: EN_TODA_LA_HERRAMIENTA } }, async (request) => {
     const { runId } = z.object({ runId: z.string().uuid() }).parse(request.params)
     const query = z.object({ bucket: bucketSchema }).parse(request.query)
     return {
@@ -120,13 +128,20 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
     }
   })
 
-  app.get('/api/runs/:runId/findings', { config: { permission: 'plan.ver' } }, async (request) => {
+  app.get('/api/runs/:runId/findings', { config: { permission: 'plan.ver', project: RECORTADO } }, async (request) => {
     const { runId } = z.object({ runId: z.string().uuid() }).parse(request.params)
-    return { runId, findings: await withDb((db) => readFindings(db, runId)) }
+    const todos = await withDb((db) => readFindings(db, runId))
+    // Un hallazgo sobre una persona —«Ana se pasa en marzo»— no es de ningún
+    // proyecto, así que sólo lo ve quien ve el plan entero. Servirlo a quien
+    // tiene un trozo delataría carga de proyectos que no puede mirar.
+    return {
+      runId,
+      findings: onlyVisible(visibleProjects(request, 'plan.ver'), todos, (finding) => finding.projectId),
+    }
   })
 
   /** El panel «¿por qué?»: la traza de derivación de una entidad. */
-  app.get('/api/runs/:runId/explain/:targetId', { config: { permission: 'plan.ver' } }, async (request) => {
+  app.get('/api/runs/:runId/explain/:targetId', { config: { permission: 'plan.ver', project: desde(porNodo('targetId')) } }, async (request) => {
     const { runId, targetId } = z
       .object({ runId: z.string().uuid(), targetId: z.string().uuid() })
       .parse(request.params)
@@ -134,7 +149,7 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
   })
 
   /** Edición de datos DECLARADOS. Lo derivado no se toca nunca por aquí (P1). */
-  app.patch('/api/tasks/:nodeId', { config: { permission: 'plan.editar' } }, async (request, reply) => {
+  app.patch('/api/tasks/:nodeId', { config: { permission: 'plan.editar', project: desde(porNodo()) } }, async (request, reply) => {
     const { nodeId } = z.object({ nodeId: z.string().uuid() }).parse(request.params)
     const body = z
       .object({
@@ -268,11 +283,14 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
     const { runId } = z.object({ runId: z.string().uuid() }).parse(request.params)
     const query = z.object({ bucket: bucketSchema }).parse(request.query)
 
-    const [cells, resources, projects] = [
+    const [todas, resources, projects] = [
       await withDb((db) => readLoad(db, runId, query.bucket)),
       await withDb((db) => readResources(db)),
       await withDb((db) => readProjects(db)),
     ]
+    // Poder exportar no amplía lo que se puede ver: el fichero lleva las mismas
+    // filas que la pantalla.
+    const cells = onlyVisible(visibleProjects(request, 'carga.ver'), todas, (cell) => cell.projectId)
     const nameOfResource = new Map(resources.map((resource) => [resource.id, resource.displayName]))
     const codeOfProject = new Map(projects.map((project) => [project.id, project.code]))
 

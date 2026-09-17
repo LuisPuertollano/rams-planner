@@ -100,6 +100,7 @@ export function MatrixView({ resources, projects, load, utilization, runId }: Pr
               runId={runId}
               plannedOf={(period) => byResourcePeriod.get(`${resource.id}|${period}`) ?? 0}
               utilOf={(period) => utilByKey.get(`${resource.id}|${period}`)}
+              hasCapacity={utilization.length > 0}
               projects={resourceProjects.map((projectId) => ({
                 id: projectId,
                 label: projectName(projectId),
@@ -130,6 +131,8 @@ interface ResourceRowsProps {
   readonly runId: string
   readonly plannedOf: (period: string) => number
   readonly utilOf: (period: string) => UtilizationCell | undefined
+  /** Si llegó la capacidad del equipo. Sin ella la fila de saturación sobra. */
+  readonly hasCapacity: boolean
   readonly projects: readonly { id: string; label: string; minutesOf: (period: string) => number }[]
 }
 
@@ -142,6 +145,7 @@ function ResourceRows({
   runId,
   plannedOf,
   utilOf,
+  hasCapacity,
   projects,
 }: ResourceRowsProps): React.JSX.Element {
   return (
@@ -169,6 +173,10 @@ function ResourceRows({
         <td>{hours(total)}</td>
       </tr>
 
+      {/* Sin permiso para ver la carga de toda la herramienta no llega la
+          capacidad del equipo. La fila se quita entera: enseñarla a cero diría
+          que esa persona no tiene capacidad, que es distinto de no saberlo. */}
+      {!hasCapacity ? null : (
       <tr className="row--capacity">
         <td>capacidad · saturación</td>
         {periods.map((period) => {
@@ -187,6 +195,7 @@ function ResourceRows({
         })}
         <td />
       </tr>
+      )}
 
       {isOpen
         ? projects.map((project) => (

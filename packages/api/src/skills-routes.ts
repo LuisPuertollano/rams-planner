@@ -18,6 +18,7 @@ import {
   type Pool,
 } from '@planner/persistence'
 import { calculate, defaultScenarioId } from './engine.js'
+import { desde, porNodo } from './permissions.js'
 
 /** 0 retira; 1 a 5 es la escala declarada en el esquema. */
 const nivel = z.number().int().min(0).max(5)
@@ -69,7 +70,7 @@ export function registerSkillRoutes(app: FastifyInstance, pool: Pool): void {
     })
   })
 
-  app.put('/api/nodes/:nodeId/skills/:skillId', { config: { permission: 'requisitos.editar' } }, async (request, reply) => {
+  app.put('/api/nodes/:nodeId/skills/:skillId', { config: { permission: 'requisitos.editar', project: desde(porNodo()) } }, async (request, reply) => {
     const { nodeId, skillId } = z
       .object({ nodeId: z.string().uuid(), skillId: z.string().uuid() })
       .parse(request.params)

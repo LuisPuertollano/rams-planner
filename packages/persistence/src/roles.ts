@@ -183,11 +183,18 @@ export async function effectivePermissions(db: Queryable, userId: string): Promi
 }
 
 /**
- * ¿Puede esta persona hacer esto?
+ * ¿Puede esta persona hacer esto? El tercer argumento dice **dónde**, y los tres
+ * casos son preguntas distintas:
  *
- * Sin proyecto, la pregunta es «¿puede en algún sitio?»: sirve para decidir si
- * la pestaña se le enseña. Con proyecto, es la pregunta de verdad, la que se
- * hace antes de dejar escribir.
+ * - **Un identificador de proyecto** — «¿puede en ese proyecto?». Es la pregunta
+ *   de verdad, la que se hace antes de dejar escribir. Vale su permiso global o
+ *   el que le hayan concedido ahí.
+ * - **`null`** — «¿puede en toda la herramienta?». Sólo cuenta el permiso
+ *   global. Es lo que se pregunta cuando la acción no habla de un proyecto sino
+ *   de todos: crear uno nuevo, mirar la saturación del equipo, editar tarifas.
+ * - **Omitido** — «¿puede en algún sitio?». Sirve para decidir si se le enseña
+ *   la pestaña, y para dejar pasar una petición cuya respuesta va a salir
+ *   recortada a lo que sí puede ver. **Nunca** para autorizar una escritura.
  */
 export function can(
   permissions: EffectivePermissions,
@@ -196,7 +203,10 @@ export function can(
 ): boolean {
   if (permissions.isSuperadmin) return true
   if (permissions.global.has(code)) return true
-  if (projectId !== undefined && projectId !== null) {
+  // Se pide en toda la herramienta y no lo tiene ahí: tenerlo sobre un proyecto
+  // suelto no es lo mismo y no vale.
+  if (projectId === null) return false
+  if (projectId !== undefined) {
     return permissions.byProject.get(projectId)?.has(code) ?? false
   }
   // Sin proyecto concreto: basta con poder en alguno.
@@ -213,4 +223,46 @@ export function projectsWhere(permissions: EffectivePermissions, code: string): 
     .filter(([, conjunto]) => conjunto.has(code))
     .map(([projectId]) => projectId)
     .sort()
+}
+
+/**
+ * El proyecto del que habla una entidad del plan.
+ *
+ * Existe para una sola cosa: poder comprobar un permiso por proyecto cuando la
+ * petición no trae el proyecto sino una tarea, una asignación o una dependencia.
+ * Devuelve `null` si la entidad no existe, y quien pregunta lo trata como «no
+ * puedes»: negar el acceso a algo que no existe no filtra nada, y confirmar que
+ * no existe sí.
+ */
+export async function projectOfNode(db: Queryable, nodeId: string): Promise<string | null> {
+  const { rows } = await db.query<{ project_id: string }>(
+    'SELECT project_id FROM wbs_node WHERE id = $1',
+    [nodeId],
+  )
+  return rows[0]?.project_id ?? null
+}
+
+export async function projectOfAssignment(db: Queryable, assignmentId: string): Promise<string | null> {
+  const { rows } = await db.query<{ project_id: string }>(
+    `SELECT n.project_id FROM assignment a JOIN wbs_node n ON n.id = a.node_id WHERE a.id = $1`,
+    [assignmentId],
+  )
+  return rows[0]?.project_id ?? null
+}
+
+/**
+ * Una dependencia cruza dos nodos, y nada impide que sean de proyectos
+ * distintos. Se exige el permiso sobre **los dos**: quitar la dependencia que
+ * hace esperar al proyecto ajeno le mueve las fechas igual que si la hubieras
+ * editado tú.
+ */
+export async function projectsOfDependency(db: Queryable, dependencyId: string): Promise<readonly string[]> {
+  const { rows } = await db.query<{ project_id: string }>(
+    `SELECT DISTINCT n.project_id
+     FROM dependency d
+     JOIN wbs_node n ON n.id IN (d.predecessor_node_id, d.successor_node_id)
+     WHERE d.id = $1`,
+    [dependencyId],
+  )
+  return rows.map((row) => row.project_id)
 }

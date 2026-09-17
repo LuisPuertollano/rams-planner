@@ -16,12 +16,22 @@ import {
   findSession,
   login,
   logout,
+  projectOfAssignment,
+  projectOfNode,
+  projectsOfDependency,
   withTransaction,
   type AppUser,
   type EffectivePermissions,
   type Pool,
 } from '@planner/persistence'
-import { PERMISSIONS, PUBLIC_ROUTES } from './permissions.js'
+import {
+  PERMISSIONS,
+  PERMISSION_BY_CODE,
+  PUBLIC_ROUTES,
+  type PermissionScope,
+  type ProjectSource,
+} from './permissions.js'
+import type { RoutePermissionConfig } from './route-permissions.js'
 
 export const SESSION_COOKIE = 'planner_sesion'
 
@@ -38,28 +48,38 @@ export const SESSION_COOKIE = 'planner_sesion'
  * y ya no se puede volver atrás creando... nada: para desactivarlo habría que
  * borrar todos los usuarios, que es una decisión bien visible.
  *
- * El estado se cachea porque se consulta en cada petición; treinta segundos es
- * suficiente para que el primer «crear superadministrador» se note enseguida y
- * poco para que la consulta pese.
+ * **Sólo se cachea que está cerrada**, y esto no es un detalle. Cachear que
+ * está abierta la mantiene abierta hasta que la caché caduque: alguien crea el
+ * primer superadministrador con la CLI —otro proceso, que no puede avisar a
+ * éste— y la herramienta sigue dejando entrar a cualquiera unos segundos más.
+ * De los dos errores posibles, ése es el que no se puede permitir. El otro
+ * —volver a consultar de más— cuesta un `SELECT EXISTS` sobre una tabla
+ * diminuta, y sólo mientras la instalación siga abierta, que es un rato al
+ * principio y nunca más.
  */
-const CACHE_MS = 30_000
-let sinUsuariosHasta = 0
-let sinUsuarios: boolean | null = null
+let cerrada = false
 
 async function instalacionSinUsuarios(pool: Pool): Promise<boolean> {
-  if (sinUsuarios !== null && Date.now() < sinUsuariosHasta) return sinUsuarios
+  // Una vez hay usuarios, ya no se vuelve atrás: para reabrirla habría que
+  // borrarlos todos, y eso es un reinicio del servidor de todas formas.
+  if (cerrada) return false
   const { rows } = await pool.query<{ existe: boolean }>(
     'SELECT EXISTS (SELECT 1 FROM app_user WHERE password_hash IS NOT NULL AND deleted_at IS NULL) AS existe',
   )
-  sinUsuarios = !(rows[0]?.existe ?? false)
-  sinUsuariosHasta = Date.now() + CACHE_MS
-  return sinUsuarios
+  const hayUsuarios = rows[0]?.existe ?? false
+  if (hayUsuarios) cerrada = true
+  return !hayUsuarios
 }
 
-/** Se llama al crear el primer usuario, para que el control se active ya. */
+/**
+ * Vuelve a mirar si la instalación tiene usuarios.
+ *
+ * Sólo hace falta en un sentido: una base que se vacía entre pruebas. En
+ * marcha, pasar de abierta a cerrada se nota solo, y de cerrada a abierta no
+ * pasa.
+ */
 export function olvidarEstadoDeInstalacion(): void {
-  sinUsuarios = null
-  sinUsuariosHasta = 0
+  cerrada = false
 }
 
 declare module 'fastify' {
@@ -113,6 +133,90 @@ function cookieFor(token: string | null, secure: boolean): string {
 const esHttps = (request: FastifyRequest): boolean =>
   request.protocol === 'https' || request.headers['x-forwarded-proto'] === 'https'
 
+/**
+ * Dónde hay que tener el permiso para esta petición. Son tres preguntas
+ * distintas y no se pueden confundir, porque confundirlas es exactamente cómo
+ * se abren agujeros:
+ *
+ * - `global` — «¿lo tiene en toda la herramienta?». Crear un proyecto nuevo,
+ *   mirar la saturación del equipo.
+ * - `anywhere` — «¿lo tiene en algún sitio?». Sólo para respuestas que el
+ *   manejador recorta después, y para permisos que no son por proyecto.
+ * - `projects` — «¿lo tiene en estos?». La lista puede traer más de uno cuando
+ *   la operación toca dos sitios, y un `null` cuando un identificador no
+ *   corresponde a nada: ahí se deniega, que es lo seguro.
+ */
+type Alcance =
+  | { readonly kind: 'global' }
+  | { readonly kind: 'anywhere' }
+  | { readonly kind: 'projects'; readonly ids: readonly (string | null)[] }
+
+async function alcanceDeLaPeticion(
+  pool: Pool,
+  request: FastifyRequest,
+  scope: PermissionScope,
+  fuente: ProjectSource | undefined,
+): Promise<Alcance> {
+  // Un permiso global sin nada declarado se exige **global**, no «en algún
+  // sitio». Si no, un rol concedido sobre un proyecto arrastraría consigo
+  // permisos sobre el equipo o el motor, que no son de ningún proyecto: el
+  // agujero exacto que los roles por proyecto existen para no tener.
+  if (fuente === undefined) return scope === 'global' ? { kind: 'global' } : { kind: 'anywhere' }
+  if (fuente.from === 'filtered') return { kind: 'anywhere' }
+  if (fuente.from === 'global') return { kind: 'global' }
+  if (fuente.refs.length === 0) return { kind: 'projects', ids: [null] }
+
+  const resueltos: (string | null)[] = []
+  for (const ref of fuente.refs) {
+    const origen =
+      ref.in === 'body'
+        ? (request.body as Record<string, unknown> | undefined)
+        : (request.params as Record<string, unknown> | undefined)
+    const enCrudo = origen?.[ref.name]
+    if (typeof enCrudo !== 'string' || enCrudo === '') {
+      resueltos.push(null)
+      continue
+    }
+    switch (ref.resolve) {
+      case undefined:
+        resueltos.push(enCrudo)
+        break
+      case 'node':
+        resueltos.push(await withTransaction(pool, (db) => projectOfNode(db, enCrudo)))
+        break
+      case 'assignment':
+        resueltos.push(await withTransaction(pool, (db) => projectOfAssignment(db, enCrudo)))
+        break
+      case 'dependency': {
+        const proyectos = await withTransaction(pool, (db) => projectsOfDependency(db, enCrudo))
+        if (proyectos.length === 0) resueltos.push(null)
+        else resueltos.push(...proyectos)
+        break
+      }
+      default:
+        // El tipo no deja llegar aquí; si llegara sería un `resolve` nuevo sin
+        // resolutor, y eso se deniega en vez de dejarlo pasar.
+        resueltos.push(null)
+    }
+  }
+  return { kind: 'projects', ids: resueltos }
+}
+
+/** ¿Autoriza este alcance? Un identificador que no resuelve nunca autoriza. */
+function autoriza(permisos: EffectivePermissions, code: string, alcance: Alcance): boolean {
+  switch (alcance.kind) {
+    case 'global':
+      return can(permisos, code, null)
+    case 'anywhere':
+      return can(permisos, code)
+    case 'projects':
+      return (
+        alcance.ids.length > 0 &&
+        alcance.ids.every((projectId) => projectId !== null && can(permisos, code, projectId))
+      )
+  }
+}
+
 export function registerAuthRoutes(app: FastifyInstance, pool: Pool): void {
   /**
    * El guardián. Se engancha antes que nada y decide en tres pasos: quién eres,
@@ -150,7 +254,8 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool): void {
       return reply.status(401).send({ error: 'Hay que entrar para hacer esto.', code: 'SIN_SESION' })
     }
 
-    const permiso = (request.routeOptions.config as { permission?: string } | undefined)?.permission
+    const config = request.routeOptions.config as RoutePermissionConfig | undefined
+    const permiso = config?.permission
     if (permiso === undefined) {
       // No debería ocurrir: el arranque no deja pasar una ruta sin permiso. Si
       // pasa, se deniega. Un fallo de configuración nunca abre una puerta.
@@ -158,11 +263,41 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool): void {
       return reply.status(403).send({ error: 'Esta función no está configurada.', code: 'SIN_PERMISO' })
     }
 
-    if (request.permisos === undefined || !can(request.permisos, permiso)) {
-      const definicion = PERMISSIONS.find((item) => item.code === permiso)
+    const definicion = PERMISSION_BY_CODE.get(permiso)
+    if (definicion === undefined) {
+      // Otro caso que el arranque ya descarta: un permiso que no está en el
+      // catálogo. Si llegara, se deniega.
+      request.log.error({ ruta: rutaDeclarada, permiso }, 'permiso fuera del catálogo: se deniega')
+      return reply.status(403).send({ error: 'Esta función no está configurada.', code: 'SIN_PERMISO' })
+    }
+
+    const permisos = request.permisos
+    if (permisos === undefined) {
+      return reply.status(401).send({ error: 'Hay que entrar para hacer esto.', code: 'SIN_SESION' })
+    }
+
+    // Dónde hay que tener el permiso. El arranque ya ha exigido que toda ruta
+    // con un permiso por proyecto diga de qué proyecto habla, así que aquí no
+    // hay que adivinar nada.
+    let alcance: Alcance
+    try {
+      alcance = await alcanceDeLaPeticion(pool, request, definicion.scope, config?.project)
+    } catch (error) {
+      request.log.error({ err: error, ruta: rutaDeclarada }, 'no se pudo resolver el proyecto de la petición')
+      return reply.status(403).send({ error: 'Esta función no está configurada.', code: 'SIN_PERMISO' })
+    }
+
+    if (!autoriza(permisos, permiso, alcance)) {
+      const enTodaLaHerramienta = alcance.kind === 'global'
       return reply.status(403).send({
-        // Un permiso denegado se explica: qué hace falta, no un 403 pelado.
-        error: `Te falta el permiso «${definicion?.label ?? permiso}».`,
+        // Un permiso denegado se explica: qué hace falta y dónde, no un 403
+        // pelado. «Lo tienes, pero no aquí» es la mitad que más se pregunta.
+        error: enTodaLaHerramienta
+          ? `Te falta el permiso «${definicion.label}» en toda la herramienta. ` +
+            'Tenerlo sobre un proyecto suelto no basta para esto.'
+          : `Te falta el permiso «${definicion.label}»${
+              definicion.scope === 'project' ? ' en este proyecto' : ''
+            }.`,
         code: 'SIN_PERMISO',
         permiso,
       })

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Project } from './api.js'
 import {
   can,
+  canEverywhere,
   fetchMe,
   fetchRunData,
   fetchState,
@@ -42,9 +43,18 @@ type Tab =
  * ellos, la pestaña no se enseña — pero eso es cortesía, no seguridad: quien
  * escriba la URL a mano se encuentra con un 403 del servidor igualmente.
  */
-const TABS: readonly { id: Tab; label: string; hint: string; permission: readonly string[] }[] = [
+const TABS: readonly {
+  id: Tab
+  label: string
+  hint: string
+  permission: readonly string[]
+  /** El permiso hace falta en toda la herramienta, no sobre un proyecto. */
+  everywhere?: true
+}[] = [
   { id: 'matriz', label: 'Carga', hint: 'Cuántas horas tiene comprometida cada persona, cada mes, en cada proyecto', permission: ['carga.ver'] },
-  { id: 'saturacion', label: 'Saturación', hint: 'Quién se pasa de capacidad, cuándo y por cuánto', permission: ['carga.ver'] },
+  // La saturación es del equipo entero: con la carga de un solo proyecto, la
+  // ocupación de una persona no es su ocupación.
+  { id: 'saturacion', label: 'Saturación', hint: 'Quién se pasa de capacidad, cuándo y por cuánto', permission: ['carga.ver'], everywhere: true },
   { id: 'plan', label: 'Plan', hint: 'El árbol de trabajo con sus fechas calculadas', permission: ['plan.ver'] },
   { id: 'cronograma', label: 'Cronograma', hint: 'El plan en el tiempo, con el camino crítico', permission: ['plan.ver'] },
   { id: 'equipo', label: 'Equipo', hint: 'De qué está hecha la capacidad: calendario, dedicación, ausencias y tarifa de cada persona', permission: ['equipo.ver'] },
@@ -152,11 +162,18 @@ export function App(): React.JSX.Element {
       data.findings.filter((finding) => finding.code === 'RESOURCE_OVERALLOCATED').map((finding) => finding.entityId),
     ).size
     const critical = data.tasks.filter((task) => task.isCritical === true && task.kind === 'task').length
-    return { planned, capacity, overallocated, critical }
+    // Sin capacidad no hay ocupación que enseñar: quien sólo ve un proyecto no
+    // recibe la del equipo, y un 0 h o un — sin explicación parece un fallo.
+    return { planned, capacity, overallocated, critical, hasCapacity: data.utilization.length > 0 }
   }, [data])
 
   const visibleTabs = useMemo(
-    () => TABS.filter((item) => item.permission.some((code) => can(me?.permissions ?? null, code))),
+    () =>
+      TABS.filter((item) =>
+        item.permission.some((code) =>
+          item.everywhere === true ? canEverywhere(me, code) : can(me, code),
+        ),
+      ),
     [me],
   )
 
@@ -168,7 +185,7 @@ export function App(): React.JSX.Element {
   }, [visibleTabs, tab])
 
   const activeTab = TABS.find((item) => item.id === tab)
-  const puede = (code: string): boolean => can(me?.permissions ?? null, code)
+  const puede = (code: string): boolean => can(me, code)
 
   if (me === null) {
     return <div className="login"><div className="login__card"><h1>Cargando…</h1></div></div>
@@ -307,19 +324,35 @@ export function App(): React.JSX.Element {
             <div className="stat">
               <div className="stat__label">Trabajo planificado</div>
               <div className="stat__value">{hours(totals.planned)} h</div>
-              <div className="stat__hint">sobre {hours(totals.capacity)} h de capacidad en esos meses</div>
+              <div className="stat__hint">
+                {totals.hasCapacity
+                  ? `sobre ${hours(totals.capacity)} h de capacidad en esos meses`
+                  : 'en los proyectos que puedes ver'}
+              </div>
             </div>
             <div className="stat">
               <div className="stat__label">Ocupación del equipo</div>
               <div className="stat__value">
-                {percent(totals.capacity === 0 ? null : Math.round((totals.planned * 10_000) / totals.capacity))}
+                {totals.hasCapacity
+                  ? percent(
+                      totals.capacity === 0
+                        ? null
+                        : Math.round((totals.planned * 10_000) / totals.capacity),
+                    )
+                  : '—'}
               </div>
-              <div className="stat__hint">media de los meses con trabajo</div>
+              <div className="stat__hint">
+                {totals.hasCapacity
+                  ? 'media de los meses con trabajo'
+                  : 'la capacidad es de todo el equipo: hace falta ver la carga en toda la herramienta'}
+              </div>
             </div>
             <div className="stat">
               <div className="stat__label">Personas sobrecargadas</div>
-              <div className="stat__value">{totals.overallocated}</div>
-              <div className="stat__hint">en al menos un mes</div>
+              <div className="stat__value">{totals.hasCapacity ? totals.overallocated : '—'}</div>
+              <div className="stat__hint">
+                {totals.hasCapacity ? 'en al menos un mes' : 'sólo con la carga de toda la herramienta'}
+              </div>
             </div>
             <div className="stat">
               <div className="stat__label">Tareas críticas</div>

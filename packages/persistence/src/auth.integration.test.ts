@@ -177,6 +177,15 @@ describe.skipIf(pool === null)('permisos efectivos', () => {
     expect(projectsWhere(permisos, 'plan.ver')).toBe('all')
     expect(projectsWhere(permisos, 'plan.editar')).toEqual([proyectoA])
     expect(projectsWhere(permisos, 'tarifas.editar')).toEqual([])
+
+    // Las tres preguntas de `can` son distintas y la diferencia importa:
+    // «¿en algún sitio?» sirve para enseñar una pestaña, «¿en toda la
+    // herramienta?» para dejar crear un proyecto nuevo o tocar al equipo. Que
+    // lo tenga sobre el proyecto A no lo hace global, y confundirlas es
+    // exactamente cómo un rol acotado deja de estarlo.
+    expect(can(permisos, 'plan.editar')).toBe(true)
+    expect(can(permisos, 'plan.editar', null)).toBe(false)
+    expect(can(permisos, 'plan.ver', null)).toBe(true)
   })
 
   it('el superadministrador lo puede todo sin tener una sola fila de permisos', async () => {
