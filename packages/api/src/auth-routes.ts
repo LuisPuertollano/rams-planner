@@ -479,3 +479,15 @@ export function puede(request: FastifyRequest, code: string): boolean {
   if (request.permisos === undefined) return true
   return can(request.permisos, code)
 }
+
+/**
+ * ¿Puede esto **en toda la herramienta**?
+ *
+ * Para lo que no es de ningún proyecto y aun así lleva un permiso que sí se
+ * concede por proyecto. El caso es la tarifa de una persona: `costes.ver` sobre
+ * el proyecto A deja ver los importes de A, no lo que cobra cada uno.
+ */
+export function puedeEnTodaLaHerramienta(request: FastifyRequest, code: string): boolean {
+  if (request.permisos === undefined) return true
+  return can(request.permisos, code, null)
+}

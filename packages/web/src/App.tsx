@@ -14,7 +14,7 @@ import {
   type RunData,
   type TaskRow,
 } from './api.js'
-import { hours, percent } from './format.js'
+import { euros, hours, percent } from './format.js'
 import { activePeriods } from './periods.js'
 import { EditPanel } from './components/EditPanel.js'
 import { ImportButton } from './components/ImportButton.js'
@@ -168,7 +168,16 @@ export function App(): React.JSX.Element {
     const critical = data.tasks.filter((task) => task.isCritical === true && task.kind === 'task').length
     // Sin capacidad no hay ocupación que enseñar: quien sólo ve un proyecto no
     // recibe la del equipo, y un 0 h o un — sin explicación parece un fallo.
-    return { planned, capacity, overallocated, critical, hasCapacity: data.utilization.length > 0 }
+    const cost = data.load.reduce((sum, cell) => sum + cell.costCents, 0)
+    return {
+      planned,
+      capacity,
+      overallocated,
+      critical,
+      cost,
+      showCost: !data.costsHidden,
+      hasCapacity: data.utilization.length > 0,
+    }
   }, [data])
 
   const visibleTabs = useMemo(
@@ -365,6 +374,17 @@ export function App(): React.JSX.Element {
                 {totals.hasCapacity ? 'en al menos un mes' : 'sólo con la carga de toda la herramienta'}
               </div>
             </div>
+            {!totals.showCost ? null : (
+              <div className="stat">
+                <div className="stat__label">Coste comprometido</div>
+                <div className="stat__value">{euros(totals.cost)}</div>
+                <div className="stat__hint">
+                  {totals.cost === 0
+                    ? 'sale a cero: al equipo le faltan tarifas'
+                    : 'horas por la tarifa vigente de cada día'}
+                </div>
+              </div>
+            )}
             <div className="stat">
               <div className="stat__label">Tareas críticas</div>
               <div className="stat__value">{totals.critical}</div>
@@ -450,6 +470,7 @@ export function App(): React.JSX.Element {
               </div>
             ) : tab === 'matriz' ? (
               <MatrixView
+                costsHidden={data.costsHidden}
                 resources={state.resources}
                 projects={state.projects}
                 load={data.load}

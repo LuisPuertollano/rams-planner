@@ -177,6 +177,15 @@ Debajo de cada persona va su capacidad del mes y su saturación.
 Es la respuesta literal a la primera pregunta. Si sólo vas a mirar una pantalla
 al mes, que sea esta.
 
+**Horas o euros.** El interruptor de arriba cambia la unidad de toda la matriz:
+las mismas celdas, multiplicadas por la tarifa vigente de cada día. En euros
+desaparece la fila de capacidad, porque la capacidad de una persona se mide en
+tiempo y poner horas en una tabla de importes sólo confunde.
+
+Si el coste sale a cero no es que el trabajo sea gratis: es que a esa gente le
+faltan tarifas en **Equipo**. Y si el interruptor de euros está apagado, es que
+tu rol no incluye ver costes.
+
 ### Saturación
 
 La misma información, pero en color y sin proyectos: sólo **quién se pasa,
@@ -432,10 +441,16 @@ no esté: es que no llega. Quien administre la herramienta puede concederte un r
 sobre él desde **Administración → Usuarios y roles**.
 
 **«Veo la carga pero todos los importes salen a cero.»**
-No es un fallo de datos: es que tu rol no incluye **Ver costes y tarifas**. Los
-importes no se ocultan en pantalla, es que el servidor no los envía, y el CSV
-que exportes sale directamente sin la columna de coste. Si los necesitas, hay
-que pedir el permiso.
+No es un fallo de datos: es que tu rol no incluye **Ver costes y tarifas**, o lo
+incluye sólo sobre algunos proyectos. Los importes no se ocultan en pantalla, es
+que el servidor no los envía, y el CSV que exportes sale directamente sin la
+columna de coste si hay algún proyecto cuyos costes no puedas ver. Si los
+necesitas, hay que pedir el permiso.
+
+**«Veo el equipo pero no sus tarifas, y sí veo los euros de la carga.»**
+Correcto y a propósito. El importe de un mes es de un proyecto; la tarifa es lo
+que cobra una persona. Para lo segundo hace falta ver costes **en toda la
+herramienta**, no sólo en un proyecto.
 
 **«El coste de este proyecto sale a cero.»**
 Alguien del equipo no tiene tarifa. Pestaña Equipo, busca el ⚠.

@@ -96,12 +96,18 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
     // Sin `costes.ver` los importes no se ocultan en pantalla: no se envían. Lo
     // que no sale del servidor no se recupera mirando la respuesta en el
     // inspector del navegador.
-    const conCostes = puede(request, 'costes.ver')
+    //
+    // Y se mira proyecto a proyecto, no de una vez: `costes.ver` se concede por
+    // proyecto, así que tenerlo en uno no enseña los importes de los demás.
+    const conCostes = visibleProjects(request, 'costes.ver')
     return {
       runId,
       bucket: query.bucket,
-      costsHidden: !conCostes,
-      cells: conCostes ? cells : cells.map((cell) => ({ ...cell, costCents: 0 })),
+      costsHidden: conCostes !== 'all' && conCostes.size === 0,
+      cells:
+        conCostes === 'all'
+          ? cells
+          : cells.map((cell) => (conCostes.has(cell.projectId) ? cell : { ...cell, costCents: 0 })),
     }
   })
 
@@ -293,12 +299,16 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
     // Poder exportar no amplía lo que se puede ver: el fichero lleva las mismas
     // filas que la pantalla.
     const cells = onlyVisible(visibleProjects(request, 'carga.ver'), todas, (cell) => cell.projectId)
+    const costesVisibles = visibleProjects(request, 'costes.ver')
     const nameOfResource = new Map(resources.map((resource) => [resource.id, resource.displayName]))
     const codeOfProject = new Map(projects.map((project) => [project.id, project.code]))
 
     // El fichero sale sin la columna de coste, no con la columna a cero: un
     // cero en un CSV se lee como «costó cero», que es peor que no decirlo.
-    const conCostes = puede(request, 'costes.ver')
+    // Sólo se incluye si los costes se ven en **todos** los proyectos que salen
+    // en el fichero: una columna de coste con huecos miente igual.
+    const conCostes =
+      costesVisibles === 'all' || cells.every((cell) => costesVisibles.has(cell.projectId))
     const columns = conCostes
       ? ['recurso', 'proyecto', 'periodo', 'horas', 'coste_eur', 'ejecucion']
       : ['recurso', 'proyecto', 'periodo', 'horas', 'ejecucion']
