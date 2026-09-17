@@ -41,9 +41,9 @@ export function registerSkillRoutes(app: FastifyInstance, pool: Pool): void {
     return { run: await calculate(pool, scenarioId, reason) }
   }
 
-  app.get('/api/skills', async () => withTransaction(pool, (db) => readSkillMatrix(db)))
+  app.get('/api/skills', { config: { permission: 'competencias.ver' } }, async () => withTransaction(pool, (db) => readSkillMatrix(db)))
 
-  app.post('/api/skills', async (request, reply) => {
+  app.post('/api/skills', { config: { permission: 'competencias.catalogo' } }, async (request, reply) => {
     const body = z
       .object({ code: z.string().min(1).max(60), name: z.string().min(1).max(200) })
       .parse(request.body)
@@ -52,14 +52,14 @@ export function registerSkillRoutes(app: FastifyInstance, pool: Pool): void {
     })
   })
 
-  app.delete('/api/skills/:skillId', async (request, reply) => {
+  app.delete('/api/skills/:skillId', { config: { permission: 'competencias.catalogo' } }, async (request, reply) => {
     const { skillId } = z.object({ skillId: z.string().uuid() }).parse(request.params)
     return write(reply, 'baja de una competencia', 'cambio en las competencias', async (db) => {
       await deleteSkill(db, skillId)
     })
   })
 
-  app.put('/api/resources/:resourceId/skills/:skillId', async (request, reply) => {
+  app.put('/api/resources/:resourceId/skills/:skillId', { config: { permission: 'competencias.editar' } }, async (request, reply) => {
     const { resourceId, skillId } = z
       .object({ resourceId: z.string().uuid(), skillId: z.string().uuid() })
       .parse(request.params)
@@ -69,7 +69,7 @@ export function registerSkillRoutes(app: FastifyInstance, pool: Pool): void {
     })
   })
 
-  app.put('/api/nodes/:nodeId/skills/:skillId', async (request, reply) => {
+  app.put('/api/nodes/:nodeId/skills/:skillId', { config: { permission: 'requisitos.editar' } }, async (request, reply) => {
     const { nodeId, skillId } = z
       .object({ nodeId: z.string().uuid(), skillId: z.string().uuid() })
       .parse(request.params)

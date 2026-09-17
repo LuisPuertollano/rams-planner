@@ -7,6 +7,7 @@ import Fastify from 'fastify'
 import { createPool } from '@planner/persistence'
 import { readConfig } from './config.js'
 import { registerPlanRoutes } from './plan-routes.js'
+import { auditRoutes, collectRoutePermissions } from './route-permissions.js'
 import { registerRebalanceRoutes } from './rebalance-routes.js'
 import { registerResourceRoutes } from './resources-routes.js'
 import { registerSkillRoutes } from './skills-routes.js'
@@ -24,11 +25,29 @@ await app.register(cors, { origin: true })
 app.addContentTypeParser(['text/csv', 'text/plain'], { parseAs: 'string' }, (_request, body, done) => {
   done(null, body)
 })
+// Se empieza a anotar ANTES de registrar nada: el hook sólo ve lo que viene
+// después de engancharlo.
+const registeredRoutes = collectRoutePermissions(app)
+
 registerRoutes(app, pool)
 registerResourceRoutes(app, pool)
 registerPlanRoutes(app, pool)
 registerSkillRoutes(app, pool)
 registerRebalanceRoutes(app, pool)
+
+// Y se comprueba en el arranque, no sólo en CI: una ruta sin permiso no llega a
+// atender peticiones. Es mejor no arrancar que arrancar con un agujero.
+//
+// Sin `app.ready()` a propósito: el hook `onRoute` ya se ha disparado al
+// registrar cada ruta, y llamar a `ready()` aquí congelaría la instancia antes
+// de registrar el servidor de la interfaz, que viene justo debajo.
+const routeProblems = auditRoutes(registeredRoutes)
+if (routeProblems.length > 0) {
+  for (const problem of routeProblems) app.log.error(`Ruta ${problem.route} ${problem.problem}`)
+  throw new Error(
+    `${String(routeProblems.length)} ruta(s) de la API sin permiso válido. Mira los errores de arriba.`,
+  )
+}
 
 // En producción la API sirve también la interfaz compilada: un solo contenedor,
 // un solo origen, cero configuración de CORS para el usuario.
