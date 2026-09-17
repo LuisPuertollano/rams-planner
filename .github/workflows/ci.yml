@@ -100,8 +100,10 @@ jobs:
             console.log('Cálculo correcto:', JSON.stringify(run));
           "
 
+      # `packages/api` incluye las pruebas que entran por la puerta: montan la
+      # aplicación entera y comprueban que un permiso que falta se nota.
       - name: Pruebas de integración contra la base de datos real
-        run: pnpm vitest run packages/persistence
+        run: pnpm vitest run packages/persistence packages/api
 
       # Una instalación que se actualiza no es una base limpia, y ese es el
       # camino que más se recorre en la vida real. Aquí se reproduce: las

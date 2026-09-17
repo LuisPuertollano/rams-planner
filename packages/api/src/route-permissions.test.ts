@@ -16,6 +16,8 @@ import {
   misplacedEnforcement,
   unusedPermissions,
 } from './route-permissions.js'
+import { registerAdminRoutes } from './admin-routes.js'
+import { registerAuthRoutes } from './auth-routes.js'
 import { registerPlanRoutes } from './plan-routes.js'
 import { registerRebalanceRoutes } from './rebalance-routes.js'
 import { registerResourceRoutes } from './resources-routes.js'
@@ -38,6 +40,8 @@ async function rutasRegistradas(): ReturnType<typeof collectRoutePermissions> ex
   : never {
   const app = Fastify({ logger: false })
   const routes = collectRoutePermissions(app)
+  registerAuthRoutes(app, poolFalso)
+  registerAdminRoutes(app, poolFalso)
   registerRoutes(app, poolFalso)
   registerResourceRoutes(app, poolFalso)
   registerPlanRoutes(app, poolFalso)
@@ -56,9 +60,8 @@ describe('permisos por ruta', () => {
   })
 
   it('no hay permisos en el catálogo que no proteja nada', async () => {
-    const huerfanos = unusedPermissions(await rutasRegistradas())
-    // Los de administración aún no tienen rutas: llegan con la hoja de roles.
-    expect(huerfanos).toEqual(['roles.gestionar', 'usuarios.gestionar'])
+    // Ya no queda ninguno suelto: la hoja de roles trajo las rutas que faltaban.
+    expect(unusedPermissions(await rutasRegistradas())).toEqual([])
   })
 
   it('los permisos que se aplican dentro de un manejador nombran rutas que existen', async () => {

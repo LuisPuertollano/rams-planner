@@ -23,6 +23,23 @@ nuevo y comparando contra una línea base en la pestaña **Comparar**.
 
 ---
 
+## 1.bis Entrar
+
+Lo primero es una pantalla de entrada con correo y contraseña. La cuenta te la
+da quien administre la herramienta; no hay registro y no hay recuperación por
+correo, a propósito: esto se despliega en la red del equipo, no en internet.
+
+**Verás sólo lo que tu rol te deja ver.** Las pestañas y los botones que no
+puedes usar no aparecen, así que si un compañero tiene una pestaña que tú no
+tienes, no es un fallo: es el reparto de permisos. Quien administre la
+herramienta puede cambiarlo en un minuto.
+
+Si acabas de instalarla y todavía no hay ninguna cuenta, no pide entrar y sale
+un banner rojo avisando de que está abierta. Se cierra creando la primera:
+`crear-superadmin`, en [`operacion.md`](operacion.md#7-usuarios-roles-y-permisos).
+
+---
+
 ## 2. Empezar desde cero
 
 En una base de datos recién creada el orden es este. Saltarse el paso 1 es la
@@ -314,6 +331,37 @@ trabajo ha cambiado. Sirve para lo importante:
 
 Eso es la respuesta a la segunda pregunta, con nombres y fechas.
 
+### Administración
+
+Sólo la ven quienes administran. Son dos cosas:
+
+**La hoja de permisos.** Una tabla con todas las funciones de la herramienta en
+las filas, agrupadas por la pantalla a la que pertenecen, y los roles en las
+columnas. Una casilla por cruce. Marcar o desmarcar y darle a **Guardar** en esa
+columna.
+
+Tres cosas que conviene saber de esta hoja:
+
+1. **La lista de funciones se mantiene sola.** No está escrita a mano en ningún
+   sitio: sale del propio código. Cuando la herramienta aprende a hacer algo
+   nuevo, aparece aquí sin que nadie tenga que acordarse. Si a alguien se le
+   olvidara ponerle permiso, el servidor no arranca.
+2. **Las funciones marcadas con ● conviene pensarlas dos veces.** Son las que
+   dejan ver costes y tarifas, cambiar el nivel de competencia de alguien o
+   repartir permisos.
+3. **Superadministración no aparece como columna.** Lo tiene todo siempre. Es lo
+   que evita que desmarcar la casilla equivocada te deje fuera de tu propia
+   herramienta.
+
+**Usuarios y roles.** Dar de alta personas, cambiarles la contraseña,
+desactivarlas y concederles roles. Un rol se concede **en toda la herramienta** o
+**sólo en un proyecto**. Lo que alguien puede hacer en un proyecto es la suma de
+los dos: un rol por proyecto añade permisos, nunca los quita.
+
+Desactivar a alguien le cierra las sesiones abiertas en el acto. Las cuentas no
+se borran, porque su nombre tiene que seguir apareciendo en el historial de
+cambios.
+
 ---
 
 ## 4. Los botones de la cabecera
@@ -325,6 +373,9 @@ Eso es la respuesta a la segunda pregunta, con nombres y fechas.
 | **Línea base** | Congela el cálculo actual con un nombre. Una línea base es un cálculo congelado, no una copia aparte |
 | **Nivelar** | Retrasa tareas hasta que el plan quepa en la capacidad del equipo |
 | **Recalcular** | Vuelve a calcular. Se usa poco: cada cambio recalcula solo |
+| **Salir** | Cierra tu sesión |
+
+Si alguno de estos botones no te aparece, es que tu rol no incluye esa función.
 
 ### Sobre **Nivelar**
 
@@ -341,6 +392,12 @@ Es una heurística y está declarada como tal. Tres cosas que conviene saber:
 ---
 
 ## 5. Cosas que pasan y qué significan
+
+**«Veo la carga pero todos los importes salen a cero.»**
+No es un fallo de datos: es que tu rol no incluye **Ver costes y tarifas**. Los
+importes no se ocultan en pantalla, es que el servidor no los envía, y el CSV
+que exportes sale directamente sin la columna de coste. Si los necesitas, hay
+que pedir el permiso.
 
 **«El coste de este proyecto sale a cero.»**
 Alguien del equipo no tiene tarifa. Pestaña Equipo, busca el ⚠.

@@ -26,6 +26,7 @@ import {
   withTransaction,
   type Pool,
 } from '@planner/persistence'
+import { puede } from './auth-routes.js'
 import { calculate, defaultScenarioId } from './engine.js'
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe ser AAAA-MM-DD')
@@ -103,6 +104,16 @@ export function registerPlanRoutes(app: FastifyInstance, pool: Pool): void {
         asTemplate: z.boolean().optional(),
       })
       .parse(request.body)
+    // Crear un proyecto *a partir de* una plantilla es usarla; guardar uno
+    // *como* plantilla es cambiar el catálogo de moldes del equipo. La ruta es
+    // la misma, el permiso no.
+    if (body.asTemplate === true && !puede(request, 'plantillas.gestionar')) {
+      return reply.status(403).send({
+        error: 'Te falta el permiso «Crear y gestionar plantillas».',
+        code: 'SIN_PERMISO',
+        permiso: 'plantillas.gestionar',
+      })
+    }
     return write(
       reply,
       body.asTemplate === true ? `plantilla «${body.name}»` : `proyecto «${body.code}» a partir de otro`,
@@ -123,6 +134,15 @@ export function registerPlanRoutes(app: FastifyInstance, pool: Pool): void {
       })
       .parse(request.body)
     if (Object.keys(body).length === 0) return reply.status(400).send({ error: 'No hay nada que cambiar' })
+    // Convertir un proyecto en molde, o dejar de serlo, no es editar un
+    // proyecto: es tocar el catálogo de plantillas.
+    if (body.isTemplate !== undefined && !puede(request, 'plantillas.gestionar')) {
+      return reply.status(403).send({
+        error: 'Te falta el permiso «Crear y gestionar plantillas».',
+        code: 'SIN_PERMISO',
+        permiso: 'plantillas.gestionar',
+      })
+    }
     return write(reply, 'edición del proyecto', `edición del proyecto ${projectId}`, async (db) => {
       await updateProject(db, projectId, body)
     })

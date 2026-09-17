@@ -27,6 +27,7 @@ import {
   withTransaction,
   type Pool,
 } from '@planner/persistence'
+import { puede } from './auth-routes.js'
 import { toCsv } from './csv.js'
 import { calculate, defaultScenarioId } from './engine.js'
 import { ImportError, importPlanCsv } from './import-plan.js'
@@ -55,10 +56,15 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
     }),
   )
 
-  app.post('/api/calculate', { config: { permission: 'calcular' } }, async (request) => {
+  app.post('/api/calculate', { config: { permission: 'calcular' } }, async (request, reply) => {
     const body = z
       .object({ reason: z.string().max(200).optional(), level: z.boolean().default(false) })
       .parse(request.body ?? {})
+    // Recalcular y nivelar son la misma ruta con distinta bandera, pero no la
+    // misma decisión: nivelar mueve fechas, así que pide su propio permiso.
+    if (body.level && !puede(request, 'nivelar')) {
+      return reply.status(403).send({ error: 'Te falta el permiso «Nivelar».', code: 'SIN_PERMISO', permiso: 'nivelar' })
+    }
     const scenarioId = await withDb((db) => defaultScenarioId(db))
     return calculate(pool, scenarioId, body.reason ?? (body.level ? 'nivelación de recursos' : 'recálculo manual'), {
       level: body.level,
@@ -76,10 +82,16 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
   app.get('/api/runs/:runId/load', { config: { permission: 'carga.ver' } }, async (request) => {
     const { runId } = z.object({ runId: z.string().uuid() }).parse(request.params)
     const query = z.object({ bucket: bucketSchema, byNode: z.coerce.boolean().default(false) }).parse(request.query)
+    const cells = await withDb((db) => readLoad(db, runId, query.bucket, { byNode: query.byNode }))
+    // Sin `costes.ver` los importes no se ocultan en pantalla: no se envían. Lo
+    // que no sale del servidor no se recupera mirando la respuesta en el
+    // inspector del navegador.
+    const conCostes = puede(request, 'costes.ver')
     return {
       runId,
       bucket: query.bucket,
-      cells: await withDb((db) => readLoad(db, runId, query.bucket, { byNode: query.byNode })),
+      costsHidden: !conCostes,
+      cells: conCostes ? cells : cells.map((cell) => ({ ...cell, costCents: 0 })),
     }
   })
 
@@ -264,7 +276,12 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
     const nameOfResource = new Map(resources.map((resource) => [resource.id, resource.displayName]))
     const codeOfProject = new Map(projects.map((project) => [project.id, project.code]))
 
-    const columns = ['recurso', 'proyecto', 'periodo', 'horas', 'coste_eur', 'ejecucion']
+    // El fichero sale sin la columna de coste, no con la columna a cero: un
+    // cero en un CSV se lee como «costó cero», que es peor que no decirlo.
+    const conCostes = puede(request, 'costes.ver')
+    const columns = conCostes
+      ? ['recurso', 'proyecto', 'periodo', 'horas', 'coste_eur', 'ejecucion']
+      : ['recurso', 'proyecto', 'periodo', 'horas', 'ejecucion']
     const rows = cells.map((cell) => ({
       recurso: nameOfResource.get(cell.resourceId) ?? cell.resourceId,
       proyecto: codeOfProject.get(cell.projectId) ?? cell.projectId,

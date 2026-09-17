@@ -1,6 +1,6 @@
 # ADR-0015 · Autenticación y permisos
 
-**Estado:** aceptada (queda un detalle abierto) · **Fecha:** 2026-09-16 · **Revisada:** 2026-09-17
+**Estado:** aceptada e implementada (queda un detalle abierto) · **Fecha:** 2026-09-16 · **Revisada:** 2026-09-17
 
 ## Contexto
 
@@ -55,8 +55,12 @@ Y lo que ya estaba decidido y no depende de nada de lo anterior:
   los roles de base de datos que ya existen (`planner_api`, `planner_engine`,
   `planner_readonly`), que están puestos exactamente para esto.
 - **Las contraseñas no se guardan, ni siquiera cifradas.** Se guarda un hash con
-  un algoritmo de derivación lento y con sal (argon2id o bcrypt), nunca un
-  digest rápido.
+  un algoritmo de derivación lento y con sal, nunca un digest rápido. Se ha
+  implementado con **scrypt** (`node:crypto`, N=32768, r=8, p=1, 64 bytes) en
+  lugar de argon2id por una razón práctica: argon2 obliga a compilar una
+  extensión nativa, y la imagen es Alpine. El hash guarda sus propios
+  parámetros (`scrypt$N$r$p$sal$derivada`), así que subir el coste más adelante
+  no invalida las contraseñas que ya existen.
 - **La sesión va en una cookie `HttpOnly`, `Secure` y `SameSite=Lax`**, no en
   `localStorage`: un token que puede leer JavaScript lo puede leer cualquier
   script que entre en la página.
@@ -93,6 +97,38 @@ superadministrador y la documentación de qué significa cada función. Y por es
 Es el mismo trato que la regla de dependencias del núcleo: la regla se hace
 cumplir, no se recuerda.
 
+## Cómo ha quedado
+
+- `db/migrations/20260917080000_usuarios_y_roles.sql` · `app_role`,
+  `role_permission`, `user_role` (con `project_id` nulo = global) y
+  `user_session`. Dos triggers impiden borrar, renombrar o repermisar el rol de
+  sistema desde SQL, no sólo desde la interfaz.
+- `packages/persistence/src/auth.ts` · contraseñas y sesiones. Se guarda el
+  SHA-256 del token de sesión, nunca el token: quien lea la base de datos no
+  puede suplantar a nadie con lo que hay en ella. `login()` verifica una
+  contraseña aunque el correo no exista, para que tardar menos no delate qué
+  correos están dados de alta.
+- `packages/persistence/src/roles.ts` · permisos efectivos, globales y por
+  proyecto, con `can()` y `projectsWhere()`.
+- `packages/api/src/auth-routes.ts` · el guardián. Un `preHandler` global que
+  deniega por defecto: sólo pasan las cuatro rutas públicas declaradas en el
+  catálogo y las que traen un permiso que quien pide tiene.
+- `packages/api/src/admin-routes.ts` y `packages/web/src/views/AdminView.tsx` ·
+  la hoja: funciones en filas, agrupadas por pantalla; roles editables en
+  columnas; una casilla por cruce.
+- `packages/api/src/permissions.integration.test.ts` · las pruebas que entran
+  por la puerta. Montan la aplicación entera, crean cuentas con permisos
+  concretos y comprueban lo que contesta el servidor, que es lo único que
+  cuenta.
+
+### La instalación recién hecha
+
+Una base migrada y sin ningún usuario queda **abierta**, con un aviso en el log
+del arranque y un banner rojo en la interfaz. La alternativa —una instalación
+que no deja entrar a nadie hasta que alguien encuentre el comando— convierte
+cada despliegue nuevo en un problema de soporte. El primer superadministrador se
+crea con `crear-superadmin`, y desde ese momento la puerta se cierra sola.
+
 ## Lo que queda abierto
 
 **Los costes: ¿se ocultan o se agregan?** De momento `costes.ver` los oculta
@@ -102,21 +138,21 @@ falta un punto intermedio —totales por proyecto sin tarifas individuales—, q
 es lo que suele querer la gente en la práctica. Cambiarlo más adelante es añadir
 un permiso al catálogo, no rehacer nada.
 
-## Por qué no se ha implementado ya
+## Por qué se decidió antes de escribirlo
 
 Es la única parte de la herramienta donde equivocarse tiene consecuencias que no
-se ven. Un fallo en el reparto de trabajo propone una tontería y se descarta;
-un fallo en la autenticación deja la planificación y los costes de un equipo
+se ven. Un fallo en el reparto de trabajo propone una tontería y se descarta; un
+fallo en la autenticación deja la planificación y los costes de un equipo
 expuestos sin que nadie se entere, y puede tardar meses en descubrirse.
 
-Además, las cuatro preguntas de arriba no las puede contestar quien escribe el
-código: cambian según cómo trabaje el equipo que la usa. Implementar primero y
-preguntar después significaría tirar el trabajo o, peor, quedarse con lo que
-salió.
+Y las preguntas de arriba —el grano del permiso, si es por proyecto, qué pasa
+con el superadministrador— no las puede contestar quien escribe el código:
+cambian según cómo trabaje el equipo que la usa. Por eso este ADR se escribió
+antes que el código y se implementó después de contestarlas, en vez de al revés.
 
-## Mientras tanto
+## Lo que sigue haciendo falta fuera de la herramienta
 
-Lo que dice `docs/operacion.md` sigue siendo la respuesta correcta: si la
-herramienta sale de la red local, un proxy inverso delante con su propia
-autenticación. No es una solución elegante, pero es una solución real y no
-depende de que este ADR se cierre.
+El TLS. La autenticación existe, pero en `http://` la contraseña y la cookie
+viajan en claro por la red del servidor, y eso la VPN no lo arregla. Un proxy
+inverso con certificado delante sigue siendo obligatorio, y ahora lo es por una
+razón más concreta que antes: ya hay contraseñas que interceptar.

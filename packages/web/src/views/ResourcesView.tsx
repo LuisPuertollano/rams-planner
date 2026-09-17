@@ -108,7 +108,9 @@ export function ResourcesView({ onChanged }: Props): React.JSX.Element {
             <span className="team__item-name">{resource.displayName}</span>
             <span className="team__item-meta">
               {resource.calendarCode ?? 'sin calendario'} · {percent(resource.maxUnitsBp)}
-              {resource.costRates.length === 0 ? <span className="warn-dot" title="Sin tarifa: el coste sale a cero"> ⚠</span> : null}
+              {resource.costRates.length === 0 && team.costsHidden !== true ? (
+                <span className="warn-dot" title="Sin tarifa: el coste sale a cero"> ⚠</span>
+              ) : null}
             </span>
           </button>
         ))}
@@ -144,6 +146,7 @@ export function ResourcesView({ onChanged }: Props): React.JSX.Element {
             key={selected.id}
             resource={selected}
             calendars={team.calendars}
+            costsHidden={team.costsHidden === true}
             busy={busy}
             onRun={run}
           />
@@ -156,11 +159,13 @@ export function ResourcesView({ onChanged }: Props): React.JSX.Element {
 interface CardProps {
   readonly resource: ResourceDetail
   readonly calendars: readonly CalendarOption[]
+  /** Sin permiso de costes las tarifas ni se piden: no hay nada que enseñar. */
+  readonly costsHidden: boolean
   readonly busy: boolean
   readonly onRun: (action: () => Promise<void>) => void
 }
 
-function ResourceCard({ resource, calendars, busy, onRun }: CardProps): React.JSX.Element {
+function ResourceCard({ resource, calendars, costsHidden, busy, onRun }: CardProps): React.JSX.Element {
   const [name, setName] = useState(resource.displayName)
 
   return (
@@ -267,9 +272,17 @@ function ResourceCard({ resource, calendars, busy, onRun }: CardProps): React.JS
 
       <PeriodCard<CostRatePeriod>
         title="Tarifas"
-        hint="Coste por hora con vigencia. Sin tarifa el coste de las tareas de esta persona sale a cero, que es peor que salir mal."
+        hint={
+          costsHidden
+            ? 'Tu rol no incluye ver costes y tarifas, así que no llegan del servidor. No es que no las haya.'
+            : 'Coste por hora con vigencia. Sin tarifa el coste de las tareas de esta persona sale a cero, que es peor que salir mal.'
+        }
         rows={resource.costRates}
-        empty="Sin tarifa: el coste de sus tareas sale a cero."
+        empty={
+          costsHidden
+            ? 'Oculto: te falta el permiso «Ver costes y tarifas».'
+            : 'Sin tarifa: el coste de sus tareas sale a cero.'
+        }
         columns={['Desde', 'Hasta', 'Coste/hora', '']}
         cells={(row) => [fullDate(row.from), fullDate(row.to), `${euroRate(row.standardCentsHour)}/h`, row.currency]}
         busy={busy}

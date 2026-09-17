@@ -23,6 +23,7 @@ import {
   withTransaction,
   type Pool,
 } from '@planner/persistence'
+import { puede } from './auth-routes.js'
 import { calculate, defaultScenarioId } from './engine.js'
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe ser AAAA-MM-DD')
@@ -73,11 +74,18 @@ export function registerResourceRoutes(app: FastifyInstance, pool: Pool): void {
     return { run: await calculate(pool, scenarioId, reason) }
   }
 
-  app.get('/api/resources', { config: { permission: 'equipo.ver' } }, async () =>
-    withTransaction(pool, async (db) => ({
-      resources: await readResourceDetails(db),
-      calendars: await readCalendars(db),
-    })),
+  app.get('/api/resources', { config: { permission: 'equipo.ver' } }, async (request) =>
+    withTransaction(pool, async (db) => {
+      const resources = await readResourceDetails(db)
+      // La ficha del equipo se ve entera menos las tarifas: quien no puede ver
+      // costes recibe la lista vacía, no una lista con ceros.
+      const conCostes = puede(request, 'costes.ver')
+      return {
+        resources: conCostes ? resources : resources.map((resource) => ({ ...resource, costRates: [] })),
+        calendars: await readCalendars(db),
+        costsHidden: !conCostes,
+      }
+    }),
   )
 
   app.post('/api/resources', { config: { permission: 'equipo.editar' } }, async (request, reply) => {
