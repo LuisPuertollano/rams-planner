@@ -44,6 +44,9 @@ jobs:
       - name: Ningún error de la API sin código ni sin traducir
         run: pnpm check:errores
 
+      - name: El Dockerfile no se olvida un paquete del workspace
+        run: pnpm check:docker
+
       - name: Tests y cobertura
         run: pnpm test:coverage
 
@@ -196,3 +199,44 @@ jobs:
             exit 1
           fi
           dbmate --migrations-dir ./db/migrations --no-dump-schema up
+
+  # Este trabajo existe por una avería concreta: `packages/report` se creó y no
+  # se añadió a las dos listas del `Dockerfile`, así que la imagen salió sin ese
+  # paquete. Todo lo de arriba pasó en verde —lint, tipos, 400 y pico pruebas,
+  # migraciones, invariantes, la actualización sobre datos viejos— y el
+  # contenedor se moría al arrancar con un `ERR_MODULE_NOT_FOUND`.
+  #
+  # Ninguna prueba podía cazarlo porque todas corren en el workspace, donde el
+  # enlace de pnpm existe. La imagen es el único sitio donde la lista importa, y
+  # hasta ahora CI no la construía nunca.
+  #
+  # `--wait` es lo que hace el trabajo: espera a los healthchecks y **falla si
+  # un contenedor se sale**, que es exactamente lo que pasó.
+  contenedor:
+    name: El contenedor arranca de verdad
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Construir la imagen y levantar la pila como en producción
+        run: docker compose up -d --build --wait
+
+      - name: La API responde
+        run: curl -fsS --retry 5 --retry-delay 2 http://127.0.0.1:45678/api/health
+
+      - name: La interfaz compilada se sirve desde la misma imagen
+        run: curl -fsS http://127.0.0.1:45678/ | grep -q 'id="root"'
+
+      - name: La API contesta con su catálogo de permisos
+        run: curl -fsS http://127.0.0.1:45678/api/auth/me | grep -q 'catalogue'
+
+      # Sin esto, un fallo aquí sólo dice "el contenedor no arrancó" y hay que
+      # reproducirlo a mano. Con esto, el log del contenedor está en el propio
+      # fallo de CI, que es donde alguien lo va a leer.
+      - name: Los logs, si algo ha ido mal
+        if: failure()
+        run: docker compose logs --tail=100
+
+      - name: Apagar
+        if: always()
+        run: docker compose down -v
