@@ -35,6 +35,7 @@ import { AdminView } from './views/AdminView.js'
 import { CalendarView } from './views/CalendarView.js'
 import { LoginView } from './views/LoginView.js'
 import { DiffView } from './views/DiffView.js'
+import { ApplyMatrixPanel } from './views/ApplyMatrixPanel.js'
 import { DocumentsView } from './views/DocumentsView.js'
 import { FindingsView } from './views/FindingsView.js'
 import { GanttView } from './views/GanttView.js'
@@ -43,13 +44,14 @@ import { HeatmapView } from './views/HeatmapView.js'
 import { MatrixView } from './views/MatrixView.js'
 import { PlanView } from './views/PlanView.js'
 import { RebalanceView } from './views/RebalanceView.js'
+import { ReportView } from './views/ReportView.js'
 import { SkillsView } from './views/SkillsView.js'
 import { ResourcesView } from './views/ResourcesView.js'
 
 type Tab =
   | 'matriz' | 'saturacion' | 'plan' | 'cronograma'
-  | 'equipo' | 'competencias' | 'calendario' | 'documentos' | 'reparto' | 'hallazgos' | 'comparar'
-  | 'registro' | 'admin'
+  | 'equipo' | 'competencias' | 'calendario' | 'documentos' | 'reparto' | 'informes' | 'hallazgos'
+  | 'comparar' | 'registro' | 'admin'
 
 /**
  * Cada pestaña declara con qué permiso se entra. Si alguien no tiene ninguno de
@@ -60,12 +62,12 @@ const TABS: readonly {
   id: Tab
   /** La clave del diccionario. El texto vive en `i18n/`, no aquí. */
   label: 'tab.carga' | 'tab.saturacion' | 'tab.plan' | 'tab.cronograma' | 'tab.equipo'
-  | 'tab.calendario' | 'tab.competencias' | 'tab.documentos' | 'tab.reparto' | 'tab.hallazgos'
-  | 'tab.comparar' | 'tab.registro' | 'tab.admin'
+  | 'tab.calendario' | 'tab.competencias' | 'tab.documentos' | 'tab.reparto' | 'tab.informes'
+  | 'tab.hallazgos' | 'tab.comparar' | 'tab.registro' | 'tab.admin'
   hint: 'tab.carga.pista' | 'tab.saturacion.pista' | 'tab.plan.pista' | 'tab.cronograma.pista'
   | 'tab.equipo.pista' | 'tab.calendario.pista' | 'tab.competencias.pista' | 'tab.documentos.pista'
-  | 'tab.reparto.pista' | 'tab.hallazgos.pista' | 'tab.comparar.pista' | 'tab.registro.pista'
-  | 'tab.admin.pista'
+  | 'tab.reparto.pista' | 'tab.informes.pista' | 'tab.hallazgos.pista' | 'tab.comparar.pista'
+  | 'tab.registro.pista' | 'tab.admin.pista'
   permission: readonly string[]
   /** El permiso hace falta en toda la herramienta, no sobre un proyecto. */
   everywhere?: true
@@ -81,6 +83,7 @@ const TABS: readonly {
   { id: 'competencias', label: 'tab.competencias', hint: 'tab.competencias.pista', permission: ['competencias.ver'] },
   { id: 'documentos', label: 'tab.documentos', hint: 'tab.documentos.pista', permission: ['documentos.ver'] },
   { id: 'reparto', label: 'tab.reparto', hint: 'tab.reparto.pista', permission: ['reparto.ver'] },
+  { id: 'informes', label: 'tab.informes', hint: 'tab.informes.pista', permission: ['informes.ver'] },
   { id: 'hallazgos', label: 'tab.hallazgos', hint: 'tab.hallazgos.pista', permission: ['carga.ver', 'plan.ver'] },
   { id: 'comparar', label: 'tab.comparar', hint: 'tab.comparar.pista', permission: ['ejecuciones.ver'] },
   { id: 'registro', label: 'tab.registro', hint: 'tab.registro.pista', permission: ['historial.ver'] },
@@ -293,6 +296,7 @@ function Planner({
         state === null ||
         tab === 'admin' ||
         tab === 'registro' ||
+        tab === 'informes' ||
         tab === 'documentos' ? null : (
           <span className="run-chip" title={t('ejecucion.hash', state.run.inputHash)}>
             {t(
@@ -423,6 +427,7 @@ function Planner({
         visibleTabs.length === 0 ||
         tab === 'admin' ||
         tab === 'registro' ||
+        tab === 'informes' ||
         tab === 'documentos' ? null : (
           <div className="stat-row">
             <div className="stat">
@@ -498,7 +503,24 @@ function Planner({
             ) : tab === 'documentos' ? (
               // El catálogo es dato declarado del equipo: existe aunque no
               // haya ni un proyecto, y de hecho conviene llenarlo antes.
-              <DocumentsView canEdit={puede('documentos.gestionar')} />
+              <>
+                <DocumentsView canEdit={puede('documentos.gestionar')} />
+                {(state?.projects ?? []).length === 0 ? null : (
+                  <ApplyMatrixPanel
+                    projects={state?.projects ?? []}
+                    canApply={puede('dependencias.editar')}
+                    onApplied={() => {
+                      load().catch((cause: unknown) => {
+                        setError(cause instanceof Error ? cause.message : 'No se pudo recargar')
+                      })
+                    }}
+                  />
+                )}
+              </>
+            ) : tab === 'informes' ? (
+              // El informe se pide a su propia ruta y trae su ejecución dentro,
+              // así que no depende de la que tenga cargada el resto de la app.
+              <ReportView projects={state?.projects ?? []} />
             ) : tab === 'registro' ? (
               // El registro es dato propio: existe aunque no se haya calculado
               // nada, y de hecho lo primero que se registra es el alta de la

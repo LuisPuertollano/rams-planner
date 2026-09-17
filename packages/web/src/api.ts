@@ -917,3 +917,194 @@ export async function setNodeDocument(
 ): Promise<void> {
   return send(`/api/nodes/${nodeId}/documents/${documentId}`, 'PUT', { delivers })
 }
+
+// ---------------------------------------------------------------------------
+// Aplicar la matriz a un proyecto
+// ---------------------------------------------------------------------------
+
+/** Por qué una dependencia que la matriz exige no se va a crear. */
+export type SkipReason = 'ya-existe' | 'misma-tarea' | 'crearia-un-ciclo'
+
+export interface ProposedDependency {
+  readonly predecessorNodeId: string
+  readonly successorNodeId: string
+  readonly documentPredecessorId: string
+  readonly documentSuccessorId: string
+}
+
+export interface SkippedDependency extends ProposedDependency {
+  readonly reason: SkipReason
+  readonly path?: readonly string[]
+}
+
+export interface MatrixPlan {
+  readonly create: readonly ProposedDependency[]
+  readonly skipped: readonly SkippedDependency[]
+  /** Documentos que la matriz nombra y que ninguna tarea del proyecto entrega. */
+  readonly missingDocuments: readonly string[]
+  readonly tasks: readonly { readonly nodeId: string; readonly name: string; readonly path: string }[]
+  readonly documents: readonly DocumentType[]
+}
+
+export interface MatrixApplied {
+  readonly result: {
+    readonly created: readonly ProposedDependency[]
+    readonly skipped: readonly SkippedDependency[]
+    readonly missingDocuments: readonly string[]
+  }
+  readonly run: CalculationSummary
+}
+
+export async function fetchMatrixPlan(projectId: string): Promise<MatrixPlan> {
+  return get<MatrixPlan>(`/api/projects/${projectId}/documents/plan`)
+}
+
+export async function applyMatrix(
+  projectId: string,
+  exclude: readonly { readonly predecessorNodeId: string; readonly successorNodeId: string }[],
+): Promise<MatrixApplied> {
+  const response = await fetch(`/api/projects/${projectId}/documents/apply`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ exclude }),
+  })
+  const payload: unknown = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(
+      typeof payload === 'object' && payload !== null && 'error' in payload
+        ? String(payload.error)
+        : 'No se pudo aplicar la matriz',
+    )
+  }
+  return payload as MatrixApplied
+}
+
+// ---------------------------------------------------------------------------
+// Informes
+// ---------------------------------------------------------------------------
+
+export type ReportSeverity = 'neutral' | 'warning' | 'error'
+
+export type HighlightKind =
+  | 'alcance' | 'trabajo' | 'avance' | 'coste'
+  | 'sobrecarga' | 'riesgo' | 'hallazgos' | 'sin-fechas'
+
+/** Un punto del resumen: sin texto, para que lo diga la interfaz y en su idioma. */
+export interface Highlight {
+  readonly kind: HighlightKind
+  readonly severity: ReportSeverity
+  readonly numbers: Readonly<Record<string, number>>
+  readonly labels: readonly string[]
+}
+
+export interface ReportMonth {
+  readonly period: string
+  readonly plannedMinutes: number
+  readonly capacityMinutes: number
+  readonly utilizationBp: number | null
+  readonly costCents: number
+}
+
+export interface ReportProjectLine {
+  readonly projectId: string
+  readonly code: string
+  readonly name: string
+  readonly plannedMinutes: number
+  readonly costCents: number
+  readonly tasksInPeriod: number
+  readonly tasksTotal: number
+  readonly percentCompleteBp: number
+  readonly start: string | null
+  readonly finish: string | null
+  readonly criticalTasks: number
+  readonly risks: number
+  readonly blockingFindings: number
+}
+
+/** El peor mes de alguien y cuánto. Van juntos o no van. */
+export interface WorstMonth {
+  readonly period: string
+  readonly utilizationBp: number
+}
+
+export interface ReportPersonLine {
+  readonly resourceId: string
+  readonly code: string
+  readonly displayName: string
+  readonly plannedMinutes: number
+  readonly capacityMinutes: number
+  readonly utilizationBp: number | null
+  readonly worst: WorstMonth | null
+  readonly projects: readonly string[]
+}
+
+export type RiskKind = 'fecha-limite' | 'holgura-negativa' | 'retraso'
+
+export interface ReportRisk {
+  readonly nodeId: string
+  readonly projectId: string
+  readonly projectCode: string
+  readonly path: string
+  readonly name: string
+  readonly kind: RiskKind
+  readonly scheduledFinish: string | null
+  readonly deadline: string | null
+  readonly percentCompleteBp: number
+  readonly amount: number
+}
+
+export interface ReportFinding {
+  readonly severity: string
+  readonly code: string
+  readonly projectId: string | null
+  readonly entityName: string | null
+  readonly message: string
+  readonly occursOn: string | null
+}
+
+export interface ReportTotals {
+  readonly projectCount: number
+  readonly tasksInPeriod: number
+  readonly tasksTotal: number
+  readonly tasksWithoutDates: number
+  readonly plannedMinutes: number
+  readonly capacityMinutes: number
+  readonly utilizationBp: number | null
+  readonly costCents: number
+  readonly completedTasks: number
+  readonly inProgressTasks: number
+  readonly notStartedTasks: number
+  readonly percentCompleteBp: number
+  readonly milestonesInPeriod: number
+  readonly criticalTasks: number
+  readonly overloadedPeople: number
+  readonly blockingFindings: number
+  readonly errorFindings: number
+  readonly warningFindings: number
+}
+
+export interface Report {
+  readonly runId: string
+  readonly period: { readonly from: string; readonly to: string }
+  readonly asOf: string
+  readonly costsHidden: boolean
+  readonly peopleHidden: boolean
+  readonly tldr: readonly Highlight[]
+  readonly totals: ReportTotals
+  readonly months: readonly ReportMonth[]
+  readonly projects: readonly ReportProjectLine[]
+  readonly people: readonly ReportPersonLine[]
+  readonly risks: readonly ReportRisk[]
+  readonly findings: readonly ReportFinding[]
+}
+
+export async function fetchReport(
+  projectIds: readonly string[],
+  from: string,
+  to: string,
+): Promise<Report> {
+  const consulta = new URLSearchParams({ from, to })
+  // Sin proyectos, el servidor manda todos los que se puedan ver.
+  if (projectIds.length > 0) consulta.set('projects', projectIds.join(','))
+  return get<Report>(`/api/report?${consulta.toString()}`)
+}

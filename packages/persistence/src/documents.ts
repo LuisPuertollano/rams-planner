@@ -201,3 +201,26 @@ export async function setNodeDocument(
     [nodeId, documentTypeId],
   )
 }
+
+/**
+ * Los nodos de un proyecto, con lo justo para enseñar una propuesta: nombre y
+ * ruta. No lleva fechas porque aplicar la matriz no necesita ninguna ejecución
+ * de cálculo previa; lo que se aplica es la estructura, no el calendario.
+ */
+export interface ProjectNode {
+  readonly nodeId: string
+  readonly name: string
+  readonly path: string
+  readonly kind: string
+}
+
+export async function readProjectNodes(db: Queryable, projectId: string): Promise<readonly ProjectNode[]> {
+  const { rows } = await db.query<{ id: string; name: string; path: string; node_kind: string }>(
+    `SELECT id, name, path, node_kind
+     FROM wbs_node
+     WHERE project_id = $1 AND deleted_at IS NULL
+     ORDER BY path, id`,
+    [projectId],
+  )
+  return rows.map((row) => ({ nodeId: row.id, name: row.name, path: row.path, kind: row.node_kind }))
+}

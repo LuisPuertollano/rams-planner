@@ -211,6 +211,9 @@ button { font: inherit; color: inherit; }
 .grid th:first-child, .grid td:first-child { text-align: left; position: sticky; left: 0; background: var(--bg-raised); z-index: 1; }
 .grid th:first-child { z-index: 3; }
 .grid tbody tr:hover td { background: var(--accent-soft); }
+/* Una tabla de frases, no de números: alinear a la derecha una columna de
+   texto la vuelve ilegible, y no cabe en una línea. */
+.grid--texto th, .grid--texto td { text-align: left; white-space: normal; }
 .grid tbody tr:hover td:first-child { background: var(--accent-soft); }
 
 .row--resource td:first-child { font-weight: 600; }
@@ -423,6 +426,9 @@ a.button { text-decoration: none; display: inline-block; }
 .stat__hint { font-size: 12px; color: var(--text-faint); }
 
 .error-banner { background: var(--severity-error); color: #fff; padding: 10px 16px; border-radius: var(--radius-sm); }
+/* Un aviso no es un error: la propuesta sigue en pie, sólo está incompleta. */
+.warn-banner { background: var(--severity-warning); color: #111; padding: 10px 16px; border-radius: var(--radius-sm); margin: 8px 0; }
+.ok-banner { background: var(--accent); color: #fff; padding: 10px 16px; border-radius: var(--radius-sm); margin: 8px 0; }
 
 .notice {
   background: var(--accent-soft);
@@ -521,3 +527,22 @@ a.button { text-decoration: none; display: inline-block; }
 
 /* El selector de idioma: al lado del tema, y del ancho de lo que dice. */
 .input--idioma { width: auto; padding: 5px 8px; font-size: 12px; }
+
+/* --- El informe ----------------------------------------------------------- */
+/* Un informe se lee de arriba abajo, no se explora: columna estrecha para el
+   resumen y tablas a lo ancho para el detalle del que sale. */
+.informe section { padding: 0 16px 20px; }
+.informe h3 { margin: 18px 0 8px; font-size: 14px; }
+.informe__resumen ul { margin: 0; padding-left: 18px; max-width: 96ch; }
+.informe__punto { margin: 6px 0; line-height: 1.5; }
+.informe__punto--warning { color: var(--severity-warning); }
+.informe__punto--error { color: var(--severity-error); }
+.informe__pie { padding: 0 16px 20px; font-size: 12px; }
+.input--multiple { min-width: 280px; }
+
+@media print {
+  /* En papel sobran la barra, las pestañas y los botones: lo que se imprime
+     es el informe, no la herramienta. */
+  .toolbar, nav, .tab, .button, .input { display: none !important; }
+  .informe section { page-break-inside: avoid; }
+}

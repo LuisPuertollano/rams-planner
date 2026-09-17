@@ -14,6 +14,7 @@ export default defineConfig({
       '@planner/explain': packageSource('explain'),
       '@planner/scheduler': packageSource('scheduler'),
       '@planner/workload': packageSource('workload'),
+      '@planner/report': packageSource('report'),
     },
   },
   test: {
@@ -43,6 +44,7 @@ export default defineConfig({
         'packages/calendar/src/**': { branches: 95, functions: 95, lines: 95, statements: 95 },
         'packages/scheduler/src/**': { branches: 80, functions: 90, lines: 90, statements: 90 },
         'packages/workload/src/**': { branches: 75, functions: 95, lines: 90, statements: 90 },
+        'packages/report/src/**': { branches: 95, functions: 95, lines: 95, statements: 95 },
       },
     },
   },

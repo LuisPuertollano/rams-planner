@@ -23,6 +23,9 @@
       "path": "../workload/tsconfig.build.json"
     },
     {
+      "path": "../report/tsconfig.build.json"
+    },
+    {
       "path": "../persistence/tsconfig.build.json"
     }
   ]

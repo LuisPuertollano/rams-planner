@@ -23,6 +23,7 @@ export const SCREENS = [
   'Competencias',
   'Documentos',
   'Reparto',
+  'Informes',
   'Comparar',
   'Datos',
   'Administración',
@@ -138,6 +139,9 @@ export const PERMISSIONS: readonly PermissionDefinition[] = [
     screen: 'Carga',
     label: 'Ver la carga y la saturación',
     detail: 'Las horas comprometidas por persona, mes y proyecto, y quién se pasa de capacidad.',
+    // El informe lleva el reparto por persona dentro. Sin este permiso llega
+    // sin esa parte, y lo dice en vez de enseñar ceros.
+    enforcedIn: ['GET /api/report'],
   },
   {
     code: 'costes.ver',
@@ -149,7 +153,12 @@ export const PERMISSIONS: readonly PermissionDefinition[] = [
       'devuelve los datos sin importes: no se ocultan en pantalla, no se envían.',
     sensitive: true,
     // Filtra el contenido de varias respuestas, no el acceso a una ruta.
-    enforcedIn: ['GET /api/runs/:runId/load', 'GET /api/runs/:runId/export.csv', 'GET /api/resources'],
+    enforcedIn: [
+      'GET /api/runs/:runId/load',
+      'GET /api/runs/:runId/export.csv',
+      'GET /api/resources',
+      'GET /api/report',
+    ],
   },
 
   // --- Plan -----------------------------------------------------------------
@@ -291,6 +300,18 @@ export const PERMISSIONS: readonly PermissionDefinition[] = [
     screen: 'Reparto',
     label: 'Aplicar una propuesta de reparto',
     detail: 'Mover de verdad una asignación de una persona a otra.',
+  },
+
+  // --- Informes -------------------------------------------------------------
+  {
+    code: 'informes.ver',
+    scope: 'project',
+    screen: 'Informes',
+    label: 'Ver informes',
+    detail:
+      'El resumen y el detalle de uno o varios proyectos en el periodo que elijas. Sólo sale lo que ' +
+      'ya puedes ver: sin «ver la carga» el informe llega sin el reparto por persona, y sin «ver ' +
+      'costes» llega sin importes.',
   },
 
   // --- Comparar y ejecuciones ----------------------------------------------
