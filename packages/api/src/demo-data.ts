@@ -184,7 +184,86 @@ export async function seedDemoData(db: Queryable): Promise<boolean> {
   await seedResources(db)
   const ramsFieldId = await seedFieldDefinitions(db)
   await seedProjects(db, ramsFieldId)
+  await seedDocuments(db)
   return true
+}
+
+/**
+ * Un juego de entregables con su orden, para que la matriz de documentos se
+ * pueda ver funcionando.
+ *
+ * Va en los datos de demostración y **no** en una migración a propósito: los
+ * entregables de verdad son los del equipo que instala esto, no los que se le
+ * ocurran a quien escribe el código. Una instalación real arranca con la matriz
+ * vacía y su pantalla explicando cómo llenarla.
+ */
+const DEMO_DOCUMENTS: readonly { readonly code: string; readonly name: string; readonly detail: string }[] = [
+  { code: 'PGS', name: 'Plan de gestión de la seguridad', detail: 'Cómo se va a demostrar la seguridad del sistema.' },
+  { code: 'PHA', name: 'Análisis preliminar de riesgos', detail: 'Los peligros que se ven antes de tener diseño.' },
+  { code: 'HL', name: 'Hazard Log', detail: 'El registro vivo de peligros y su tratamiento.' },
+  { code: 'SRS', name: 'Requisitos de seguridad', detail: 'Lo que el sistema tiene que cumplir, y por qué.' },
+  { code: 'SIL', name: 'Asignación de SIL', detail: 'Qué nivel de integridad se exige a cada función.' },
+  { code: 'FMECA', name: 'FMECA', detail: 'Modos de fallo, efectos y criticidad.' },
+  { code: 'RAM', name: 'Informe RAM', detail: 'Fiabilidad, disponibilidad y mantenibilidad demostradas.' },
+  { code: 'VV', name: 'Matriz de verificación', detail: 'Cada requisito contra la evidencia que lo cierra.' },
+  { code: 'SC', name: 'Safety Case', detail: 'El argumento completo, con su evidencia.' },
+]
+
+/** La fila es condición necesaria de la columna. */
+const DEMO_PRECEDENCES: readonly (readonly [string, string])[] = [
+  ['PGS', 'PHA'],
+  ['PHA', 'HL'],
+  ['PHA', 'SRS'],
+  ['HL', 'FMECA'],
+  ['SRS', 'SIL'],
+  ['SIL', 'FMECA'],
+  ['FMECA', 'RAM'],
+  ['SRS', 'VV'],
+  ['FMECA', 'SC'],
+  ['RAM', 'SC'],
+  ['VV', 'SC'],
+  ['HL', 'SC'],
+]
+
+async function seedDocuments(db: Queryable): Promise<void> {
+  for (const [index, doc] of DEMO_DOCUMENTS.entries()) {
+    await db.query(
+      `INSERT INTO document_type (code, name, description, sort_key)
+       VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
+      [doc.code, doc.name, doc.detail, (index + 1) * 10],
+    )
+  }
+  for (const [antes, despues] of DEMO_PRECEDENCES) {
+    await db.query(
+      `INSERT INTO document_precedence (predecessor_id, successor_id)
+       SELECT a.id, b.id FROM document_type a, document_type b
+       WHERE a.code = $1 AND b.code = $2
+       ON CONFLICT DO NOTHING`,
+      [antes, despues],
+    )
+  }
+
+  // Y unas cuantas tareas entregando documentos, para que la ficha de una tarea
+  // no salga vacía la primera vez que se abre.
+  await db.query(
+    `INSERT INTO node_document (node_id, document_type_id)
+     SELECT v.entity_id, d.id
+     FROM field_value v
+     JOIN field_definition f ON f.id = v.field_id
+       AND f.entity_type = 'wbs_node' AND f.field_key = 'rams_tag'
+     JOIN document_type d ON d.code = CASE v.value_text
+       WHEN 'Plan' THEN 'PGS'
+       WHEN 'Hazard Log' THEN 'HL'
+       WHEN 'Requisitos' THEN 'SRS'
+       WHEN 'SIL' THEN 'SIL'
+       WHEN 'FMECA' THEN 'FMECA'
+       WHEN 'RAM' THEN 'RAM'
+       WHEN 'V&V' THEN 'VV'
+       WHEN 'Safety Case' THEN 'SC'
+       ELSE NULL END
+     JOIN wbs_node n ON n.id = v.entity_id AND n.deleted_at IS NULL
+     ON CONFLICT DO NOTHING`,
+  )
 }
 
 async function seedResources(db: Queryable): Promise<void> {

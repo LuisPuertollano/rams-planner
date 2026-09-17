@@ -286,6 +286,33 @@ porque formar a alguien es una decisión legítima y no un error.
 La herramienta **no impide** asignar a quien no sabe. Quién es capaz de qué lo
 decides tú; lo único que hace la herramienta es que no se te pase.
 
+### Documentos
+
+La **matriz de precedencias entre entregables**: una cruz dice que el documento
+de la **fila** es condición necesaria del de la **columna**. El Hazard Log antes
+que el FMECA, el FMECA antes que el Safety Case.
+
+Se declara **una vez** y vale para todos los proyectos. Ese orden no cambia de
+proyecto a proyecto —lo fija la norma y la forma de trabajar del equipo—, y
+hasta ahora había que volver a dibujarlo a mano en cada plan nuevo, saliendo un
+poco distinto cada vez.
+
+Dos detalles de la tabla:
+
+- **La diagonal está tapada.** Un documento no se espera a sí mismo, así que ahí
+  no hay casilla, no es que esté vacía.
+- **Una casilla en rojo es un ciclo**: A espera a B y B espera a A. No se impide
+  marcarlo —a veces se descubre justo al marcar el segundo— pero se señala,
+  porque ningún plan puede cumplir las dos cosas.
+
+Lo que ata esto a un plan concreto es la ficha de cada tarea: la tarjeta
+**Documentos que entrega**. Con eso declarado, la matriz sabe de qué tareas
+habla.
+
+El catálogo arranca **vacío** a propósito: los entregables son los vuestros, no
+los que se le ocurran a la herramienta. Los datos de demostración sí traen un
+juego de nueve para poder verla funcionando.
+
 ### Reparto
 
 Qué trabajo se podría mover, a quién, y qué arreglaría. **Son propuestas, no

@@ -16,19 +16,13 @@ import {
   SCREENS,
   SESSION_ONLY_ROUTES,
 } from './permissions.js'
+import { registerAllRoutes } from './build-server.js'
 import {
   auditRoutes,
   collectRoutePermissions,
   misplacedEnforcement,
   unusedPermissions,
 } from './route-permissions.js'
-import { registerAdminRoutes } from './admin-routes.js'
-import { registerAuthRoutes } from './auth-routes.js'
-import { registerPlanRoutes } from './plan-routes.js'
-import { registerRebalanceRoutes } from './rebalance-routes.js'
-import { registerResourceRoutes } from './resources-routes.js'
-import { registerRoutes } from './routes.js'
-import { registerSkillRoutes } from './skills-routes.js'
 import type { Pool } from '@planner/persistence'
 
 /**
@@ -46,13 +40,10 @@ async function rutasRegistradas(): ReturnType<typeof collectRoutePermissions> ex
   : never {
   const app = Fastify({ logger: false })
   const routes = collectRoutePermissions(app)
-  registerAuthRoutes(app, poolFalso)
-  registerAdminRoutes(app, poolFalso)
-  registerRoutes(app, poolFalso)
-  registerResourceRoutes(app, poolFalso)
-  registerPlanRoutes(app, poolFalso)
-  registerSkillRoutes(app, poolFalso)
-  registerRebalanceRoutes(app, poolFalso)
+  // Las mismas rutas que registra el servidor, con la misma función: una lista
+  // paralela aquí se olvidaría de la ruta nueva, que es justo lo que esta
+  // prueba existe para cazar.
+  registerAllRoutes(app, poolFalso)
   await app.ready()
   await app.close()
   return routes

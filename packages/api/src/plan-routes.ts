@@ -17,6 +17,7 @@ import {
   deleteDependency,
   readAssignments,
   readDependencies,
+  readNodeDocumentsWithProject,
   renameNode,
   softDeleteAssignment,
   softDeleteNode,
@@ -89,6 +90,14 @@ export function registerPlanRoutes(app: FastifyInstance, pool: Pool): void {
           await readDependencies(db),
           (row) => row.successorProjectId,
         ),
+        // Qué entrega cada tarea. Viaja aquí y no en una ruta propia porque se
+        // pinta en la misma pantalla y con los mismos permisos que el resto de
+        // la estructura.
+        documents: onlyVisible(
+          visibles,
+          await readNodeDocumentsWithProject(db),
+          (row) => row.projectId,
+        ).map((row) => ({ nodeId: row.nodeId, documentTypeId: row.documentTypeId })),
       }
     }),
   )

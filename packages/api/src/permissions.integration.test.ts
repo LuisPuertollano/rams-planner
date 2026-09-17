@@ -615,3 +615,111 @@ describeSiHayBase('los importes también se recortan por proyecto', () => {
     for (const recurso of cuerpo.resources) expect(recurso.costRates).toEqual([])
   })
 })
+
+describeSiHayBase('la matriz de documentos', () => {
+  it('se declara una vez y se lee igual: la fila es condición de la columna', async () => {
+    const editor = await cuentaCon(['documentos.ver', 'documentos.gestionar'])
+
+    const antes = await pedir('POST', '/api/documents', editor, {
+      code: unico('ANTES'),
+      name: 'El que va primero',
+      description: 'Sin esto no se puede cerrar el otro',
+    })
+    expect(antes.status).toBe(200)
+    const despues = await pedir('POST', '/api/documents', editor, {
+      code: unico('DESPUES'),
+      name: 'El que espera',
+    })
+    expect(despues.status).toBe(200)
+
+    const predecessorId = (antes.body as { result: string }).result
+    const successorId = (despues.body as { result: string }).result
+
+    const marcada = await pedir('PUT', '/api/documents/precedence', editor, {
+      predecessorId,
+      successorId,
+      required: true,
+    })
+    expect(marcada.status).toBe(200)
+
+    const catalogo = await pedir('GET', '/api/documents', editor)
+    const cruces = (catalogo.body as {
+      precedences: readonly { predecessorId: string; successorId: string }[]
+    }).precedences
+    expect(
+      cruces.some((c) => c.predecessorId === predecessorId && c.successorId === successorId),
+    ).toBe(true)
+    // Y no al revés: la matriz no es simétrica, que es justamente lo que dice.
+    expect(
+      cruces.some((c) => c.predecessorId === successorId && c.successorId === predecessorId),
+    ).toBe(false)
+
+    // Desmarcar manda el estado que debe quedar, no «alterna».
+    const quitada = await pedir('PUT', '/api/documents/precedence', editor, {
+      predecessorId,
+      successorId,
+      required: false,
+    })
+    expect(quitada.status).toBe(200)
+    const despuesDeQuitar = await pedir('GET', '/api/documents', editor)
+    expect(
+      (despuesDeQuitar.body as { precedences: readonly { predecessorId: string }[] }).precedences.some(
+        (c) => c.predecessorId === predecessorId,
+      ),
+    ).toBe(false)
+  })
+
+  it('un documento no se espera a sí mismo', async () => {
+    const editor = await cuentaCon(['documentos.ver', 'documentos.gestionar'])
+    const creado = await pedir('POST', '/api/documents', editor, {
+      code: unico('SOLO'),
+      name: 'El solitario',
+    })
+    const id = (creado.body as { result: string }).result
+    const respuesta = await pedir('PUT', '/api/documents/precedence', editor, {
+      predecessorId: id,
+      successorId: id,
+      required: true,
+    })
+    expect(respuesta.status).toBe(422)
+  })
+
+  it('mirar la matriz y cambiarla son permisos distintos', async () => {
+    const mirón = await cuentaCon(['documentos.ver'])
+    expect((await pedir('GET', '/api/documents', mirón)).status).toBe(200)
+    const intento = await pedir('POST', '/api/documents', mirón, {
+      code: unico('NOPE'),
+      name: 'No debería crearse',
+    })
+    expect(intento.status).toBe(403)
+  })
+
+  it('decir qué entrega una tarea se acota al proyecto de esa tarea', async () => {
+    // `soloEnMio` tiene permisos sobre su proyecto; el documento es del equipo,
+    // pero la tarea a la que se le cuelga es de un proyecto concreto.
+    const editor = await cuentaCon(['documentos.ver', 'documentos.gestionar'])
+    const creado = await pedir('POST', '/api/documents', editor, {
+      code: unico('ENTREGA'),
+      name: 'Un entregable',
+    })
+    const documentId = (creado.body as { result: string }).result
+
+    const nodoAjeno = await pedir('POST', '/api/nodes', basica, {
+      projectId: proyectoAjeno,
+      kind: 'task',
+      name: 'Tarea del vecino',
+      durationMinutes: 480,
+    })
+    expect(nodoAjeno.status).toBe(200)
+    const nodeId = (nodoAjeno.body as { result: string }).result
+
+    const conPermisoDeOtroProyecto = await cuentaCon(['documentos.asignar'], proyectoMio)
+    const intento = await pedir(
+      'PUT',
+      `/api/nodes/${nodeId}/documents/${documentId}`,
+      conPermisoDeOtroProyecto,
+      { delivers: true },
+    )
+    expect(intento.status).toBe(403)
+  })
+})
