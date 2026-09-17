@@ -27,6 +27,7 @@ import {
 } from './i18n/index.js'
 import { activePeriods } from './periods.js'
 import { EditPanel } from './components/EditPanel.js'
+import { ImportActualsButton } from './components/ImportActualsButton.js'
 import { ImportButton } from './components/ImportButton.js'
 import { PasswordPanel } from './components/PasswordPanel.js'
 import { ProjectPanel } from './components/ProjectPanel.js'
@@ -339,6 +340,9 @@ function Planner({
             }}
           />
         )}
+        {/* Sin `onImported`: cargar horas no recalcula nada, así que no hay
+            nada que recargar. Es la diferencia con el plan, y es a propósito. */}
+        {!puede('reales.registrar') ? null : <ImportActualsButton />}
         {state?.run == null || !puede('exportar') ? null : (
           <a
             className="button"

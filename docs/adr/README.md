@@ -30,6 +30,7 @@ parece una mala idea, aquí está el razonamiento que había detrás.
 | [0023](0023-capacidad-neta-y-compromiso.md) | Capacidad neta frente a bruta, compromiso del proyecto y línea base de referencia | P1, P2, P4, P5 |
 | [0024](0024-estado-del-proyecto.md) | El estado del proyecto decide qué entra en el cálculo; el enlace que cruza a lo archivado se avisa | P1, P2, P3, P4 |
 | [0025](0025-ci-arranca-el-contenedor.md) | CI construye la imagen y la arranca; una regla vigila las listas del Dockerfile | — |
+| [0026](0026-las-horas-reales.md) | Las horas reales van al informe, no al motor; el trabajo fuera de plan se cuenta y se dice | P1, P2, P3, P5 |
 
 ## Decisiones tomadas por defecto
 

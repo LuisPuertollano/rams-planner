@@ -1013,6 +1013,7 @@ export type ReportSeverity = 'neutral' | 'warning' | 'error'
 
 export type HighlightKind =
   | 'alcance' | 'trabajo' | 'avance' | 'coste'
+  | 'realidad' | 'trabajo-fuera-de-plan'
   | 'compromiso' | 'capacidad-reservada'
   | 'sobrecarga' | 'riesgo' | 'hallazgos' | 'sin-fechas'
 
@@ -1027,6 +1028,8 @@ export interface Highlight {
 export interface ReportMonth {
   readonly period: string
   readonly plannedMinutes: number
+  /** Lo fichado ese mes. Cero también cuando no se puede ver: mira `actualsHidden`. */
+  readonly actualMinutes: number
   readonly capacityMinutes: number
   readonly utilizationBp: number | null
   readonly costCents: number
@@ -1037,6 +1040,8 @@ export interface ReportProjectLine {
   readonly code: string
   readonly name: string
   readonly plannedMinutes: number
+  /** Lo fichado en este proyecto dentro del periodo. */
+  readonly actualMinutes: number
   readonly costCents: number
   readonly tasksInPeriod: number
   readonly tasksTotal: number
@@ -1059,6 +1064,8 @@ export interface ReportPersonLine {
   readonly code: string
   readonly displayName: string
   readonly plannedMinutes: number
+  /** Lo que esta persona fichó dentro del periodo. */
+  readonly actualMinutes: number
   readonly capacityMinutes: number
   readonly utilizationBp: number | null
   readonly worst: WorstMonth | null
@@ -1098,6 +1105,12 @@ export interface ReportTotals {
   readonly plannedMinutes: number
   /** Los mismos minutos, repartidos por lo comprometido que está el proyecto. */
   readonly plannedByCommitment: CommitmentSplit
+  /** Lo fichado dentro del periodo y del alcance. */
+  readonly actualMinutes: number
+  /** El último mes con horas cargadas: es lo que hace comparable la comparación. */
+  readonly actualsThrough: string | null
+  /** Horas fichadas en un proyecto y un mes donde nadie planificó nada. */
+  readonly unplannedActualMinutes: number
   readonly capacityMinutes: number
   /** La capacidad antes de descontar lo indirecto y la reserva. */
   readonly grossCapacityMinutes: number
@@ -1121,6 +1134,8 @@ export interface Report {
   readonly asOf: string
   readonly costsHidden: boolean
   readonly peopleHidden: boolean
+  /** Las horas reales no han llegado: falta el permiso. No es que sean cero. */
+  readonly actualsHidden: boolean
   readonly tldr: readonly Highlight[]
   readonly totals: ReportTotals
   readonly months: readonly ReportMonth[]
