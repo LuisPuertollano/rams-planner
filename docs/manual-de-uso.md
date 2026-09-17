@@ -319,6 +319,30 @@ El catálogo arranca **vacío** a propósito: los entregables son los vuestros, 
 los que se le ocurran a la herramienta. Los datos de demostración sí traen un
 juego de nueve para poder verla funcionando.
 
+#### Aplicar la matriz a un proyecto
+
+Debajo de la matriz, el panel **Aplicar la matriz a un proyecto**. Eliges el
+proyecto, pulsas **Previsualizar** y sale lo que haría:
+
+- **Las dependencias que crearía**, cada una con la casilla de la matriz que la
+  justifica: «FMECA ▸ Safety Case». Vienen marcadas; desmarca las que no
+  cuadren.
+- **Las que la matriz exige y no va a crear**, con el motivo: ya están en el
+  plan, la misma tarea entrega los dos documentos, o crearla cerraría un ciclo
+  —y en ese caso te dice por qué camino.
+- **Los huecos**: documentos que la matriz nombra y que **ninguna tarea del
+  proyecto entrega**. No es un error, pero mientras eso siga así la propuesta
+  está incompleta. Suele significar que falta una tarea, o que falta marcar qué
+  entrega una que ya existe.
+
+Hasta que no pulsas **Crear N dependencia(s)** no se escribe nada. Al aceptar,
+se crean como dependencias fin-comienzo sin desfase —la matriz dice el orden,
+no cuánto se espera— y el plan se recalcula.
+
+Se puede aplicar las veces que haga falta: lo que ya está no se duplica, aparece
+como «ya está en el plan». Y una dependencia creada así es una dependencia
+normal: se quita desde **Plan** como cualquier otra.
+
 ### Reparto
 
 Qué trabajo se podría mover, a quién, y qué arreglaría. **Son propuestas, no

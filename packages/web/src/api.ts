@@ -917,3 +917,64 @@ export async function setNodeDocument(
 ): Promise<void> {
   return send(`/api/nodes/${nodeId}/documents/${documentId}`, 'PUT', { delivers })
 }
+
+// ---------------------------------------------------------------------------
+// Aplicar la matriz a un proyecto
+// ---------------------------------------------------------------------------
+
+/** Por qué una dependencia que la matriz exige no se va a crear. */
+export type SkipReason = 'ya-existe' | 'misma-tarea' | 'crearia-un-ciclo'
+
+export interface ProposedDependency {
+  readonly predecessorNodeId: string
+  readonly successorNodeId: string
+  readonly documentPredecessorId: string
+  readonly documentSuccessorId: string
+}
+
+export interface SkippedDependency extends ProposedDependency {
+  readonly reason: SkipReason
+  readonly path?: readonly string[]
+}
+
+export interface MatrixPlan {
+  readonly create: readonly ProposedDependency[]
+  readonly skipped: readonly SkippedDependency[]
+  /** Documentos que la matriz nombra y que ninguna tarea del proyecto entrega. */
+  readonly missingDocuments: readonly string[]
+  readonly tasks: readonly { readonly nodeId: string; readonly name: string; readonly path: string }[]
+  readonly documents: readonly DocumentType[]
+}
+
+export interface MatrixApplied {
+  readonly result: {
+    readonly created: readonly ProposedDependency[]
+    readonly skipped: readonly SkippedDependency[]
+    readonly missingDocuments: readonly string[]
+  }
+  readonly run: CalculationSummary
+}
+
+export async function fetchMatrixPlan(projectId: string): Promise<MatrixPlan> {
+  return get<MatrixPlan>(`/api/projects/${projectId}/documents/plan`)
+}
+
+export async function applyMatrix(
+  projectId: string,
+  exclude: readonly { readonly predecessorNodeId: string; readonly successorNodeId: string }[],
+): Promise<MatrixApplied> {
+  const response = await fetch(`/api/projects/${projectId}/documents/apply`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ exclude }),
+  })
+  const payload: unknown = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(
+      typeof payload === 'object' && payload !== null && 'error' in payload
+        ? String(payload.error)
+        : 'No se pudo aplicar la matriz',
+    )
+  }
+  return payload as MatrixApplied
+}

@@ -75,13 +75,9 @@ Tres funciones, y el alcance de cada una sale de a quién pertenece la cosa:
 | `documentos.gestionar` | toda la herramienta | Cambia cómo se planifica **todo**, no un plan. |
 | `documentos.asignar` | por proyecto | Se hace tarea a tarea, y una tarea sí es de un proyecto. |
 
-## Lo que queda
+## Lo que quedaba
 
 **Aplicar la matriz a un proyecto**: recorrer sus tareas, mirar qué documentos
-entregan y crear las dependencias que la matriz exige. Con una previsualización
-antes de escribir nada — una función que crea dependencias sin enseñar cuáles no
-la va a usar nadie dos veces.
-
-Se deja fuera de este paso a propósito: la matriz sin aplicar ya sirve —es la
-convención del equipo, escrita y compartida— y una revisión de esto y de
-aquello a la vez es una revisión peor de las dos cosas.
+entregan y crear las dependencias que la matriz exige, con una previsualización
+antes de escribir nada. Hecho en
+[ADR-0018](0018-aplicar-la-matriz.md).

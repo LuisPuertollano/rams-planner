@@ -35,6 +35,7 @@ import { AdminView } from './views/AdminView.js'
 import { CalendarView } from './views/CalendarView.js'
 import { LoginView } from './views/LoginView.js'
 import { DiffView } from './views/DiffView.js'
+import { ApplyMatrixPanel } from './views/ApplyMatrixPanel.js'
 import { DocumentsView } from './views/DocumentsView.js'
 import { FindingsView } from './views/FindingsView.js'
 import { GanttView } from './views/GanttView.js'
@@ -498,7 +499,20 @@ function Planner({
             ) : tab === 'documentos' ? (
               // El catálogo es dato declarado del equipo: existe aunque no
               // haya ni un proyecto, y de hecho conviene llenarlo antes.
-              <DocumentsView canEdit={puede('documentos.gestionar')} />
+              <>
+                <DocumentsView canEdit={puede('documentos.gestionar')} />
+                {(state?.projects ?? []).length === 0 ? null : (
+                  <ApplyMatrixPanel
+                    projects={state?.projects ?? []}
+                    canApply={puede('dependencias.editar')}
+                    onApplied={() => {
+                      load().catch((cause: unknown) => {
+                        setError(cause instanceof Error ? cause.message : 'No se pudo recargar')
+                      })
+                    }}
+                  />
+                )}
+              </>
             ) : tab === 'registro' ? (
               // El registro es dato propio: existe aunque no se haya calculado
               // nada, y de hecho lo primero que se registra es el alta de la
