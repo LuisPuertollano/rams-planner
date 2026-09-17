@@ -6,7 +6,7 @@
  * puede volver a pasar por el motor años después y dar el mismo resultado.
  */
 
-import type { CalendarDate, Finding } from '@planner/domain'
+import type { CalendarDate, Finding, ProjectStatus } from '@planner/domain'
 import type { CalendarDefinition, Horizon, PlanInstant } from '@planner/calendar'
 
 export type TaskType = 'fixed_work' | 'fixed_duration' | 'fixed_units'
@@ -91,6 +91,11 @@ export interface ProjectDefinition {
   readonly id: string
   readonly code: string
   readonly name: string
+  /**
+   * Siempre `activo` aquí: la instantánea sólo carga lo que se calcula. Está
+   * para que quien lea un `PlanSnapshot` no tenga que preguntárselo.
+   */
+  readonly status: ProjectStatus
   readonly calendarId?: string
   readonly statusStart: CalendarDate
   /** Menor es más prioritario. Desempate determinista en la nivelación. */
@@ -143,6 +148,31 @@ export interface AssignmentDefinition {
   readonly manualContour?: readonly { readonly date: CalendarDate; readonly minutes: number }[]
 }
 
+/**
+ * Un enlace que existe declarado y que el plan **no puede aplicar**, porque el
+ * otro extremo no está dentro: su proyecto está en pausa, archivado, o es una
+ * plantilla.
+ *
+ * Viaja en la instantánea en vez de deducirse aquí porque el motor no ve lo que
+ * se quedó fuera: sabe que le falta un nodo, no por qué. El «por qué» lo sabe
+ * quien cargó los datos, y sin él la frase no se puede escribir.
+ *
+ * Existe para que archivar un proyecto no mueva en silencio las fechas del de
+ * al lado. Antes el enlace se saltaba sin más y la sucesora se adelantaba sola.
+ */
+export interface DependencyOutOfPlan {
+  readonly id: string
+  /** La tarea que **sí** está en el plan y que se queda sin el enlace. */
+  readonly nodeId: string
+  readonly nodeName: string
+  /** Cómo se llama lo que se quedó fuera, para poder decirlo. */
+  readonly otherName: string
+  readonly otherProjectCode: string
+  readonly reason: 'inactivo' | 'archivado' | 'plantilla'
+  /** `true` si lo que falta es la predecesora de `nodeId`. */
+  readonly missingIsPredecessor: boolean
+}
+
 export interface PlanSnapshot {
   readonly horizon: Horizon
   readonly defaultCalendarId: string
@@ -152,6 +182,11 @@ export interface PlanSnapshot {
   readonly nodes: readonly WbsNodeDefinition[]
   readonly tasks: readonly TaskDefinition[]
   readonly dependencies: readonly DependencyDefinition[]
+  /**
+   * Los enlaces que no se pueden aplicar porque el otro extremo no está en el
+   * plan. No se aplican, pero **se dicen**.
+   */
+  readonly dependenciesOutOfPlan: readonly DependencyOutOfPlan[]
   readonly assignments: readonly AssignmentDefinition[]
   readonly skillRequirements: readonly SkillRequirement[]
   /** Nombre legible de cada competencia, para que los hallazgos se entiendan. */

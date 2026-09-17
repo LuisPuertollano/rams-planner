@@ -11,7 +11,7 @@
  * barato que repartirlo.
  */
 
-import type { CommitmentLevel } from '@planner/domain'
+import type { CommitmentLevel, ProjectStatus } from '@planner/domain'
 import type { Queryable } from './db.js'
 
 const SEGMENT_WIDTH = 3
@@ -59,6 +59,7 @@ export interface ProjectChanges {
   readonly priority?: number | undefined
   readonly isTemplate?: boolean | undefined
   readonly commitment?: CommitmentLevel | undefined
+  readonly status?: ProjectStatus | undefined
   /**
    * La línea base de referencia. `null` la retira.
    *
@@ -87,6 +88,7 @@ export async function updateProject(db: Queryable, projectId: string, changes: P
   if (changes.priority !== undefined) set('priority', changes.priority)
   if (changes.isTemplate !== undefined) set('is_template', changes.isTemplate)
   if (changes.commitment !== undefined) set('commitment', changes.commitment)
+  if (changes.status !== undefined) set('status', changes.status)
   if (changes.currentBaselineId !== undefined) set('current_baseline_id', changes.currentBaselineId)
   if (columns.length === 0) throw new Error('No hay nada que cambiar')
   await db.query(`UPDATE project SET ${columns.join(', ')} WHERE id = $1`, values)

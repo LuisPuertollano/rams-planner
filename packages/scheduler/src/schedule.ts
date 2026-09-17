@@ -165,6 +165,31 @@ export function schedulePlan(snapshot: PlanSnapshot, options: ScheduleOptions = 
     return { taskResults: [], findings: sortFindings(findings), compiledCalendars: compiled, completed: false }
   }
 
+  // Los enlaces que no se pueden aplicar porque el otro extremo no está en el
+  // plan. Avisa **antes** de calcular, porque lo que sigue son fechas que salen
+  // sin ese enlace: si alguien archivó el proyecto de la predecesora, la
+  // sucesora se adelanta, y eso tiene que verse en vez de pasar en silencio.
+  for (const suelto of snapshot.dependenciesOutOfPlan) {
+    findings.push({
+      severity: 'warning',
+      code: 'DEPENDENCY_OUT_OF_PLAN',
+      entityType: 'dependency',
+      entityId: suelto.id,
+      message:
+        `«${suelto.nodeName}» ${suelto.missingIsPredecessor ? 'espera a' : 'es predecesora de'} ` +
+        `«${suelto.otherName}» (${suelto.otherProjectCode}), que está fuera del plan: ` +
+        `su proyecto está ${suelto.reason === 'plantilla' ? 'guardado como plantilla' : suelto.reason}. ` +
+        'El enlace no se aplica y las fechas salen sin él.',
+      payload: {
+        variant: suelto.missingIsPredecessor ? 'falta-la-predecesora' : 'falta-la-sucesora',
+        task: suelto.nodeName,
+        other: suelto.otherName,
+        project: suelto.otherProjectCode,
+        reason: suelto.reason,
+      },
+    })
+  }
+
   // --- Paso adelante --------------------------------------------------------
   for (const nodeId of order) {
     const leaf = leafById.get(nodeId)

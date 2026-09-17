@@ -179,6 +179,11 @@ export const en: Diccionario = {
     'The plan has no dependency cycles, no constraint conflicts, and nobody over their capacity.',
 
   'hallazgo.DEPENDENCY_CYCLE': 'There is a dependency cycle: %s. The calculation cannot continue; break one of the links.',
+  'hallazgo.DEPENDENCY_OUT_OF_PLAN.falta-la-predecesora': '“%s” waits for “%s” (%s), which is outside the plan: %s. The link is not applied and the dates come out without it.',
+  'hallazgo.DEPENDENCY_OUT_OF_PLAN.falta-la-sucesora': '“%s” is a predecessor of “%s” (%s), which is outside the plan: %s. The link is not applied.',
+  'hallazgo.fuera.inactivo': 'its project is on hold',
+  'hallazgo.fuera.archivado': 'its project is archived',
+  'hallazgo.fuera.plantilla': 'its project was saved as a template',
   'hallazgo.CONSTRAINT_CONFLICT.start_no_later_than': '“%s” cannot start before %s: its predecessors push it to %s.',
   'hallazgo.CONSTRAINT_CONFLICT.finish_no_later_than': '“%s” would finish on %s, after the %s limit.',
   'hallazgo.CONSTRAINT_CONFLICT.must_start_on': '“%s” must start on %s, but its predecessors do not allow it until %s. The constraint wins and the conflict stays visible.',
@@ -202,6 +207,7 @@ export const en: Diccionario = {
   'hallazgo.REBALANCE_NO_CANDIDATE': '“%s” is overloaded and there is nobody who can take the work: either the skill is missing, or nobody else has room either.',
 
   'hallazgo.que.DEPENDENCY_CYCLE': 'There is a dependency cycle. The engine stops instead of breaking a link on its own.',
+  'hallazgo.que.DEPENDENCY_OUT_OF_PLAN': 'A declared link the plan cannot apply because the other end is not part of the calculation. It is reported so that archiving a project does not silently pull in the dates of the one next door.',
   'hallazgo.que.CONSTRAINT_CONFLICT': 'A hard constraint contradicts the dependencies. The constraint wins and the conflict stays visible.',
   'hallazgo.que.RESOURCE_OVERALLOCATED': 'Load exceeds capacity. The data is daily; this is the monthly summary.',
   'hallazgo.que.RESOURCE_NO_CAPACITY': 'There is work assigned on days with no capacity.',

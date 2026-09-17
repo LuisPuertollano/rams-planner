@@ -205,6 +205,56 @@ describe('ciclos', () => {
   })
 })
 
+describe('enlaces fuera del plan', () => {
+  it('avisa de la predecesora que falta, y el cálculo sigue', () => {
+    // Es el caso de archivar un proyecto del que otro dependía. Antes el enlace
+    // se saltaba en silencio y la sucesora se adelantaba sola.
+    const output = run(
+      new PlanBuilder()
+        .task('a')
+        .danglingLink('a', { nodeName: 'Revisión de concepto', otherName: 'Plan RAMS', otherProjectCode: 'VIEJO' })
+        .build(),
+    )
+
+    expect(output.completed).toBe(true)
+    const finding = output.findings.find((item) => item.code === 'DEPENDENCY_OUT_OF_PLAN')
+    expect(finding?.severity).toBe('warning')
+    expect(finding?.entityType).toBe('dependency')
+    expect(finding?.payload?.['variant']).toBe('falta-la-predecesora')
+    expect(finding?.payload?.['task']).toBe('Revisión de concepto')
+    expect(finding?.payload?.['other']).toBe('Plan RAMS')
+    expect(finding?.payload?.['project']).toBe('VIEJO')
+    expect(finding?.payload?.['reason']).toBe('archivado')
+    // La tarea que se nombra es la que sí está en el plan: es la que alguien va
+    // a mirar cuando sus fechas cambien.
+    expect(finding?.message).toContain('«Revisión de concepto» espera a «Plan RAMS»')
+  })
+
+  it('avisa también cuando lo que falta es la sucesora', () => {
+    const output = run(
+      new PlanBuilder()
+        .task('a')
+        .danglingLink('a', { missingIsPredecessor: false, reason: 'inactivo' })
+        .build(),
+    )
+    const finding = output.findings.find((item) => item.code === 'DEPENDENCY_OUT_OF_PLAN')
+    expect(finding?.payload?.['variant']).toBe('falta-la-sucesora')
+    expect(finding?.payload?.['reason']).toBe('inactivo')
+    expect(finding?.message).toContain('es predecesora de')
+  })
+
+  it('una plantilla se nombra como plantilla, no como proyecto en pausa', () => {
+    const output = run(new PlanBuilder().task('a').danglingLink('a', { reason: 'plantilla' }).build())
+    const finding = output.findings.find((item) => item.code === 'DEPENDENCY_OUT_OF_PLAN')
+    expect(finding?.message).toContain('guardado como plantilla')
+  })
+
+  it('sin enlaces sueltos no dice nada', () => {
+    const output = run(new PlanBuilder().task('a').task('b').link('a', 'b').build())
+    expect(output.findings.filter((item) => item.code === 'DEPENDENCY_OUT_OF_PLAN')).toEqual([])
+  })
+})
+
 describe('holgura y camino crítico', () => {
   it('la cadena larga es crítica y la corta tiene holgura', () => {
     const output = run(

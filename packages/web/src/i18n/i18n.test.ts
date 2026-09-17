@@ -60,6 +60,26 @@ describe('los cuatro idiomas', () => {
     }
   })
 
+  it('ninguna frase lleva UTF-8 leído como latin-1', () => {
+    // La avería que esto caza: escribir el diccionario con una herramienta que
+    // mete los bytes UTF-8 como si fueran latin-1 y dejar «está» escrito
+    // «estÃ¡». Compila, pasa todas las reglas, y sólo se ve leyendo la pantalla
+    // en el idioma que nadie miró —así se colaron dos frases castellanas—.
+    //
+    // «Ã» y «Â» no aparecen nunca en castellano, inglés, alemán ni francés, así
+    // que su presencia es siempre el síntoma. La «â» sí es legítima en francés
+    // («âge»), y por eso no está en la lista.
+    const SINTOMAS = ['Ã', 'Â']
+    for (const idioma of IDIOMAS) {
+      for (const clave of CLAVES) {
+        const frase = DICCIONARIOS[idioma][clave]
+        for (const sintoma of SINTOMAS) {
+          expect(frase, `${idioma}/${clave}`).not.toContain(sintoma)
+        }
+      }
+    }
+  })
+
   it('los %s se sustituyen en orden', () => {
     const { t } = crearTraductor('es')
     expect(t('lineaBase.porDefecto', '3/4/2026')).toBe('Plan 3/4/2026')

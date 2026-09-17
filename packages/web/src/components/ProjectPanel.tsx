@@ -136,6 +136,34 @@ export function ProjectPanel({ project, baselines, onClose, onChanged }: Props):
           </div>
 
           <div className="card">
+            <h3 className="card__title">Estado</h3>
+            <p className="card__note">
+              Lo que <b>no está activo no entra en el cálculo</b>: se guarda entero —su árbol, sus
+              fechas declaradas, su historia— y deja de generar carga y de ocupar a nadie. Las
+              ejecuciones ya hechas no cambian: el proyecto que archivas hoy sigue en la de ayer,
+              porque ayer estaba dentro.
+            </p>
+            <label className="field" style={{ marginTop: 8, maxWidth: 300 }}>
+              <span>Qué se hace con él</span>
+              <select
+                className="input"
+                value={project.status}
+                disabled={busy}
+                onChange={(event) => { save({ status: event.target.value }) }}
+              >
+                <option value="activo">Activo · se calcula y consume capacidad</option>
+                <option value="inactivo">Inactivo · en pausa; volverá</option>
+                <option value="archivado">Archivado · terminado; se guarda por su historia</option>
+              </select>
+            </label>
+            <p className="card__note" style={{ marginTop: 8 }}>
+              Si alguna tarea de otro proyecto espera a una de éste, ese enlace deja de aplicarse y
+              sale un aviso en los hallazgos. Las fechas del otro proyecto se adelantan, y eso se
+              dice en vez de pasar en silencio.
+            </p>
+          </div>
+
+          <div className="card">
             <h3 className="card__title">Línea base de referencia</h3>
             <p className="card__note">
               Contra qué foto del plan se compara este proyecto. Cada uno congela en su momento —su

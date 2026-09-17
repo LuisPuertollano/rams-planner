@@ -128,7 +128,15 @@ export const COMMITMENT_LEVELS = ['firme', 'probable', 'posible'] as const
 
 export type CommitmentLevel = (typeof COMMITMENT_LEVELS)[number]
 
-/** De más obligatorio a menos. El orden es el de `COMMITMENT_LEVELS`. */
-export function isCommitmentLevel(valor: string): valor is CommitmentLevel {
-  return (COMMITMENT_LEVELS as readonly string[]).includes(valor)
-}
+/**
+ * Qué se hace con un proyecto.
+ *
+ * `inactivo` y `archivado` salen los dos del cálculo, y la diferencia es de
+ * intención y no de motor: «va a volver» y «se acabó» son dos cosas distintas
+ * para quien mira la lista, aunque el planificador las trate igual. Por eso son
+ * dos estados y no un booleano.
+ */
+export const PROJECT_STATUSES = ['activo', 'inactivo', 'archivado'] as const
+
+export type ProjectStatus = (typeof PROJECT_STATUSES)[number]
+

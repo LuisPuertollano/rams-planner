@@ -168,7 +168,7 @@ export const es = {
   'informe.riesgo.retraso': 'debería estar terminada hace %s día(s)',
   'informe.tldr.alcance': '%s proyecto(s), %s tarea(s) con fechas dentro del periodo, repartidas en %s mes(es).',
   'informe.tldr.trabajo': '%s h comprometidas, sobre %s h de capacidad de quien trabaja en ellos: el %s.',
-  'informe.tldr.compromiso': 'El %s del trabajo del periodo todavÃ­a no estÃ¡ firmado: %s h firmes, %s h probables, %s h posibles.',
+  'informe.tldr.compromiso': 'El %s del trabajo del periodo todavía no está firmado: %s h firmes, %s h probables, %s h posibles.',
   'informe.tldr.capacidad-reservada': 'De la capacidad del periodo se reservan %s h (el %s): %s h de calendario, %s h planificables.',
   'informe.tldr.avance': 'El trabajo del periodo va al %s: %s terminadas, %s en curso, %s sin empezar.',
   'informe.tldr.coste': '%s comprometidos en el periodo.',
@@ -191,6 +191,11 @@ export const es = {
     'El plan no tiene ciclos, ni conflictos de restricción, ni nadie por encima de su capacidad.',
 
   'hallazgo.DEPENDENCY_CYCLE': 'Hay un ciclo de dependencias: %s. El cálculo no puede continuar; rompe uno de los enlaces.',
+  'hallazgo.DEPENDENCY_OUT_OF_PLAN.falta-la-predecesora': '«%s» espera a «%s» (%s), que está fuera del plan: %s. El enlace no se aplica y las fechas salen sin él.',
+  'hallazgo.DEPENDENCY_OUT_OF_PLAN.falta-la-sucesora': '«%s» es predecesora de «%s» (%s), que está fuera del plan: %s. El enlace no se aplica.',
+  'hallazgo.fuera.inactivo': 'su proyecto está en pausa',
+  'hallazgo.fuera.archivado': 'su proyecto está archivado',
+  'hallazgo.fuera.plantilla': 'su proyecto se guardó como plantilla',
   'hallazgo.CONSTRAINT_CONFLICT.start_no_later_than': '«%s» no puede empezar antes del %s: sus predecesoras la empujan a %s.',
   'hallazgo.CONSTRAINT_CONFLICT.finish_no_later_than': '«%s» terminaría el %s, después del límite %s.',
   'hallazgo.CONSTRAINT_CONFLICT.must_start_on': '«%s» tiene que empezar el %s, pero sus predecesoras no lo permiten hasta %s. Gana la restricción y el conflicto queda visible.',
@@ -215,6 +220,7 @@ export const es = {
 
   // Qué significa cada uno, para que el hallazgo enseñe además de avisar.
   'hallazgo.que.DEPENDENCY_CYCLE': 'Hay un ciclo de dependencias. El motor se detiene en vez de romper un enlace por su cuenta.',
+  'hallazgo.que.DEPENDENCY_OUT_OF_PLAN': 'Un enlace declarado que el plan no puede aplicar porque el otro extremo no entra en el cálculo. Se avisa para que archivar un proyecto no adelante en silencio las fechas del de al lado.',
   'hallazgo.que.CONSTRAINT_CONFLICT': 'Una restricción dura contradice a las dependencias. Gana la restricción y el conflicto queda visible.',
   'hallazgo.que.RESOURCE_OVERALLOCATED': 'La carga supera la capacidad. El dato es diario; aquí se resume por mes.',
   'hallazgo.que.RESOURCE_NO_CAPACITY': 'Hay trabajo asignado en días sin capacidad.',

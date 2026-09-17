@@ -74,6 +74,20 @@ export function findingText(t: Traductor, finding: DecibleComoHallazgo): string 
     case 'hallazgo.DEPENDENCY_CYCLE':
       return t(clave, texto(p, 'cycle'))
 
+    // El motivo se dice en el idioma de quien mira, no como el dato crudo que
+    // manda el servidor: «archivado» no es una frase.
+    case 'hallazgo.DEPENDENCY_OUT_OF_PLAN.falta-la-predecesora':
+    case 'hallazgo.DEPENDENCY_OUT_OF_PLAN.falta-la-sucesora': {
+      const motivo = `hallazgo.fuera.${texto(p, 'reason')}`
+      return t(
+        clave,
+        texto(p, 'task'),
+        texto(p, 'other'),
+        texto(p, 'project'),
+        hay(motivo) ? t(motivo) : texto(p, 'reason'),
+      )
+    }
+
     case 'hallazgo.CONSTRAINT_CONFLICT.start_no_later_than':
     case 'hallazgo.CONSTRAINT_CONFLICT.must_start_on':
       return t(clave, texto(p, 'task'), fecha(p, 'constraintDate'), fecha(p, 'dependencyStart'))

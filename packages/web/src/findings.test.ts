@@ -65,6 +65,28 @@ describe('los hallazgos hablan cuatro idiomas', () => {
       },
       { code: 'LEVELING_DELAYED', message: 'x', payload: { task: 'T', delayMinutes: 1_440 } },
       { code: 'REBALANCE_NO_CANDIDATE', message: 'x', payload: { resource: 'Ana' } },
+      {
+        code: 'DEPENDENCY_OUT_OF_PLAN',
+        message: 'x',
+        payload: {
+          variant: 'falta-la-predecesora',
+          task: 'Revisión',
+          other: 'Plan RAMS',
+          project: 'VIEJO',
+          reason: 'archivado',
+        },
+      },
+      {
+        code: 'DEPENDENCY_OUT_OF_PLAN',
+        message: 'x',
+        payload: {
+          variant: 'falta-la-sucesora',
+          task: 'Plan RAMS',
+          other: 'Revisión',
+          project: 'OTRO',
+          reason: 'inactivo',
+        },
+      },
     ]
 
     for (const idioma of IDIOMAS) {
@@ -77,6 +99,25 @@ describe('los hallazgos hablan cuatro idiomas', () => {
         expect(frase, `${idioma}/${hallazgo.code}`).not.toContain('—')
       }
     }
+  })
+
+  it('el motivo de estar fuera del plan se dice en el idioma, no en crudo', () => {
+    const enPausa = {
+      code: 'DEPENDENCY_OUT_OF_PLAN',
+      message: 'x',
+      payload: {
+        variant: 'falta-la-predecesora',
+        task: 'T',
+        other: 'O',
+        project: 'P',
+        reason: 'inactivo',
+      },
+    }
+    expect(findingText(crearTraductor('es').t, enPausa)).toContain('su proyecto está en pausa')
+    expect(findingText(crearTraductor('de').t, enPausa)).toContain('das Projekt ist pausiert')
+    // Un motivo que el diccionario no conozca sale tal cual, no vacío.
+    const raro = { ...enPausa, payload: { ...enPausa.payload, reason: 'vete-a-saber' } }
+    expect(findingText(crearTraductor('es').t, raro)).toContain('vete-a-saber')
   })
 
   it('un código desconocido se cae al respaldo en vez de romperse', () => {

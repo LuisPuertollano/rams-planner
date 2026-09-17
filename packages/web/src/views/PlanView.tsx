@@ -216,7 +216,11 @@ function ProjectRows({
 }: ProjectRowsProps): React.JSX.Element {
   return (
     <>
-      <tr className={project.isTemplate ? 'row--total row--template' : 'row--total'}>
+      <tr
+        className={
+          project.isTemplate || project.status !== 'activo' ? 'row--total row--template' : 'row--total'
+        }
+      >
         <td colSpan={8}>
           {project.code} · {project.name}
           {project.isTemplate ? (
@@ -224,6 +228,21 @@ function ProjectRows({
               plantilla
             </span>
           ) : null}
+          {/* Sin esto, un proyecto fuera del cálculo se ve como un proyecto
+              vacío y nadie sabe por qué no tiene fechas. */}
+          {project.status === 'activo' ? null : (
+            <span
+              className="wbs__kind"
+              style={{ marginLeft: 10 }}
+              title={
+                project.status === 'archivado'
+                  ? 'Archivado: se guarda por su historia y no entra en el cálculo'
+                  : 'En pausa: se guarda entero y no entra en el cálculo'
+              }
+            >
+              {project.status}
+            </span>
+          )}
         </td>
         <td style={{ whiteSpace: 'nowrap' }}>
           <button
