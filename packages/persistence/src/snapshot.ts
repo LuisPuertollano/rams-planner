@@ -190,8 +190,11 @@ async function loadResources(db: Queryable): Promise<readonly ResourceDefinition
     resource_kind: string
     calendar_id: string | null
     max_units_bp: number
+    indirect_bp: number
+    reserve_bp: number
   }>(
-    'SELECT id, code, display_name, resource_kind, calendar_id, max_units_bp FROM resource WHERE deleted_at IS NULL ORDER BY display_name, id',
+    'SELECT id, code, display_name, resource_kind, calendar_id, max_units_bp, indirect_bp, reserve_bp ' +
+      'FROM resource WHERE deleted_at IS NULL ORDER BY display_name, id',
   )
   const availability = await db.query<{ resource_id: string; from: string; to: string; units_bp: number }>(
     `SELECT resource_id, lower(valid_period)::text AS from, (upper(valid_period) - 1)::text AS to, units_bp
@@ -225,6 +228,8 @@ async function loadResources(db: Queryable): Promise<readonly ResourceDefinition
     kind: resource.resource_kind as ResourceKind,
     ...(resource.calendar_id !== null ? { calendarId: resource.calendar_id } : {}),
     maxUnitsBp: resource.max_units_bp,
+    indirectBp: resource.indirect_bp,
+    reserveBp: resource.reserve_bp,
     availability: (availabilityBy.get(resource.id) ?? []).map((row) => ({
       from: calendarDate(row.from),
       to: calendarDate(row.to),

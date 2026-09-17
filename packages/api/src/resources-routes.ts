@@ -29,6 +29,15 @@ import { calculate, defaultScenarioId } from './engine.js'
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe ser AAAA-MM-DD')
 
+/**
+ * Un factor de capacidad, en puntos básicos.
+ *
+ * Tope al 50 %, como en el esquema y por la misma razón: por encima de la mitad
+ * del día lo que hay no es un factor de corrección, es una dedicación parcial,
+ * y eso se declara —y se explica mejor— en un periodo de disponibilidad.
+ */
+const factor = z.number().int().min(0).max(5_000)
+
 const absenceKind = z.enum(['vacation', 'sick', 'training', 'parental', 'public_holiday', 'other'])
 
 export function registerResourceRoutes(app: FastifyInstance, pool: Pool): void {
@@ -79,6 +88,8 @@ export function registerResourceRoutes(app: FastifyInstance, pool: Pool): void {
         displayName: z.string().min(1).max(200),
         calendarId: z.string().uuid().nullable().optional(),
         maxUnitsBp: z.number().int().min(0).max(20_000).optional(),
+        indirectBp: factor.optional(),
+        reserveBp: factor.optional(),
         activeFrom: isoDate.nullable().optional(),
         activeTo: isoDate.nullable().optional(),
       })
@@ -96,6 +107,8 @@ export function registerResourceRoutes(app: FastifyInstance, pool: Pool): void {
         displayName: z.string().min(1).max(200).optional(),
         calendarId: z.string().uuid().nullable().optional(),
         maxUnitsBp: z.number().int().min(0).max(20_000).optional(),
+        indirectBp: factor.optional(),
+        reserveBp: factor.optional(),
         activeFrom: isoDate.nullable().optional(),
         activeTo: isoDate.nullable().optional(),
       })

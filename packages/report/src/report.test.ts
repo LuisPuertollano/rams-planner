@@ -4,9 +4,12 @@ import {
   buildReport,
   type Highlight,
   type HighlightKind,
+  type ReportCapacityCell,
   type ReportInput,
+  type ReportProject,
   type ReportTask,
 } from './report.js'
+import type { CommitmentLevel } from '@planner/domain'
 
 const PERIODO = { from: '2026-01-01', to: '2026-06-30' }
 
@@ -26,11 +29,30 @@ const tarea = (parcial: Partial<ReportTask> & { nodeId: string }): ReportTask =>
   ...parcial,
 })
 
+/** Un proyecto del informe. Sin decir nada, `firme`: es lo que pone el esquema. */
+const proyecto = (
+  id: string,
+  code: string,
+  name: string,
+  commitment: CommitmentLevel = 'firme',
+): ReportProject => ({ id, code, name, commitment })
+
+/**
+ * Una celda de capacidad. El bruto por defecto es igual al neto, que es lo que
+ * ve una instalación sin factores declarados.
+ */
+const capacidad = (
+  resourceId: string,
+  period: string,
+  capacityMinutes: number,
+  grossMinutes = capacityMinutes,
+): ReportCapacityCell => ({ resourceId, period, capacityMinutes, grossMinutes })
+
 const entrada = (parcial: Partial<ReportInput>): ReportInput => ({
   runId: 'run-1',
   period: PERIODO,
   asOf: '2026-03-15',
-  projects: [{ id: 'p1', code: 'UNO', name: 'Proyecto uno' }],
+  projects: [proyecto('p1', 'UNO', 'Proyecto uno')],
   tasks: [],
   load: [],
   capacity: [],
@@ -117,8 +139,8 @@ describe('el informe', () => {
           { resourceId: 'r1', projectId: 'p1', period: '2026-06', plannedMinutes: 2_000, costCents: 0 },
         ],
         capacity: [
-          { resourceId: 'r1', period: '2026-05', capacityMinutes: 10_000 },
-          { resourceId: 'r1', period: '2026-06', capacityMinutes: 10_000 },
+          capacidad('r1', '2026-05', 10_000),
+          capacidad('r1', '2026-06', 10_000),
         ],
       }),
     )
@@ -184,8 +206,8 @@ describe('el informe', () => {
     const informe = buildReport(
       entrada({
         projects: [
-          { id: 'p2', code: 'DOS', name: 'Proyecto dos' },
-          { id: 'p1', code: 'UNO', name: 'Proyecto uno' },
+          proyecto('p2', 'DOS', 'Proyecto dos'),
+          proyecto('p1', 'UNO', 'Proyecto uno'),
         ],
         tasks: [tarea({ nodeId: 'a', projectId: 'p1' }), tarea({ nodeId: 'b', projectId: 'p2' })],
         load: [
@@ -206,7 +228,7 @@ describe('el informe', () => {
   it('lo que no está en el alcance no cuenta, ni siquiera sus hallazgos', () => {
     const informe = buildReport(
       entrada({
-        projects: [{ id: 'p1', code: 'UNO', name: 'Proyecto uno' }],
+        projects: [proyecto('p1', 'UNO', 'Proyecto uno')],
         tasks: [tarea({ nodeId: 'mia' }), tarea({ nodeId: 'ajena', projectId: 'p9' })],
         load: [
           { resourceId: 'r1', projectId: 'p9', period: '2026-02', plannedMinutes: 9_999, costCents: 0 },
@@ -282,7 +304,7 @@ describe('lo que el informe no puede enseñar', () => {
     const base = {
       resources: [{ id: 'r1', code: 'ANA', displayName: 'Ana' }],
       load: [{ resourceId: 'r1', projectId: 'p1', period: '2026-05', plannedMinutes: 20_000, costCents: 0 }],
-      capacity: [{ resourceId: 'r1', period: '2026-05', capacityMinutes: 10_000 }],
+      capacity: [capacidad('r1', '2026-05', 10_000)],
     }
     const visible = buildReport(entrada(base))
     expect(visible.totals.overloadedPeople).toBe(1)
@@ -309,9 +331,9 @@ describe('la capacidad contra la que se compara', () => {
           { resourceId: 'r1', projectId: 'p1', period: '2026-02', plannedMinutes: 5_000, costCents: 0 },
         ],
         capacity: [
-          { resourceId: 'r1', period: '2026-02', capacityMinutes: 10_000 },
+          capacidad('r1', '2026-02', 10_000),
           // Bea no toca este proyecto: su capacidad no entra en la cuenta.
-          { resourceId: 'r2', period: '2026-02', capacityMinutes: 90_000 },
+          capacidad('r2', '2026-02', 90_000),
         ],
       }),
     )
@@ -336,8 +358,8 @@ describe('los casos que no se ven hasta que pasan', () => {
           { resourceId: 'r2', projectId: 'p1', period: '2026-02', plannedMinutes: 12_000, costCents: 0 },
         ],
         capacity: [
-          { resourceId: 'r1', period: '2026-02', capacityMinutes: 10_000 },
-          { resourceId: 'r2', period: '2026-02', capacityMinutes: 10_000 },
+          capacidad('r1', '2026-02', 10_000),
+          capacidad('r2', '2026-02', 10_000),
         ],
       }),
     )
@@ -357,8 +379,8 @@ describe('los casos que no se ven hasta que pasan', () => {
           { resourceId: 'r1', projectId: 'p1', period: '2026-03', plannedMinutes: 15_000, costCents: 0 },
         ],
         capacity: [
-          { resourceId: 'r1', period: '2026-02', capacityMinutes: 10_000 },
-          { resourceId: 'r1', period: '2026-03', capacityMinutes: 10_000 },
+          capacidad('r1', '2026-02', 10_000),
+          capacidad('r1', '2026-03', 10_000),
         ],
       }),
     )
@@ -392,7 +414,7 @@ describe('los casos que no se ven hasta que pasan', () => {
           { resourceId: 'r1', projectId: 'p1', period: '2026-03', plannedMinutes: 600, costCents: 50 },
         ],
         // Marzo sin capacidad: de baja, o fuera del equipo ese mes.
-        capacity: [{ resourceId: 'r1', period: '2026-02', capacityMinutes: 10_000 }],
+        capacity: [capacidad('r1', '2026-02', 10_000)],
       }),
     )
 
@@ -408,8 +430,8 @@ describe('los casos que no se ven hasta que pasan', () => {
           { resourceId: 'r1', projectId: 'p1', period: '2026-02', plannedMinutes: 600, costCents: 50 },
         ],
         capacity: [
-          { resourceId: 'r1', period: '2026-02', capacityMinutes: 10_000 },
-          { resourceId: 'r1', period: '2026-03', capacityMinutes: 10_000 },
+          capacidad('r1', '2026-02', 10_000),
+          capacidad('r1', '2026-03', 10_000),
         ],
       }),
     )
@@ -472,5 +494,92 @@ describe('los casos que no se ven hasta que pasan', () => {
     // Si contaran, el avance saldría a un tercio en vez de entero.
     expect(informe.totals.percentCompleteBp).toBe(10_000)
     expect(informe.totals.tasksInPeriod).toBe(3)
+  })
+
+  // --- Compromiso ----------------------------------------------------------
+
+  it('reparte el trabajo del periodo por lo comprometido que está', () => {
+    const informe = buildReport(
+      entrada({
+        projects: [
+          proyecto('p1', 'UNO', 'Contratado'),
+          proyecto('p2', 'DOS', 'Esperado', 'probable'),
+          proyecto('p3', 'TRES', 'Una oferta', 'posible'),
+        ],
+        load: [
+          { resourceId: 'r1', projectId: 'p1', period: '2026-02', plannedMinutes: 600, costCents: 0 },
+          { resourceId: 'r1', projectId: 'p2', period: '2026-02', plannedMinutes: 300, costCents: 0 },
+          { resourceId: 'r1', projectId: 'p3', period: '2026-02', plannedMinutes: 100, costCents: 0 },
+        ],
+      }),
+    )
+
+    expect(informe.totals.plannedByCommitment).toEqual({ firme: 600, probable: 300, posible: 100 })
+    // Y sigue sumando el total: repartir no puede perder ni inventar minutos.
+    expect(informe.totals.plannedMinutes).toBe(1_000)
+  })
+
+  it('no dice nada del compromiso cuando todo está contratado', () => {
+    // Una línea de «el 100 % es firme» en todos los informes es ruido, y el
+    // resumen está para lo que hay que mirar.
+    const informe = buildReport(
+      entrada({
+        load: [{ resourceId: 'r1', projectId: 'p1', period: '2026-02', plannedMinutes: 600, costCents: 0 }],
+      }),
+    )
+    expect(punto(informe, 'compromiso')).toBeUndefined()
+    expect(informe.totals.plannedByCommitment).toEqual({ firme: 600, probable: 0, posible: 0 })
+  })
+
+  it('pasa a rojo cuando más de la mitad del trabajo todavía no está firmado', () => {
+    const conReparto = (firme: number, posible: number) =>
+      buildReport(
+        entrada({
+          projects: [proyecto('p1', 'UNO', 'Contratado'), proyecto('p2', 'DOS', 'Oferta', 'posible')],
+          load: [
+            { resourceId: 'r1', projectId: 'p1', period: '2026-02', plannedMinutes: firme, costCents: 0 },
+            { resourceId: 'r1', projectId: 'p2', period: '2026-02', plannedMinutes: posible, costCents: 0 },
+          ],
+        }),
+      )
+
+    expect(punto(conReparto(900, 100), 'compromiso')?.severity).toBe('warning')
+    // Justo la mitad todavía no es «más de la mitad».
+    expect(punto(conReparto(500, 500), 'compromiso')?.severity).toBe('warning')
+    expect(punto(conReparto(400, 600), 'compromiso')?.severity).toBe('error')
+    expect(punto(conReparto(400, 600), 'compromiso')?.numbers['notFirmBp']).toBe(6_000)
+  })
+
+  // --- Capacidad reservada --------------------------------------------------
+
+  it('dice cuánta capacidad hay que el equipo no puede comprometer', () => {
+    const informe = buildReport(
+      entrada({
+        load: [{ resourceId: 'r1', projectId: 'p1', period: '2026-02', plannedMinutes: 600, costCents: 0 }],
+        capacity: [capacidad('r1', '2026-02', 9_300, 10_000)],
+      }),
+    )
+
+    const reservada = punto(informe, 'capacidad-reservada')
+    expect(reservada?.numbers).toEqual({
+      grossMinutes: 10_000,
+      plannableMinutes: 9_300,
+      reservedMinutes: 700,
+      reservedBp: 700,
+    })
+    // Y la saturación se mide contra lo planificable, que es lo que hay.
+    expect(informe.totals.capacityMinutes).toBe(9_300)
+    expect(informe.totals.grossCapacityMinutes).toBe(10_000)
+  })
+
+  it('no dice nada de la reserva cuando no hay factores declarados', () => {
+    const informe = buildReport(
+      entrada({
+        load: [{ resourceId: 'r1', projectId: 'p1', period: '2026-02', plannedMinutes: 600, costCents: 0 }],
+        capacity: [capacidad('r1', '2026-02', 10_000)],
+      }),
+    )
+    expect(punto(informe, 'capacidad-reservada')).toBeUndefined()
+    expect(informe.totals.grossCapacityMinutes).toBe(informe.totals.capacityMinutes)
   })
 })

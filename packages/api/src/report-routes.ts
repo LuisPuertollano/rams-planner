@@ -129,6 +129,7 @@ export function registerReportRoutes(app: FastifyInstance, pool: Pool): void {
           id: proyecto.id,
           code: proyecto.code,
           name: proyecto.name,
+          commitment: proyecto.commitment,
         })),
         tasks: (await readTasks(db, run.id)).map((tarea) => ({
           nodeId: tarea.nodeId,

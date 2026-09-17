@@ -21,7 +21,10 @@ export interface ReportLoadRow {
 export interface ReportCapacityRow {
   readonly resourceId: string
   readonly period: string
+  /** Lo planificable: contra esto se mide la saturación. */
   readonly capacityMinutes: number
+  /** Lo que daba el calendario. La diferencia es lo indirecto y la reserva. */
+  readonly grossMinutes: number
 }
 
 /** Carga por persona, proyecto y mes, contando sólo los días del periodo. */
@@ -74,9 +77,11 @@ export async function readCapacityInPeriod(
     resource_id: string
     period: string
     capacity_minutes: string
+    gross_minutes: string
   }>(
     `SELECT c.resource_id, to_char(c.work_date, 'YYYY-MM') AS period,
-            SUM(c.capacity_minutes) AS capacity_minutes
+            SUM(c.capacity_minutes) AS capacity_minutes,
+            SUM(COALESCE(c.gross_minutes, c.capacity_minutes)) AS gross_minutes
      FROM resource_capacity_timephased c
      WHERE c.run_id = $1 AND c.work_date BETWEEN $2::date AND $3::date
      GROUP BY 1, 2
@@ -87,5 +92,6 @@ export async function readCapacityInPeriod(
     resourceId: row.resource_id,
     period: row.period,
     capacityMinutes: Number(row.capacity_minutes),
+    grossMinutes: Number(row.gross_minutes),
   }))
 }

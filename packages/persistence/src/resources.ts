@@ -49,6 +49,10 @@ export interface ResourceDetail {
   readonly calendarId: string | null
   readonly calendarCode: string | null
   readonly maxUnitsBp: number
+  /** Lo que del día no llega a una tarea: reuniones, formación, el correo. */
+  readonly indirectBp: number
+  /** Lo que se guarda para lo que no ha pasado todavía. */
+  readonly reserveBp: number
   readonly activeFrom: string | null
   readonly activeTo: string | null
   readonly availability: readonly AvailabilityPeriod[]
@@ -75,11 +79,13 @@ export async function readResourceDetails(db: Queryable): Promise<readonly Resou
     calendar_id: string | null
     calendar_code: string | null
     max_units_bp: number
+    indirect_bp: number
+    reserve_bp: number
     active_from: string | null
     active_to: string | null
   }>(
     `SELECT r.id, r.code, r.display_name, r.resource_kind, r.calendar_id, c.code AS calendar_code,
-            r.max_units_bp, r.active_from::text, r.active_to::text
+            r.max_units_bp, r.indirect_bp, r.reserve_bp, r.active_from::text, r.active_to::text
      FROM resource r LEFT JOIN calendar c ON c.id = r.calendar_id
      WHERE r.deleted_at IS NULL AND r.resource_kind IN ('person', 'team')
      ORDER BY r.display_name`,
@@ -146,6 +152,8 @@ export async function readResourceDetails(db: Queryable): Promise<readonly Resou
     calendarId: resource.calendar_id,
     calendarCode: resource.calendar_code,
     maxUnitsBp: resource.max_units_bp,
+    indirectBp: resource.indirect_bp,
+    reserveBp: resource.reserve_bp,
     activeFrom: resource.active_from,
     activeTo: resource.active_to,
     availability: (availabilityBy.get(resource.id) ?? []).map((row) => ({
@@ -182,19 +190,26 @@ export interface ResourceInput {
   readonly displayName: string
   readonly calendarId?: string | null | undefined
   readonly maxUnitsBp?: number | undefined
+  readonly indirectBp?: number | undefined
+  readonly reserveBp?: number | undefined
   readonly activeFrom?: string | null | undefined
   readonly activeTo?: string | null | undefined
 }
 
 export async function createResource(db: Queryable, input: ResourceInput): Promise<string> {
   const { rows } = await db.query<{ id: string }>(
-    `INSERT INTO resource (code, display_name, resource_kind, calendar_id, max_units_bp, active_from, active_to)
-     VALUES ($1, $2, 'person', $3, $4, $5, $6) RETURNING id`,
+    `INSERT INTO resource
+       (code, display_name, resource_kind, calendar_id, max_units_bp, indirect_bp, reserve_bp,
+        active_from, active_to)
+     VALUES ($1, $2, 'person', $3, $4, $5, $6, $7, $8) RETURNING id`,
     [
       input.code,
       input.displayName,
       input.calendarId ?? null,
       input.maxUnitsBp ?? 10_000,
+      // Cero por defecto: quien no lo declara planifica como antes (P1).
+      input.indirectBp ?? 0,
+      input.reserveBp ?? 0,
       input.activeFrom ?? null,
       input.activeTo ?? null,
     ],
@@ -210,6 +225,8 @@ export interface ResourceChanges {
   readonly displayName?: string | undefined
   readonly calendarId?: string | null | undefined
   readonly maxUnitsBp?: number | undefined
+  readonly indirectBp?: number | undefined
+  readonly reserveBp?: number | undefined
   readonly activeFrom?: string | null | undefined
   readonly activeTo?: string | null | undefined
 }
@@ -229,6 +246,8 @@ export async function updateResource(
   if (changes.displayName !== undefined) set('display_name', changes.displayName)
   if (changes.calendarId !== undefined) set('calendar_id', changes.calendarId)
   if (changes.maxUnitsBp !== undefined) set('max_units_bp', changes.maxUnitsBp)
+  if (changes.indirectBp !== undefined) set('indirect_bp', changes.indirectBp)
+  if (changes.reserveBp !== undefined) set('reserve_bp', changes.reserveBp)
   if (changes.activeFrom !== undefined) set('active_from', changes.activeFrom)
   if (changes.activeTo !== undefined) set('active_to', changes.activeTo)
   if (columns.length === 0) throw new Error('No hay nada que cambiar')

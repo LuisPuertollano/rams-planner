@@ -149,8 +149,14 @@ async function insertCapacity(db: Queryable, runId: string, workload: WorkloadOu
   await bulkInsert(
     db,
     'resource_capacity_timephased',
-    ['run_id', 'resource_id', 'work_date', 'capacity_minutes'],
-    workload.capacity.cells.map((cell) => [runId, cell.resourceId, cell.date, cell.capacityMinutes]),
+    ['run_id', 'resource_id', 'work_date', 'capacity_minutes', 'gross_minutes'],
+    workload.capacity.cells.map((cell) => [
+      runId,
+      cell.resourceId,
+      cell.date,
+      cell.capacityMinutes,
+      cell.grossMinutes,
+    ]),
   )
 }
 

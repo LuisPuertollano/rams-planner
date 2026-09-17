@@ -17,6 +17,17 @@ export interface RunSummary {
   readonly triggerReason?: string | null
 }
 
+/** Cuánto de una demanda hay que servir. Lo declara el proyecto. */
+export const COMMITMENT_LEVELS = ['firme', 'probable', 'posible'] as const
+
+export type CommitmentLevel = (typeof COMMITMENT_LEVELS)[number]
+
+export interface CommitmentSplit {
+  readonly firme: number
+  readonly probable: number
+  readonly posible: number
+}
+
 export interface Project {
   readonly id: string
   readonly code: string
@@ -27,6 +38,13 @@ export interface Project {
   readonly priority: number
   /** Una plantilla es un molde: no se calcula y no genera carga. */
   readonly isTemplate: boolean
+  /**
+   * Cuánto de esta demanda hay que servir de verdad. No es el tipo de trabajo:
+   * es la confianza en que llegue.
+   */
+  readonly commitment: CommitmentLevel
+  /** La línea base contra la que se compara este proyecto. */
+  readonly currentBaselineId: string | null
 }
 
 export interface Resource {
@@ -315,6 +333,10 @@ export interface ResourceDetail {
   readonly calendarId: string | null
   readonly calendarCode: string | null
   readonly maxUnitsBp: number
+  /** Lo que del día no llega a una tarea: reuniones, formación, el correo. */
+  readonly indirectBp: number
+  /** Lo que se guarda para lo que todavía no ha pasado. */
+  readonly reserveBp: number
   readonly activeFrom: string | null
   readonly activeTo: string | null
   readonly availability: readonly AvailabilityPeriod[]
@@ -471,7 +493,7 @@ export async function duplicateProject(
 
 export async function patchProject(
   projectId: string,
-  changes: Readonly<Record<string, string | number | boolean>>,
+  changes: Readonly<Record<string, string | number | boolean | null>>,
 ): Promise<void> {
   return send(`/api/projects/${projectId}`, 'PATCH', changes)
 }
@@ -586,7 +608,10 @@ export async function setNodeSkill(nodeId: string, skillId: string, minLevel: nu
 export interface DailyCapacity {
   readonly resourceId: string
   readonly date: string
+  /** Lo planificable, que es contra lo que reparte el motor. */
   readonly capacityMinutes: number
+  /** Lo que daba el calendario. Igual al neto si no hay factores. */
+  readonly grossMinutes: number
   readonly plannedMinutes: number
 }
 
@@ -978,6 +1003,7 @@ export type ReportSeverity = 'neutral' | 'warning' | 'error'
 
 export type HighlightKind =
   | 'alcance' | 'trabajo' | 'avance' | 'coste'
+  | 'compromiso' | 'capacidad-reservada'
   | 'sobrecarga' | 'riesgo' | 'hallazgos' | 'sin-fechas'
 
 /** Un punto del resumen: sin texto, para que lo diga la interfaz y en su idioma. */
@@ -1060,7 +1086,11 @@ export interface ReportTotals {
   readonly tasksTotal: number
   readonly tasksWithoutDates: number
   readonly plannedMinutes: number
+  /** Los mismos minutos, repartidos por lo comprometido que está el proyecto. */
+  readonly plannedByCommitment: CommitmentSplit
   readonly capacityMinutes: number
+  /** La capacidad antes de descontar lo indirecto y la reserva. */
+  readonly grossCapacityMinutes: number
   readonly utilizationBp: number | null
   readonly costCents: number
   readonly completedTasks: number
@@ -1095,7 +1125,13 @@ export async function fetchReport(
   from: string,
   to: string,
 ): Promise<Report> {
-  const consulta = new URLSearchParams({ from, to })
+  // Vacío significa «el periodo que abarque la ejecución», y eso lo decide el
+  // servidor. Hay que **no mandar** el parámetro: mandarlo vacío es mandar una
+  // fecha que no es una fecha, y la validación lo rechaza —con razón—. Era lo
+  // que rompía el botón «todo el plan».
+  const consulta = new URLSearchParams()
+  if (from !== '') consulta.set('from', from)
+  if (to !== '') consulta.set('to', to)
   // Sin proyectos, el servidor manda todos los que se puedan ver.
   if (projectIds.length > 0) consulta.set('projects', projectIds.join(','))
   return get<Report>(`/api/report?${consulta.toString()}`)
