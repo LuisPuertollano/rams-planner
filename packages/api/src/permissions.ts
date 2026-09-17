@@ -21,6 +21,7 @@ export const SCREENS = [
   'Plan',
   'Equipo',
   'Competencias',
+  'Documentos',
   'Reparto',
   'Comparar',
   'Datos',
@@ -248,6 +249,32 @@ export const PERMISSIONS: readonly PermissionDefinition[] = [
     screen: 'Competencias',
     label: 'Gestionar el catálogo de competencias',
     detail: 'Crear y retirar competencias. Retirar una borra los niveles de todo el equipo.',
+  },
+
+  // --- Documentos -----------------------------------------------------------
+  {
+    code: 'documentos.ver',
+    scope: 'global',
+    screen: 'Documentos',
+    label: 'Ver los documentos y su matriz',
+    detail: 'Qué entregables tiene el equipo y cuál es condición necesaria de cuál.',
+  },
+  {
+    code: 'documentos.gestionar',
+    scope: 'global',
+    screen: 'Documentos',
+    label: 'Editar el catálogo de documentos y la matriz',
+    detail:
+      'Alta y baja de entregables, y las cruces de la matriz. Cambia cómo se planifican todos los ' +
+      'proyectos, no sólo uno.',
+    sensitive: true,
+  },
+  {
+    code: 'documentos.asignar',
+    scope: 'project',
+    screen: 'Documentos',
+    label: 'Decir qué documento entrega una tarea',
+    detail: 'Lo que conecta la matriz con un plan concreto. Se hace tarea a tarea, en su ficha.',
   },
 
   // --- Reparto --------------------------------------------------------------

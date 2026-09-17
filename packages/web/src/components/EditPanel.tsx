@@ -4,12 +4,15 @@ import {
   fetchSkills,
   setNodeSkill,
   createNode,
+  fetchDocuments,
   fetchStructure,
   link,
   removeNode,
   renameNode,
   unassign,
   unlink,
+  setNodeDocument,
+  type DocumentCatalogue,
   type PlanStructure,
   type Resource,
   type SkillMatrix,
@@ -46,12 +49,20 @@ const isContainer = (task: TaskRow): boolean => task.kind === 'phase' || task.ki
 export function EditPanel({ task, tasks, resources, onClose, onChanged }: Props): React.JSX.Element {
   const [structure, setStructure] = useState<PlanStructure | null>(null)
   const [skills, setSkills] = useState<SkillMatrix | null>(null)
+  // El catálogo de documentos, para poder marcar cuál entrega esta tarea. Si
+  // no llega —porque falta el permiso— la tarjeta no se enseña.
+  const [documentos, setDocumentos] = useState<DocumentCatalogue | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [name, setName] = useState(task.name)
 
   const reload = async (): Promise<void> => {
-    const [siguiente, matriz] = await Promise.all([fetchStructure(), fetchSkills()])
+    const [siguiente, matriz, catalogo] = await Promise.all([
+      fetchStructure(),
+      fetchSkills(),
+      fetchDocuments().catch(() => null),
+    ])
+    setDocumentos(catalogo)
     setStructure(siguiente)
     setSkills(matriz)
   }
@@ -193,6 +204,46 @@ export function EditPanel({ task, tasks, resources, onClose, onChanged }: Props)
                       run(async () => { await assign(task.nodeId, resourceId, unitsBp) })
                     }}
                   />
+                )}
+              </div>
+
+              <div className="card">
+                <h3 className="card__title">Documentos que entrega</h3>
+                <p className="card__note">
+                  Lo que conecta esta tarea con la matriz de documentos. Marcado aquí, el orden declarado en
+                  la matriz sabe de qué tareas habla.
+                </p>
+                {documentos === null ? null : documentos.types.length === 0 ? (
+                  <p className="faint" style={{ margin: '8px 0 0' }}>
+                    No hay documentos declarados todavía. Se llenan en la pestaña <b>Documentos</b>.
+                  </p>
+                ) : (
+                  <table className="grid grid--inline">
+                    <thead><tr><th>Documento</th><th>¿Lo entrega?</th></tr></thead>
+                    <tbody>
+                      {documentos.types.map((tipo) => {
+                        const entrega = (structure?.documents ?? []).some(
+                          (item) => item.nodeId === task.nodeId && item.documentTypeId === tipo.id,
+                        )
+                        return (
+                          <tr key={tipo.id}>
+                            <td title={tipo.description ?? tipo.name}>{tipo.name}</td>
+                            <td>
+                              <input
+                                type="checkbox"
+                                checked={entrega}
+                                disabled={busy}
+                                aria-label={`Esta tarea entrega ${tipo.name}`}
+                                onChange={() => {
+                                  run(async () => { await setNodeDocument(task.nodeId, tipo.id, !entrega) })
+                                }}
+                              />
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
                 )}
               </div>
 

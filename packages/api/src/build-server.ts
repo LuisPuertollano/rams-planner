@@ -15,12 +15,32 @@ import Fastify, { type FastifyInstance } from 'fastify'
 import { type Pool } from '@planner/persistence'
 import { registerAdminRoutes } from './admin-routes.js'
 import { registerAuthRoutes } from './auth-routes.js'
+import { registerDocumentRoutes } from './document-routes.js'
 import { registerPlanRoutes } from './plan-routes.js'
 import { auditRoutes, collectRoutePermissions } from './route-permissions.js'
 import { registerRebalanceRoutes } from './rebalance-routes.js'
 import { registerResourceRoutes } from './resources-routes.js'
 import { registerSkillRoutes } from './skills-routes.js'
 import { registerRoutes } from './routes.js'
+
+/**
+ * Todas las rutas de la API, en un solo sitio.
+ *
+ * Está aparte para que la prueba que audita los permisos registre **lo mismo**
+ * que el servidor. Una lista paralela en la prueba se olvidaría de la ruta
+ * nueva —que es justo el caso que la prueba existe para cazar— y daría verde
+ * mientras el endpoint queda sin comprobar.
+ */
+export function registerAllRoutes(app: FastifyInstance, pool: Pool): void {
+  registerAuthRoutes(app, pool)
+  registerAdminRoutes(app, pool)
+  registerRoutes(app, pool)
+  registerResourceRoutes(app, pool)
+  registerPlanRoutes(app, pool)
+  registerSkillRoutes(app, pool)
+  registerDocumentRoutes(app, pool)
+  registerRebalanceRoutes(app, pool)
+}
 
 export interface BuildOptions {
   /** Carpeta de la interfaz compilada. Sin ella la API sólo sirve `/api/`. */
@@ -49,13 +69,7 @@ export async function buildServer(pool: Pool, options: BuildOptions = {}): Promi
   // después de engancharlo.
   const registeredRoutes = collectRoutePermissions(app)
 
-  registerAuthRoutes(app, pool)
-  registerAdminRoutes(app, pool)
-  registerRoutes(app, pool)
-  registerResourceRoutes(app, pool)
-  registerPlanRoutes(app, pool)
-  registerSkillRoutes(app, pool)
-  registerRebalanceRoutes(app, pool)
+  registerAllRoutes(app, pool)
 
   // Y se comprueba en el arranque, no sólo en CI: una ruta sin permiso no llega
   // a atender peticiones. Es mejor no arrancar que arrancar con un agujero.

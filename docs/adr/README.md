@@ -19,7 +19,8 @@ parece una mala idea, aquí está el razonamiento que había detrás.
 | [0012](0012-sin-escritura-de-mpp.md) | No se escribe el formato .mpp | — |
 | [0013](0013-historial-append-only.md) | Historial append-only con borrado lógico | P7 |
 | [0014](0014-nivelacion-por-retraso.md) | La nivelación empuja fechas, y dice cuándo eso no basta | P2 |
-| [0015](0015-autenticacion-y-permisos.md) | Autenticación y permisos: lo decidido, y las cuatro preguntas que faltan | P1 |
+| [0015](0015-autenticacion-y-permisos.md) | Autenticación y permisos: quién entra, qué ve y qué puede hacer | P1 |
+| [0016](0016-documentos-y-precedencias.md) | Los documentos y su matriz: el orden del ciclo de vida, declarado una vez | P1 |
 
 ## Decisiones tomadas por defecto
 

@@ -399,6 +399,8 @@ export interface DependencyRow {
 export interface PlanStructure {
   readonly assignments: readonly AssignmentRow[]
   readonly dependencies: readonly DependencyRow[]
+  /** Qué documento entrega cada tarea. Lo que ata la matriz a un plan real. */
+  readonly documents: readonly { readonly nodeId: string; readonly documentTypeId: string }[]
 }
 
 export async function fetchStructure(): Promise<PlanStructure> {
@@ -848,4 +850,70 @@ export async function fetchRecentChanges(limit = 200): Promise<readonly ChangeEv
 export async function fetchEntityHistory(entityId: string): Promise<readonly ChangeEvent[]> {
   const body = await get<{ events: readonly ChangeEvent[] }>(`/api/history/${entityId}`)
   return body.events
+}
+
+// ---------------------------------------------------------------------------
+// Documentos y la matriz de precedencias
+// ---------------------------------------------------------------------------
+
+export interface DocumentType {
+  readonly id: string
+  readonly code: string
+  readonly name: string
+  readonly description: string | null
+  readonly sortKey: number
+  /** En cuántas tareas se entrega. Para avisar antes de retirarlo. */
+  readonly usedInTasks: number
+}
+
+/** La fila es condición necesaria de la columna. */
+export interface DocumentPrecedence {
+  readonly predecessorId: string
+  readonly successorId: string
+  readonly note: string | null
+}
+
+export interface DocumentCatalogue {
+  readonly types: readonly DocumentType[]
+  readonly precedences: readonly DocumentPrecedence[]
+}
+
+export async function fetchDocuments(): Promise<DocumentCatalogue> {
+  return get<DocumentCatalogue>('/api/documents')
+}
+
+export async function createDocumentType(
+  code: string,
+  name: string,
+  description: string | null,
+): Promise<void> {
+  return send('/api/documents', 'POST', { code, name, description })
+}
+
+export async function updateDocumentType(
+  documentId: string,
+  changes: { readonly code?: string; readonly name?: string; readonly description?: string | null },
+): Promise<void> {
+  return send(`/api/documents/${documentId}`, 'PATCH', changes)
+}
+
+export async function removeDocumentType(documentId: string): Promise<void> {
+  return send(`/api/documents/${documentId}`, 'DELETE')
+}
+
+/** Marca o desmarca una casilla. Se manda el estado que debe quedar. */
+export async function setPrecedence(
+  predecessorId: string,
+  successorId: string,
+  required: boolean,
+): Promise<void> {
+  return send('/api/documents/precedence', 'PUT', { predecessorId, successorId, required })
+}
+
+export async function setNodeDocument(
+  nodeId: string,
+  documentId: string,
+  delivers: boolean,
+): Promise<void> {
+  return send(`/api/nodes/${nodeId}/documents/${documentId}`, 'PUT', { delivers })
 }

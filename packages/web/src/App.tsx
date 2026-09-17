@@ -25,6 +25,7 @@ import { AdminView } from './views/AdminView.js'
 import { CalendarView } from './views/CalendarView.js'
 import { LoginView } from './views/LoginView.js'
 import { DiffView } from './views/DiffView.js'
+import { DocumentsView } from './views/DocumentsView.js'
 import { FindingsView } from './views/FindingsView.js'
 import { GanttView } from './views/GanttView.js'
 import { HistoryView } from './views/HistoryView.js'
@@ -37,7 +38,7 @@ import { ResourcesView } from './views/ResourcesView.js'
 
 type Tab =
   | 'matriz' | 'saturacion' | 'plan' | 'cronograma'
-  | 'equipo' | 'competencias' | 'calendario' | 'reparto' | 'hallazgos' | 'comparar'
+  | 'equipo' | 'competencias' | 'calendario' | 'documentos' | 'reparto' | 'hallazgos' | 'comparar'
   | 'registro' | 'admin'
 
 /**
@@ -62,6 +63,7 @@ const TABS: readonly {
   { id: 'equipo', label: 'Equipo', hint: 'De qué está hecha la capacidad: calendario, dedicación, ausencias y tarifa de cada persona', permission: ['equipo.ver'] },
   { id: 'calendario', label: 'Calendario', hint: 'Quién está fuera, cuándo, y qué capacidad le queda al equipo cada día', permission: ['equipo.ver'] },
   { id: 'competencias', label: 'Competencias', hint: 'Quién sabe hacer qué, y dónde el equipo tiene un único especialista', permission: ['competencias.ver'] },
+  { id: 'documentos', label: 'Documentos', hint: 'Qué entregables hay y cuál es condición necesaria de cuál. Se declara una vez y vale para todos los proyectos', permission: ['documentos.ver'] },
   { id: 'reparto', label: 'Reparto', hint: 'Qué trabajo se podría mover, a quién, y qué arreglaría. Propuestas, no decisiones', permission: ['reparto.ver'] },
   { id: 'hallazgos', label: 'Hallazgos', hint: 'Todo lo que el motor quiere decirte', permission: ['carga.ver', 'plan.ver'] },
   { id: 'comparar', label: 'Comparar', hint: 'En qué se diferencia el plan de hoy del que congelaste', permission: ['ejecuciones.ver'] },
@@ -231,7 +233,7 @@ export function App(): React.JSX.Element {
           ))}
         </nav>
 
-        {state?.run === null || state === null || tab === 'admin' || tab === 'registro' ? null : (
+        {state?.run === null || state === null || tab === 'admin' || tab === 'registro' || tab === 'documentos' ? null : (
           <span className="run-chip" title={`Hash de entradas: ${state.run.inputHash}`}>
             ejecución <b>{state.run.id.slice(0, 8)}</b> · motor {state.run.engineVersion} ·{' '}
             {new Date(state.run.startedAt).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })} ·{' '}
@@ -339,7 +341,11 @@ export function App(): React.JSX.Element {
           </div>
         )}
 
-        {totals === null || visibleTabs.length === 0 || tab === 'admin' || tab === 'registro' ? null : (
+        {totals === null ||
+        visibleTabs.length === 0 ||
+        tab === 'admin' ||
+        tab === 'registro' ||
+        tab === 'documentos' ? null : (
           <div className="stat-row">
             <div className="stat">
               <div className="stat__label">Trabajo planificado</div>
@@ -401,6 +407,8 @@ export function App(): React.JSX.Element {
             <span className="spacer faint" style={{ fontSize: 12 }}>
               {tab === 'admin'
                 ? '✎ lo que marques aquí es lo que la API deja hacer'
+                : tab === 'documentos'
+                  ? '✎ la fila es condición necesaria de la columna'
                 : tab === 'registro'
                   ? '🔒 sólo lectura · el registro lo escribe la base de datos, no la aplicación'
                 : tab === 'equipo' || tab === 'competencias'
@@ -413,6 +421,10 @@ export function App(): React.JSX.Element {
           <div className={tab === 'hallazgos' ? 'panel__body panel__body--flush' : 'panel__body panel__body--flush'}>
             {tab === 'admin' ? (
               <AdminView projects={state?.projects ?? []} currentUserId={me.user?.id ?? null} />
+            ) : tab === 'documentos' ? (
+              // El catálogo es dato declarado del equipo: existe aunque no
+              // haya ni un proyecto, y de hecho conviene llenarlo antes.
+              <DocumentsView canEdit={puede('documentos.gestionar')} />
             ) : tab === 'registro' ? (
               // El registro es dato propio: existe aunque no se haya calculado
               // nada, y de hecho lo primero que se registra es el alta de la
