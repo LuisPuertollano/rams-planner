@@ -111,6 +111,16 @@ afterAll(async () => {
 const describeSiHayBase = pool === null ? describe.skip : describe
 
 describeSiHayBase('la puerta', () => {
+  /**
+   * Ojo con esta: no comprueba sólo el 401. Comprueba que la herramienta **se
+   * cierra sola** en cuanto existe el primer usuario.
+   *
+   * El `beforeAll` monta la aplicación sobre una base todavía sin usuarios y
+   * los crea después, que es exactamente lo que pasa en una instalación de
+   * verdad cuando alguien ejecuta `crear-superadmin` con el servidor ya en
+   * marcha. Si el estado «no hay usuarios» se cacheara, esto daría 200 y la
+   * herramienta seguiría abierta a cualquiera.
+   */
   it('sin sesión no se ve nada de la API, pero la salud sí', async () => {
     expect((await aplicacion().inject({ method: 'GET', url: '/api/health' })).statusCode).toBe(200)
     const estado = await aplicacion().inject({ method: 'GET', url: '/api/state' })

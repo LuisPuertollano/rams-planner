@@ -205,7 +205,9 @@ docker compose exec api node packages/api/dist/cli.js \
 ```
 
 La contraseña sale por pantalla una sola vez. A partir de ahí hay que entrar
-para hacer nada.
+para hacer nada — **en el acto**, sin reiniciar el servidor: mientras la
+instalación está abierta, la herramienta comprueba en cada petición si ya hay
+alguien dado de alta, y en cuanto lo hay deja de preguntarlo.
 
 ### Repartir permisos
 

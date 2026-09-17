@@ -48,28 +48,38 @@ export const SESSION_COOKIE = 'planner_sesion'
  * y ya no se puede volver atrás creando... nada: para desactivarlo habría que
  * borrar todos los usuarios, que es una decisión bien visible.
  *
- * El estado se cachea porque se consulta en cada petición; treinta segundos es
- * suficiente para que el primer «crear superadministrador» se note enseguida y
- * poco para que la consulta pese.
+ * **Sólo se cachea que está cerrada**, y esto no es un detalle. Cachear que
+ * está abierta la mantiene abierta hasta que la caché caduque: alguien crea el
+ * primer superadministrador con la CLI —otro proceso, que no puede avisar a
+ * éste— y la herramienta sigue dejando entrar a cualquiera unos segundos más.
+ * De los dos errores posibles, ése es el que no se puede permitir. El otro
+ * —volver a consultar de más— cuesta un `SELECT EXISTS` sobre una tabla
+ * diminuta, y sólo mientras la instalación siga abierta, que es un rato al
+ * principio y nunca más.
  */
-const CACHE_MS = 30_000
-let sinUsuariosHasta = 0
-let sinUsuarios: boolean | null = null
+let cerrada = false
 
 async function instalacionSinUsuarios(pool: Pool): Promise<boolean> {
-  if (sinUsuarios !== null && Date.now() < sinUsuariosHasta) return sinUsuarios
+  // Una vez hay usuarios, ya no se vuelve atrás: para reabrirla habría que
+  // borrarlos todos, y eso es un reinicio del servidor de todas formas.
+  if (cerrada) return false
   const { rows } = await pool.query<{ existe: boolean }>(
     'SELECT EXISTS (SELECT 1 FROM app_user WHERE password_hash IS NOT NULL AND deleted_at IS NULL) AS existe',
   )
-  sinUsuarios = !(rows[0]?.existe ?? false)
-  sinUsuariosHasta = Date.now() + CACHE_MS
-  return sinUsuarios
+  const hayUsuarios = rows[0]?.existe ?? false
+  if (hayUsuarios) cerrada = true
+  return !hayUsuarios
 }
 
-/** Se llama al crear el primer usuario, para que el control se active ya. */
+/**
+ * Vuelve a mirar si la instalación tiene usuarios.
+ *
+ * Sólo hace falta en un sentido: una base que se vacía entre pruebas. En
+ * marcha, pasar de abierta a cerrada se nota solo, y de cerrada a abierta no
+ * pasa.
+ */
 export function olvidarEstadoDeInstalacion(): void {
-  sinUsuarios = null
-  sinUsuariosHasta = 0
+  cerrada = false
 }
 
 declare module 'fastify' {
