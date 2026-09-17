@@ -1,6 +1,7 @@
 /** Acceso a PostgreSQL. SQL explícito, sin ORM (ADR-0003). */
 
 import pg from 'pg'
+import { currentAuditContext } from './audit-context.js'
 
 export interface QueryResult<T> {
   readonly rows: T[]
@@ -26,18 +27,33 @@ export function createPool(connectionString: string): Pool {
   return new pg.Pool({ connectionString, max: 10 })
 }
 
-/** Ejecuta una función dentro de una transacción, con el actor fijado para la auditoría. */
+/**
+ * Ejecuta una función dentro de una transacción, con el actor fijado para la
+ * auditoría.
+ *
+ * El actor y la petición salen del contexto en curso si no se dan aquí, que es
+ * lo que hace que ninguna escritura se quede sin nombre por descuido. Un valor
+ * explícito siempre gana: los trabajos de fondo y las pruebas lo necesitan.
+ */
 export async function withTransaction<T>(
   pool: Pool,
   handler: (db: Queryable) => Promise<T>,
-  context: { readonly actorId?: string; readonly requestId?: string; readonly comment?: string } = {},
+  context: {
+    readonly actorId?: string | undefined
+    readonly requestId?: string | undefined
+    readonly comment?: string | undefined
+  } = {},
 ): Promise<T> {
+  const ambiente = currentAuditContext()
+  const actorId = context.actorId ?? ambiente?.actorId ?? ''
+  const requestId = context.requestId ?? ambiente?.requestId ?? ''
+
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
     // Los parámetros de sesión que lee el trigger de auditoría (P7).
-    await client.query('SELECT set_config($1, $2, true)', ['app.actor_id', context.actorId ?? ''])
-    await client.query('SELECT set_config($1, $2, true)', ['app.request_id', context.requestId ?? ''])
+    await client.query('SELECT set_config($1, $2, true)', ['app.actor_id', actorId])
+    await client.query('SELECT set_config($1, $2, true)', ['app.request_id', requestId])
     await client.query('SELECT set_config($1, $2, true)', ['app.change_comment', context.comment ?? ''])
     const result = await handler(client)
     await client.query('COMMIT')

@@ -790,3 +790,34 @@ export async function grant(userId: string, roleId: string, projectId: string | 
 export async function revoke(grantId: string): Promise<void> {
   return send(`/api/admin/concesiones/${grantId}`, 'DELETE')
 }
+
+// ---------------------------------------------------------------------------
+// El registro de cambios
+// ---------------------------------------------------------------------------
+
+export interface ChangeEvent {
+  readonly id: string
+  readonly occurredAt: string
+  readonly actorId: string | null
+  /** `null` cuando el cambio no tiene autor: la CLI, o antes de que hubiera login. */
+  readonly actorName: string | null
+  readonly requestId: string | null
+  readonly operation: string
+  readonly entityType: string
+  readonly entityId: string
+  readonly entityName: string | null
+  readonly projectId: string | null
+  readonly before: unknown
+  readonly after: unknown
+  readonly comment: string | null
+}
+
+export async function fetchRecentChanges(limit = 200): Promise<readonly ChangeEvent[]> {
+  const body = await get<{ events: readonly ChangeEvent[] }>(`/api/history?limit=${String(limit)}`)
+  return body.events
+}
+
+export async function fetchEntityHistory(entityId: string): Promise<readonly ChangeEvent[]> {
+  const body = await get<{ events: readonly ChangeEvent[] }>(`/api/history/${entityId}`)
+  return body.events
+}

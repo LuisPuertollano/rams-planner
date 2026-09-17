@@ -13,6 +13,7 @@ import { z } from 'zod'
 import {
   can,
   effectivePermissions,
+  enterAuditContext,
   findSession,
   login,
   logout,
@@ -21,6 +22,7 @@ import {
   projectsOfDependency,
   withTransaction,
   type AppUser,
+  type AuditContext,
   type EffectivePermissions,
   type Pool,
 } from '@planner/persistence'
@@ -87,6 +89,12 @@ declare module 'fastify' {
     /** Quién hace la petición. `undefined` mientras no haya sesión. */
     usuario?: AppUser
     permisos?: EffectivePermissions
+    /**
+     * El contexto que firma las escrituras de esta petición. Se crea vacío en
+     * el primer hook y se rellena al resolver la sesión; es el mismo objeto que
+     * lee `withTransaction`.
+     */
+    auditoria?: AuditContext
   }
 }
 
@@ -222,6 +230,22 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool): void {
    * El guardián. Se engancha antes que nada y decide en tres pasos: quién eres,
    * si esta ruta necesita permiso, y si lo tienes.
    */
+  /**
+   * Lo primero de todo, y sin esperar a nada: el contexto de auditoría.
+   *
+   * Tiene que ser aquí. `enterWith` sólo alcanza a lo que venga después en la
+   * misma cadena de ejecución, y hacerlo tras el `await` que resuelve la sesión
+   * llegaría tarde: el manejador ya no lo vería y el historial volvería a
+   * guardar cambios sin nombre. Por eso el objeto se crea vacío ahora y se le
+   * pone el actor abajo, en cuanto se sabe quién es.
+   */
+  app.addHook('onRequest', (request: FastifyRequest, _reply: FastifyReply, done: () => void) => {
+    const contexto: AuditContext = { requestId: request.id }
+    request.auditoria = contexto
+    enterAuditContext(contexto)
+    done()
+  })
+
   app.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
     if (!request.url.startsWith('/api/')) return
 
@@ -231,6 +255,10 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool): void {
       if (usuario !== null) {
         request.usuario = usuario
         request.permisos = await withTransaction(pool, (db) => effectivePermissions(db, usuario.id))
+        // A partir de aquí, cualquier escritura de esta petición queda firmada,
+        // la haga el manejador o algo que el manejador llame. Es lo que evita
+        // que una ruta nueva se olvide de decir quién la pidió.
+        if (request.auditoria !== undefined) request.auditoria.actorId = usuario.id
       }
     }
 
