@@ -16,6 +16,7 @@ import { type Pool } from '@planner/persistence'
 import { registerAdminRoutes } from './admin-routes.js'
 import { registerAuthRoutes } from './auth-routes.js'
 import { registerDocumentRoutes } from './document-routes.js'
+import { describeZodError, fallar } from './errors.js'
 import { registerMatrixRoutes } from './matrix-routes.js'
 import { registerPlanRoutes } from './plan-routes.js'
 import { auditRoutes, collectRoutePermissions } from './route-permissions.js'
@@ -73,6 +74,33 @@ export async function buildServer(pool: Pool, options: BuildOptions = {}): Promi
   // después de engancharlo.
   const registeredRoutes = collectRoutePermissions(app)
 
+  // **Antes de registrar las rutas**, y no es un detalle de estilo: cada ruta se
+  // queda con el manejador de errores que hubiera en su contexto al
+  // registrarla. Estaba al final del fichero y por eso no corría nunca — un
+  // error del motor salía con el 500 de serie de Fastify, sin `code` y con
+  // «Internal Server Error» por frase.
+  //
+  // Es el único sitio que manda un error sin pasar por `fallar`, y a propósito:
+  // el código que reenvía no lo acuñó él —viene del calendario o del motor— así
+  // que no está en el catálogo de `errors.ts`. La interfaz lo trata como
+  // desconocido y enseña la frase que llegó, que es el respaldo de siempre.
+  app.setErrorHandler((error: unknown, _request, reply) => {
+    // Lo que Zod rechazó no es un fallo del programa: es un formulario mal
+    // relleno, y merece decir qué campo en vez del volcado de los problemas.
+    const invalido = describeZodError(error)
+    if (invalido !== null) {
+      app.log.info({ err: error }, 'petición con datos inválidos')
+      return fallar(reply, 422, invalido.code, invalido.mensaje, { detalle: invalido.mensaje })
+    }
+
+    app.log.error({ err: error }, 'error al atender la petición')
+    const status = (error as { statusCode?: number }).statusCode ?? 500
+    return reply.status(status).send({
+      error: error instanceof Error ? error.message : 'Error inesperado',
+      code: (error as { code?: string }).code ?? null,
+    })
+  })
+
   registerAllRoutes(app, pool)
 
   // Y se comprueba en el arranque, no sólo en CI: una ruta sin permiso no llega
@@ -91,24 +119,27 @@ export async function buildServer(pool: Pool, options: BuildOptions = {}): Promi
 
   // En producción la API sirve también la interfaz compilada: un solo
   // contenedor, un solo origen, cero configuración de CORS para el usuario.
-  if (options.webRoot !== undefined && existsSync(options.webRoot)) {
-    await app.register(fastifyStatic, { root: options.webRoot })
-    app.setNotFoundHandler(async (request, reply) => {
-      if (request.url.startsWith('/api/')) return reply.status(404).send({ error: 'No existe ese endpoint' })
-      return reply.sendFile('index.html')
-    })
+  const sirveLaInterfaz = options.webRoot !== undefined && existsSync(options.webRoot)
+  if (sirveLaInterfaz) {
+    // `wildcard: false` es lo que hace que un fichero que no está caiga en el
+    // manejador de «no encontrado» de abajo. Con el comodín puesto, el plugin se
+    // queda con **todo** lo que no encajó antes, `/api/lo-que-sea` incluido, y
+    // entonces una URL mal escrita de la API no se puede distinguir de una
+    // pantalla de la interfaz.
+    await app.register(fastifyStatic, { root: options.webRoot, wildcard: false })
     app.log.info({ webRoot: options.webRoot }, 'sirviendo la interfaz compilada')
   }
 
-  app.setErrorHandler((error: unknown, _request, reply) => {
-    app.log.error({ err: error }, 'error al atender la petición')
-    const status = (error as { statusCode?: number }).statusCode ?? 500
-    return reply.status(status).send({
-      error: error instanceof Error ? error.message : 'Error inesperado',
-      // El código del hallazgo o del error de calendario viaja al cliente para
-      // que la interfaz pueda explicarlo en vez de mostrar «error inesperado».
-      code: (error as { code?: string }).code ?? null,
-    })
+  // Una ruta que no existe se dice así, con su código, y no con el 404 que trae
+  // Fastify de serie. Se registra siempre: una URL mal escrita es una URL mal
+  // escrita con interfaz compilada y sin ella.
+  //
+  // Lo que no es de la API es la interfaz pidiendo una de sus pantallas —las
+  // resuelve ella en el navegador, así que del servidor sólo necesita el
+  // `index.html`—. Lo que sí es de la API, no existe y se dice.
+  app.setNotFoundHandler(async (request, reply) => {
+    if (sirveLaInterfaz && !request.url.startsWith('/api/')) return reply.sendFile('index.html')
+    return fallar(reply, 404, 'ENDPOINT_DESCONOCIDO', 'No existe ese endpoint.')
   })
 
   return app

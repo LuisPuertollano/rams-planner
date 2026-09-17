@@ -15,6 +15,7 @@ import {
 import { fullDate } from '../format.js'
 import { useT, type Traductor } from '../i18n/index.js'
 import { permissionDetail, permissionLabel, screenName } from '../permissions.js'
+import { errorText } from '../errors.js'
 
 interface Props {
   readonly projects: readonly Project[]
@@ -54,7 +55,7 @@ export function AdminView({ projects, currentUserId }: Props): React.JSX.Element
 
   useEffect(() => {
     recargar().catch((cause: unknown) => {
-      setError(cause instanceof Error ? cause.message : t('admin.errorCargar'))
+      setError(errorText(t, cause, 'admin.errorCargar'))
     })
   }, [])
 
@@ -65,7 +66,7 @@ export function AdminView({ projects, currentUserId }: Props): React.JSX.Element
     accion()
       .then(recargar)
       .then(() => { if (mensaje !== undefined) setAviso(mensaje) })
-      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : t('admin.errorGuardar')) })
+      .catch((cause: unknown) => { setError(errorText(t, cause, 'admin.errorGuardar')) })
       .finally(() => { setBusy(false) })
   }
 

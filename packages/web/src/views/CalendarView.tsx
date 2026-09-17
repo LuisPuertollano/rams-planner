@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchCapacity, fetchTeam, type DailyCapacity, type ResourceDetail } from '../api.js'
 import { hours } from '../format.js'
+import { errorText } from '../errors.js'
+import { useT } from '../i18n/index.js'
 
 interface Props {
   readonly runId: string
@@ -43,6 +45,7 @@ function diasDe(year: number, month: number): readonly string[] {
  * es exactamente la que el motor ha usado para repartir el trabajo.
  */
 export function CalendarView({ runId }: Props): React.JSX.Element {
+  const { t } = useT()
   const hoy = new Date()
   const [year, setYear] = useState(hoy.getFullYear())
   const [month, setMonth] = useState(hoy.getMonth())
@@ -64,7 +67,7 @@ export function CalendarView({ runId }: Props): React.JSX.Element {
         setDays(capacidad)
       })
       .catch((cause: unknown) => {
-        if (!cancelado) setError(cause instanceof Error ? cause.message : 'No se pudo cargar el calendario')
+        if (!cancelado) setError(errorText(t, cause, 'error.local.calendario'))
       })
     return () => { cancelado = true }
   }, [runId, desde, hasta])

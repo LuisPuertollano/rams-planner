@@ -27,9 +27,11 @@ import {
   withTransaction,
   type Pool,
 } from '@planner/persistence'
-import { puede } from './auth-routes.js'
+import { frasesSinPermiso, puede } from './auth-routes.js'
+import { describeDbError, fallar } from './errors.js'
 import {
   EN_TODA_LA_HERRAMIENTA,
+  PERMISSION_BY_CODE,
   RECORTADO,
   desde,
   enProyecto,
@@ -42,20 +44,20 @@ import { calculate, defaultScenarioId } from './engine.js'
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe ser AAAA-MM-DD')
 
-/** Los errores de esquema que un usuario puede provocar escribiendo, en castellano. */
-function describeDbError(error: unknown): string | null {
-  if (typeof error !== 'object' || error === null || !('code' in error)) return null
-  const code = String(error.code)
-  const constraint = 'constraint' in error ? String((error as { constraint: unknown }).constraint) : ''
-  if (code === '23505') {
-    if (constraint.includes('project_code')) return 'Ya existe un proyecto con ese código.'
-    if (constraint.includes('assignment')) return 'Esa persona ya está asignada a esta tarea.'
-    if (constraint.includes('dependency')) return 'Esa dependencia ya existe.'
-    return 'Ya existe un registro con esos datos.'
-  }
-  if (code === '23514') return 'Los datos no cumplen una regla del esquema (revisa duraciones y fechas).'
-  if (code === '23503') return 'Algo de lo que referencias ya no existe.'
-  return null
+/**
+ * El 403 de las plantillas, en un sitio y no en dos.
+ *
+ * Es el mismo permiso denegado que monta el guardián, pero aquí lo comprueba la
+ * ruta: crear un proyecto *a partir de* una plantilla y guardar uno *como*
+ * plantilla entran por la misma puerta con distinta bandera.
+ */
+function sinPermisoDePlantillas(reply: FastifyReply): FastifyReply {
+  const etiqueta = PERMISSION_BY_CODE.get('plantillas.gestionar')?.label ?? 'plantillas.gestionar'
+  return fallar(reply, 403, 'SIN_PERMISO', frasesSinPermiso['sin-mas'](etiqueta), {
+    permiso: 'plantillas.gestionar',
+    etiqueta,
+    donde: 'sin-mas',
+  })
 }
 
 export function registerPlanRoutes(app: FastifyInstance, pool: Pool): void {
@@ -69,9 +71,12 @@ export function registerPlanRoutes(app: FastifyInstance, pool: Pool): void {
     try {
       result = await withTransaction(pool, handler, { comment })
     } catch (error) {
-      const message = describeDbError(error) ?? (error instanceof Error ? error.message : null)
-      if (message === null) throw error
-      return reply.status(422).send({ error: message })
+      const fallo = describeDbError(error, 'plan')
+      if (fallo !== null) return fallar(reply, 422, fallo.code, fallo.mensaje)
+      // Un error de escritura que el esquema no explica: se manda el detalle
+      // tal cual, dentro de una frase que sí se puede traducir.
+      if (!(error instanceof Error)) throw error
+      return fallar(reply, 422, 'ESCRITURA_RECHAZADA', error.message, { detalle: error.message })
     }
     const scenarioId = await withTransaction(pool, (db) => defaultScenarioId(db))
     return { result, run: await calculate(pool, scenarioId, reason) }
@@ -136,11 +141,7 @@ export function registerPlanRoutes(app: FastifyInstance, pool: Pool): void {
     // *como* plantilla es cambiar el catálogo de moldes del equipo. La ruta es
     // la misma, el permiso no.
     if (body.asTemplate === true && !puede(request, 'plantillas.gestionar')) {
-      return reply.status(403).send({
-        error: 'Te falta el permiso «Crear y gestionar plantillas».',
-        code: 'SIN_PERMISO',
-        permiso: 'plantillas.gestionar',
-      })
+      return sinPermisoDePlantillas(reply)
     }
     return write(
       reply,
@@ -161,15 +162,11 @@ export function registerPlanRoutes(app: FastifyInstance, pool: Pool): void {
         isTemplate: z.boolean().optional(),
       })
       .parse(request.body)
-    if (Object.keys(body).length === 0) return reply.status(400).send({ error: 'No hay nada que cambiar' })
+    if (Object.keys(body).length === 0) return fallar(reply, 400, 'NADA_QUE_CAMBIAR', 'No hay nada que cambiar.')
     // Convertir un proyecto en molde, o dejar de serlo, no es editar un
     // proyecto: es tocar el catálogo de plantillas.
     if (body.isTemplate !== undefined && !puede(request, 'plantillas.gestionar')) {
-      return reply.status(403).send({
-        error: 'Te falta el permiso «Crear y gestionar plantillas».',
-        code: 'SIN_PERMISO',
-        permiso: 'plantillas.gestionar',
-      })
+      return sinPermisoDePlantillas(reply)
     }
     return write(reply, 'edición del proyecto', `edición del proyecto ${projectId}`, async (db) => {
       await updateProject(db, projectId, body)

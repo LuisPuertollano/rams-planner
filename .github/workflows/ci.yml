@@ -41,6 +41,9 @@ jobs:
       - name: Ninguna función del catálogo de permisos sin traducir
         run: pnpm check:permisos
 
+      - name: Ningún error de la API sin código ni sin traducir
+        run: pnpm check:errores
+
       - name: Tests y cobertura
         run: pnpm test:coverage
 

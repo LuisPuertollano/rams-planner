@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { fetchDiff, fetchRuns, type Baseline, type Project, type RunSummary, type TaskDiff } from '../api.js'
 import { dateTime, fullDate, hours } from '../format.js'
+import { errorText } from '../errors.js'
+import { useT } from '../i18n/index.js'
 
 interface Props {
   readonly baselines: readonly Baseline[]
@@ -15,6 +17,7 @@ interface Props {
  * viven pegados a los datos declarados, sino colgados de su ejecución.
  */
 export function DiffView({ baselines, currentRunId, projects }: Props): React.JSX.Element {
+  const { t } = useT()
   const [selected, setSelected] = useState<string>(baselines[0]?.runId ?? '')
   const [rows, setRows] = useState<readonly TaskDiff[] | null>(null)
   const [runs, setRuns] = useState<readonly RunSummary[]>([])
@@ -40,7 +43,7 @@ export function DiffView({ baselines, currentRunId, projects }: Props): React.JS
     let cancelled = false
     fetchDiff(selected, currentRunId)
       .then((result) => { if (!cancelled) setRows(result) })
-      .catch((cause: unknown) => { if (!cancelled) setError(cause instanceof Error ? cause.message : 'Error') })
+      .catch((cause: unknown) => { if (!cancelled) setError(errorText(t, cause, 'error.local.cargar')) })
     return () => { cancelled = true }
   }, [selected, currentRunId])
 

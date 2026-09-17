@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { signIn, type MeResponse } from '../api.js'
 import { useT } from '../i18n/index.js'
+import { errorText } from '../errors.js'
 
 interface Props {
   readonly onEntered: (me: MeResponse) => void
@@ -27,7 +28,7 @@ export function LoginView({ onEntered }: Props): React.JSX.Element {
     signIn(email.trim(), password)
       .then(onEntered)
       .catch((cause: unknown) => {
-        setError(cause instanceof Error ? cause.message : t('login.error'))
+        setError(errorText(t, cause, 'login.error'))
       })
       .finally(() => { setBusy(false) })
   }

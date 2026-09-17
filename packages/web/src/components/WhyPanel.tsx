@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { fetchDerivations, type DerivationRow, type TaskRow } from '../api.js'
+import { errorText } from '../errors.js'
 import { days, fullDate, hours } from '../format.js'
+import { useT } from '../i18n/index.js'
 
 interface Props {
   readonly runId: string
@@ -56,6 +58,7 @@ const INPUT_LABELS: Record<string, string> = {
  * usó, y desde ahí hasta el dato que alguien escribió.
  */
 export function WhyPanel({ runId, task, onClose }: Props): React.JSX.Element {
+  const { t } = useT()
   const [derivations, setDerivations] = useState<readonly DerivationRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -65,7 +68,7 @@ export function WhyPanel({ runId, task, onClose }: Props): React.JSX.Element {
     setError(null)
     fetchDerivations(runId, task.nodeId)
       .then((rows) => { if (!cancelled) setDerivations(rows) })
-      .catch((cause: unknown) => { if (!cancelled) setError(cause instanceof Error ? cause.message : 'Error') })
+      .catch((cause: unknown) => { if (!cancelled) setError(errorText(t, cause, 'error.local.cargar')) })
     return () => { cancelled = true }
   }, [runId, task.nodeId])
 

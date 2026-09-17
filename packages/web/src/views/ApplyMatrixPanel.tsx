@@ -7,6 +7,8 @@ import {
   type ProposedDependency,
   type SkipReason,
 } from '../api.js'
+import { errorText } from '../errors.js'
+import { useT } from '../i18n/index.js'
 
 interface Props {
   readonly projects: readonly Project[]
@@ -35,6 +37,7 @@ const MOTIVO: Readonly<Record<SkipReason, string>> = {
  * puede usar sobre un plan de verdad.
  */
 export function ApplyMatrixPanel({ projects, canApply, onApplied }: Props): React.JSX.Element {
+  const { t } = useT()
   const aplicables = useMemo(() => projects.filter((p) => !p.isTemplate), [projects])
   const [projectId, setProjectId] = useState<string>(aplicables[0]?.id ?? '')
   const [plan, setPlan] = useState<MatrixPlan | null>(null)
@@ -69,7 +72,7 @@ export function ApplyMatrixPanel({ projects, canApply, onApplied }: Props): Reac
       })
       .catch((cause: unknown) => {
         setPlan(null)
-        setError(cause instanceof Error ? cause.message : 'No se pudo calcular la propuesta')
+        setError(errorText(t, cause, 'error.local.matrizProponer'))
       })
       .finally(() => { setBusy(false) })
   }
@@ -103,7 +106,7 @@ export function ApplyMatrixPanel({ projects, canApply, onApplied }: Props): Reac
         onApplied()
       })
       .catch((cause: unknown) => {
-        setError(cause instanceof Error ? cause.message : 'No se pudo aplicar la matriz')
+        setError(errorText(t, cause, 'error.local.matrizAplicar'))
       })
       .finally(() => { setBusy(false) })
   }

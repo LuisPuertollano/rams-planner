@@ -26,6 +26,7 @@ parece una mala idea, aquí está el razonamiento que había detrás.
 | [0019](0019-informes.md) | Informes: un resumen sin frases hechas, sobre una ejecución y un periodo | P2, P3, P4 |
 | [0020](0020-hallazgos-traducidos.md) | Los hallazgos, traducidos desde el código y no desde la frase | P2, P4 |
 | [0021](0021-permisos-traducidos.md) | El catálogo de permisos en cuatro idiomas; los nombres de los roles no se traducen | P1 |
+| [0022](0022-errores-con-codigo.md) | Los errores de la API llevan código estable; la frase se escribe en la interfaz | P1 |
 
 ## Decisiones tomadas por defecto
 

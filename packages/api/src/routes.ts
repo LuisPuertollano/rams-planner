@@ -29,8 +29,9 @@ import {
   withTransaction,
   type Pool,
 } from '@planner/persistence'
-import { puede } from './auth-routes.js'
-import { EN_TODA_LA_HERRAMIENTA, RECORTADO, desde, porNodo } from './permissions.js'
+import { frasesSinPermiso, puede } from './auth-routes.js'
+import { fallar } from './errors.js'
+import { EN_TODA_LA_HERRAMIENTA, PERMISSION_BY_CODE, RECORTADO, desde, porNodo } from './permissions.js'
 import { onlyVisible, visibleProjects } from './visibility.js'
 import { toCsv } from './csv.js'
 import { calculate, defaultScenarioId } from './engine.js'
@@ -68,7 +69,12 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
     // Recalcular y nivelar son la misma ruta con distinta bandera, pero no la
     // misma decisión: nivelar mueve fechas, así que pide su propio permiso.
     if (body.level && !puede(request, 'nivelar')) {
-      return reply.status(403).send({ error: 'Te falta el permiso «Nivelar».', code: 'SIN_PERMISO', permiso: 'nivelar' })
+      const etiqueta = PERMISSION_BY_CODE.get('nivelar')?.label ?? 'nivelar'
+      return fallar(reply, 403, 'SIN_PERMISO', frasesSinPermiso['sin-mas'](etiqueta), {
+        permiso: 'nivelar',
+        etiqueta,
+        donde: 'sin-mas',
+      })
     }
     const scenarioId = await withDb((db) => defaultScenarioId(db))
     return calculate(pool, scenarioId, body.reason ?? (body.level ? 'nivelación de recursos' : 'recálculo manual'), {
@@ -196,7 +202,7 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
     if (body.deadline !== undefined) set('deadline', body.deadline)
 
     if (updates.length === 0) {
-      return reply.status(400).send({ error: 'No hay nada que cambiar' })
+      return fallar(reply, 400, 'NADA_QUE_CAMBIAR', 'No hay nada que cambiar.')
     }
 
     await withTransaction(
@@ -240,7 +246,7 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
    */
   app.post('/api/import/plan', { config: { permission: 'importar' } }, async (request, reply) => {
     const text = typeof request.body === 'string' ? request.body : ''
-    if (text.trim() === '') return reply.status(400).send({ error: 'El cuerpo debe ser el CSV en texto plano' })
+    if (text.trim() === '') return fallar(reply, 400, 'CSV_VACIO', 'El cuerpo debe ser el CSV en texto plano.')
 
     try {
       const summary = await withTransaction(pool, (db) => importPlanCsv(db, text), {
@@ -251,7 +257,13 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
       return { ...summary, run }
     } catch (error) {
       if (error instanceof ImportError) {
-        return reply.status(422).send({ error: error.message, rows: error.rows })
+        // El detalle es del fichero de quien importa —«falta la columna X en
+        // la fila 4»—, así que es dato, no frase: va dentro de una que sí se
+        // traduce.
+        return fallar(reply, 422, 'CSV_INVALIDO', error.message, {
+          detalle: error.message,
+          rows: error.rows,
+        })
       }
       throw error
     }

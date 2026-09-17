@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { applyRebalance, fetchRebalance, type Project, type RebalanceProposal } from '../api.js'
 import { fullDate, hours, percent } from '../format.js'
+import { errorText } from '../errors.js'
+import { useT } from '../i18n/index.js'
 
 interface Props {
   readonly projects: readonly Project[]
@@ -22,6 +24,7 @@ const UMBRALES: readonly { value: number; label: string }[] = [
  * ese cliente exige que firme una persona concreta. Quien planifica sí.
  */
 export function RebalanceView({ projects, onChanged }: Props): React.JSX.Element {
+  const { t } = useT()
   const [threshold, setThreshold] = useState(10_000)
   const [proposals, setProposals] = useState<readonly RebalanceProposal[] | null>(null)
   const [avisos, setAvisos] = useState<readonly { entityId: string; message: string }[]>([])
@@ -36,7 +39,7 @@ export function RebalanceView({ projects, onChanged }: Props): React.JSX.Element
         setAvisos(result.findings.map((finding) => ({ entityId: finding.entityId, message: finding.message })))
       })
       .catch((cause: unknown) => {
-        setError(cause instanceof Error ? cause.message : 'No se pudieron calcular las propuestas')
+        setError(errorText(t, cause, 'error.local.propuestas'))
       })
   }
 
@@ -49,7 +52,7 @@ export function RebalanceView({ projects, onChanged }: Props): React.JSX.Element
     setError(null)
     applyRebalance(proposal)
       .then(() => { onChanged(); reload(threshold) })
-      .catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : 'No se pudo aplicar') })
+      .catch((cause: unknown) => { setError(errorText(t, cause, 'error.local.aplicar')) })
       .finally(() => { setBusy(null) })
   }
 

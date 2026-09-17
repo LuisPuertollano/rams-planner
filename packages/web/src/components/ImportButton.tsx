@@ -1,4 +1,6 @@
 import { useRef, useState } from 'react'
+import { errorRows, errorText } from '../errors.js'
+import { useT } from '../i18n/index.js'
 
 interface ImportResult {
   readonly projects: number
@@ -20,6 +22,7 @@ interface Props {
  * la fila 12» es accionable; «error al importar» no lo es.
  */
 export function ImportButton({ onImported }: Props): React.JSX.Element {
+  const { t } = useT()
   const inputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<ImportResult | null>(null)
@@ -48,7 +51,7 @@ export function ImportButton({ onImported }: Props): React.JSX.Element {
         onImported()
       })
       .catch((cause: unknown) => {
-        setProblems({ message: cause instanceof Error ? cause.message : 'No se pudo leer el fichero', rows: [] })
+        setProblems({ message: errorText(t, cause, 'error.local.fichero'), rows: errorRows(cause) })
       })
       .finally(() => {
         setBusy(false)

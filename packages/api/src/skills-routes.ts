@@ -18,6 +18,7 @@ import {
   type Pool,
 } from '@planner/persistence'
 import { calculate, defaultScenarioId } from './engine.js'
+import { fallar } from './errors.js'
 import { desde, porNodo } from './permissions.js'
 
 /** 0 retira; 1 a 5 es la escala declarada en el esquema. */
@@ -34,7 +35,7 @@ export function registerSkillRoutes(app: FastifyInstance, pool: Pool): void {
       await withTransaction(pool, handler, { comment })
     } catch (error) {
       if (typeof error === 'object' && error !== null && 'code' in error && String(error.code) === '23505') {
-        return reply.status(422).send({ error: 'Ya existe una competencia con ese código.' })
+        return fallar(reply, 422, 'COMPETENCIA_YA_EXISTE', 'Ya existe una competencia con ese código.')
       }
       throw error
     }

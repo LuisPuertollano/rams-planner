@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchRecentChanges, type ChangeEvent, type Project } from '../api.js'
 import { dateTime } from '../format.js'
+import { errorText } from '../errors.js'
+import { useT } from '../i18n/index.js'
 import { Cambios, ENTIDAD, OPERACION, SIN_NOMBRE } from './history-shared.js'
 
 interface Props {
@@ -20,6 +22,7 @@ interface Props {
  * nombre.
  */
 export function HistoryView({ projects }: Props): React.JSX.Element {
+  const { t } = useT()
   const [events, setEvents] = useState<readonly ChangeEvent[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [filtro, setFiltro] = useState('')
@@ -28,7 +31,7 @@ export function HistoryView({ projects }: Props): React.JSX.Element {
     fetchRecentChanges()
       .then(setEvents)
       .catch((cause: unknown) => {
-        setError(cause instanceof Error ? cause.message : 'No se pudo leer el registro')
+        setError(errorText(t, cause, 'error.local.registro'))
       })
   }, [])
 

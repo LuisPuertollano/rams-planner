@@ -36,8 +36,21 @@ import {
   type ProjectSource,
 } from './permissions.js'
 import type { RoutePermissionConfig } from './route-permissions.js'
+import { fallar } from './errors.js'
 
 export const SESSION_COOKIE = 'planner_sesion'
+
+/**
+ * Lo que se dice cuando una ruta no declara su permiso o lo declara fuera del
+ * catálogo. No es «te falta un permiso» —es a la ruta a quien le falta— y quien
+ * lo lee tiene que saber a quién preguntar.
+ */
+/** La ruta con la que `fastify-static` recoge lo que no encajó con nada. */
+const COMODIN_DE_ESTATICOS = '/*'
+
+const SIN_CONFIGURAR =
+  'Esta función no está configurada. Avisa a quien administra: no te falta un permiso, ' +
+  'le falta el suyo a esta ruta.'
 
 /**
  * Una instalación sin ningún usuario con contraseña sigue funcionando sin
@@ -212,6 +225,26 @@ async function alcanceDeLaPeticion(
   return { kind: 'projects', ids: resueltos }
 }
 
+/**
+ * Dónde hacía falta el permiso que no se tiene. Son las tres frases distintas
+ * que sabe decir un 403, y cuál toca lo decide el servidor: la interfaz sólo
+ * sabe el idioma.
+ */
+export type SinPermisoDonde = 'toda-la-herramienta' | 'este-proyecto' | 'sin-mas'
+
+export const frasesSinPermiso: Readonly<Record<SinPermisoDonde, (etiqueta: string) => string>> = {
+  'toda-la-herramienta': (etiqueta) =>
+    `Te falta el permiso «${etiqueta}» en toda la herramienta. ` +
+    'Tenerlo sobre un proyecto suelto no basta para esto.',
+  'este-proyecto': (etiqueta) => `Te falta el permiso «${etiqueta}» en este proyecto.`,
+  'sin-mas': (etiqueta) => `Te falta el permiso «${etiqueta}».`,
+}
+
+function sinPermisoDonde(alcance: Alcance, scope: PermissionScope): SinPermisoDonde {
+  if (alcance.kind === 'global') return 'toda-la-herramienta'
+  return scope === 'project' ? 'este-proyecto' : 'sin-mas'
+}
+
 /** ¿Autoriza este alcance? Un identificador que no resuelve nunca autoriza. */
 function autoriza(permisos: EffectivePermissions, code: string, alcance: Alcance): boolean {
   switch (alcance.kind) {
@@ -266,7 +299,17 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool): void {
 
     // La ruta sin barra final tal cual la declaró Fastify: es la que conoce el
     // catálogo. `request.url` traería la consulta y los parámetros resueltos.
-    const rutaDeclarada = request.routeOptions.url ?? ''
+    //
+    // Sin ruta declarada no hay ruta: la petición no encajó con ninguna y lo
+    // que le toca es un 404, no un juicio sobre permisos. Se deja pasar a quien
+    // sabe decirlo —y no abre nada, porque no hay manejador al que llegar.
+    //
+    // `/*` es lo mismo con otro nombre: cuando la API sirve la interfaz
+    // compilada, el comodín de los ficheros estáticos se queda con todo lo que
+    // no encajó antes. Sin él, esto era un 403 diciendo «avisa a quien
+    // administra» por una URL mal escrita.
+    const rutaDeclarada = request.routeOptions.url
+    if (rutaDeclarada === undefined || rutaDeclarada === COMODIN_DE_ESTATICOS) return
     if (PUBLIC_ROUTES.has(rutaDeclarada)) return
 
     // Instalación recién actualizada, todavía sin usuarios: se deja pasar y se
@@ -281,7 +324,7 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool): void {
     }
 
     if (request.usuario === undefined) {
-      return reply.status(401).send({ error: 'Hay que entrar para hacer esto.', code: 'SIN_SESION' })
+      return fallar(reply, 401, 'SIN_SESION', 'Hay que entrar para hacer esto.')
     }
 
     // Sesión sí, permiso no: lo que uno hace sobre su propia cuenta.
@@ -293,7 +336,7 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool): void {
       // No debería ocurrir: el arranque no deja pasar una ruta sin permiso. Si
       // pasa, se deniega. Un fallo de configuración nunca abre una puerta.
       request.log.error({ ruta: rutaDeclarada }, 'ruta sin permiso declarado: se deniega')
-      return reply.status(403).send({ error: 'Esta función no está configurada.', code: 'SIN_PERMISO' })
+      return fallar(reply, 403, 'FUNCION_SIN_CONFIGURAR', SIN_CONFIGURAR)
     }
 
     const definicion = PERMISSION_BY_CODE.get(permiso)
@@ -301,12 +344,12 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool): void {
       // Otro caso que el arranque ya descarta: un permiso que no está en el
       // catálogo. Si llegara, se deniega.
       request.log.error({ ruta: rutaDeclarada, permiso }, 'permiso fuera del catálogo: se deniega')
-      return reply.status(403).send({ error: 'Esta función no está configurada.', code: 'SIN_PERMISO' })
+      return fallar(reply, 403, 'FUNCION_SIN_CONFIGURAR', SIN_CONFIGURAR)
     }
 
     const permisos = request.permisos
     if (permisos === undefined) {
-      return reply.status(401).send({ error: 'Hay que entrar para hacer esto.', code: 'SIN_SESION' })
+      return fallar(reply, 401, 'SIN_SESION', 'Hay que entrar para hacer esto.')
     }
 
     // Dónde hay que tener el permiso. El arranque ya ha exigido que toda ruta
@@ -317,22 +360,20 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool): void {
       alcance = await alcanceDeLaPeticion(pool, request, definicion.scope, config?.project)
     } catch (error) {
       request.log.error({ err: error, ruta: rutaDeclarada }, 'no se pudo resolver el proyecto de la petición')
-      return reply.status(403).send({ error: 'Esta función no está configurada.', code: 'SIN_PERMISO' })
+      return fallar(reply, 403, 'FUNCION_SIN_CONFIGURAR', SIN_CONFIGURAR)
     }
 
     if (!autoriza(permisos, permiso, alcance)) {
-      const enTodaLaHerramienta = alcance.kind === 'global'
-      return reply.status(403).send({
-        // Un permiso denegado se explica: qué hace falta y dónde, no un 403
-        // pelado. «Lo tienes, pero no aquí» es la mitad que más se pregunta.
-        error: enTodaLaHerramienta
-          ? `Te falta el permiso «${definicion.label}» en toda la herramienta. ` +
-            'Tenerlo sobre un proyecto suelto no basta para esto.'
-          : `Te falta el permiso «${definicion.label}»${
-              definicion.scope === 'project' ? ' en este proyecto' : ''
-            }.`,
-        code: 'SIN_PERMISO',
+      // Un permiso denegado se explica: qué hace falta y dónde, no un 403
+      // pelado. «Lo tienes, pero no aquí» es la mitad que más se pregunta.
+      //
+      // El `donde` es lo que permite decirlo en otro idioma: son tres frases
+      // distintas, y cuál toca lo sabe el servidor, no la interfaz.
+      const donde = sinPermisoDonde(alcance, definicion.scope)
+      return fallar(reply, 403, 'SIN_PERMISO', frasesSinPermiso[donde](definicion.label), {
         permiso,
+        etiqueta: definicion.label,
+        donde,
       })
     }
   })
@@ -348,7 +389,7 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool): void {
     if (sesion === null) {
       // El mismo mensaje para «no existe» y «contraseña mala»: decir cuál de
       // las dos es regala la mitad del trabajo a quien prueba correos.
-      return reply.status(401).send({ error: 'El correo o la contraseña no son correctos.' })
+      return fallar(reply, 401, 'CREDENCIALES_INVALIDAS', 'El correo o la contraseña no son correctos.')
     }
 
     const permisos = await withTransaction(pool, (db) => effectivePermissions(db, sesion.user.id))
@@ -381,10 +422,10 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool): void {
 
     const usuario = request.usuario
     if (usuario === undefined) {
-      return reply.status(401).send({ error: 'Hay que entrar para hacer esto.', code: 'SIN_SESION' })
+      return fallar(reply, 401, 'SIN_SESION', 'Hay que entrar para hacer esto.')
     }
     if (body.actual === body.nueva) {
-      return reply.status(422).send({ error: 'La contraseña nueva tiene que ser distinta de la actual.' })
+      return fallar(reply, 422, 'CLAVE_SIN_CAMBIO', 'La contraseña nueva tiene que ser distinta de la actual.')
     }
 
     const cambiada = await withTransaction(pool, (db) =>
@@ -392,7 +433,7 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool): void {
     )
     if (!cambiada) {
       // El mismo mensaje que al entrar mal: no confirma nada de la actual.
-      return reply.status(401).send({ error: 'La contraseña actual no es correcta.' })
+      return fallar(reply, 401, 'CLAVE_ACTUAL_INCORRECTA', 'La contraseña actual no es correcta.')
     }
 
     return reply
