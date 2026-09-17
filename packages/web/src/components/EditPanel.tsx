@@ -16,6 +16,7 @@ import {
   type TaskRow,
 } from '../api.js'
 import { percent } from '../format.js'
+import { EntityHistory } from './EntityHistory.js'
 
 interface Props {
   readonly task: TaskRow
@@ -284,6 +285,8 @@ export function EditPanel({ task, tasks, resources, onClose, onChanged }: Props)
               </div>
             </>
           )}
+
+          <EntityHistory entityId={task.nodeId} />
 
           <div className="card">
             <h3 className="card__title">Quitar del plan</h3>
