@@ -688,6 +688,26 @@ export async function signOut(): Promise<void> {
 }
 
 /**
+ * Cambia tu propia contraseña. Cierra todas tus sesiones, ésta incluida: si la
+ * cambias porque alguien más la conocía, dejar sesiones vivas no arregla nada.
+ */
+export async function changeOwnPassword(actual: string, nueva: string): Promise<void> {
+  const response = await fetch('/api/auth/clave', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ actual, nueva }),
+  })
+  if (!response.ok) {
+    const body: unknown = await response.json().catch(() => ({}))
+    throw new Error(
+      typeof body === 'object' && body !== null && 'error' in body
+        ? String(body.error)
+        : 'No se pudo cambiar la contraseña',
+    )
+  }
+}
+
+/**
  * ¿Puede esto? Es la copia cliente de la comprobación del servidor, y sirve
  * sólo para no enseñar botones que van a devolver un 403. Quien manda es la API.
  *

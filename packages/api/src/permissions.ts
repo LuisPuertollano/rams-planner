@@ -372,3 +372,19 @@ export const PUBLIC_ROUTES: ReadonlyMap<string, string> = new Map([
   ['/api/auth/logout', 'Salir nunca puede requerir permisos.'],
   ['/api/auth/me', 'Dice quién eres y qué puedes hacer; sin sesión responde que nadie.'],
 ])
+
+/**
+ * Rutas que piden **sesión pero no permiso**: cosas que uno hace sobre su
+ * propia cuenta y que ningún rol debería poder quitarle.
+ *
+ * Es la tercera categoría, y hace falta que exista. Meterlas en
+ * `PUBLIC_ROUTES` las dejaría sin sesión —cambiar la contraseña de nadie—, y
+ * ponerles un permiso del catálogo permitiría que un rol se lo quitara a
+ * alguien, que es como dejar a una persona encerrada con una contraseña que
+ * no puede cambiar.
+ *
+ * Igual de corta y de cerrada que la otra, y auditada igual.
+ */
+export const SESSION_ONLY_ROUTES: ReadonlyMap<string, string> = new Map([
+  ['/api/auth/clave', 'Cambiar la propia contraseña: pide la actual, y ningún rol puede impedirlo.'],
+])

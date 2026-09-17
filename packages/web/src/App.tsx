@@ -18,6 +18,7 @@ import { hours, percent } from './format.js'
 import { activePeriods } from './periods.js'
 import { EditPanel } from './components/EditPanel.js'
 import { ImportButton } from './components/ImportButton.js'
+import { PasswordPanel } from './components/PasswordPanel.js'
 import { ProjectPanel } from './components/ProjectPanel.js'
 import { WhyPanel } from './components/WhyPanel.js'
 import { AdminView } from './views/AdminView.js'
@@ -80,6 +81,7 @@ export function App(): React.JSX.Element {
   const [editing, setEditing] = useState<TaskRow | null>(null)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [theme, setTheme] = useState<'auto' | 'light' | 'dark'>('auto')
+  const [cambiandoClave, setCambiandoClave] = useState(false)
 
   const load = useCallback(async () => {
     const next = await fetchState()
@@ -276,6 +278,13 @@ export function App(): React.JSX.Element {
         {me.user === null ? null : (
           <span className="usuario-chip" title={me.user.email}>
             {me.user.displayName}
+            <button
+              className="button"
+              title="Cambiar mi contraseña"
+              onClick={() => { setCambiandoClave(true) }}
+            >
+              Contraseña
+            </button>
             <button
               className="button"
               title="Salir"
@@ -489,6 +498,20 @@ export function App(): React.JSX.Element {
         </section>
         )}
       </main>
+
+      {!cambiandoClave || me.user === null ? null : (
+        <PasswordPanel
+          onClose={() => { setCambiandoClave(false) }}
+          onChanged={() => {
+            // El servidor ha cerrado todas las sesiones. Volver a preguntar
+            // quién eres devuelve «nadie», y la aplicación enseña la entrada.
+            setCambiandoClave(false)
+            fetchMe()
+              .then(setMe)
+              .catch(() => { window.location.reload() })
+          }}
+        />
+      )}
 
       {explaining === null || state?.run == null ? null : (
         <WhyPanel runId={state.run.id} task={explaining} onClose={() => { setExplaining(null) }} />

@@ -108,7 +108,10 @@ try {
       )
       console.log(`Creado «${nombre}» <${email}> como superadministrador.`)
       console.log(`Contraseña: ${clave}`)
-      console.log('Apúntala ahora: no se vuelve a mostrar. Cámbiala al entrar.')
+      console.log(
+        'Apúntala ahora: no se vuelve a mostrar. Cámbiala nada más entrar, con el botón ' +
+          '«Contraseña» de la barra de arriba.',
+      )
       break
     }
 

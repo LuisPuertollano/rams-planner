@@ -161,6 +161,31 @@ export async function setUserPassword(db: Queryable, userId: string, password: s
   await db.query('DELETE FROM user_session WHERE user_id = $1', [userId])
 }
 
+/**
+ * Cambiar la propia contraseña, comprobando la actual.
+ *
+ * Pedir la actual no es burocracia: sin ella, una sesión robada o un ordenador
+ * sin bloquear bastan para quedarse con la cuenta para siempre. Devuelve
+ * `false` si la actual no es correcta, y quien llama contesta lo mismo que
+ * contestaría al entrar mal.
+ */
+export async function changeOwnPassword(
+  db: Queryable,
+  userId: string,
+  current: string,
+  next: string,
+): Promise<boolean> {
+  const { rows } = await db.query<{ password_hash: string | null }>(
+    'SELECT password_hash FROM app_user WHERE id = $1 AND is_active AND deleted_at IS NULL',
+    [userId],
+  )
+  const hash = rows[0]?.password_hash
+  if (hash === undefined || hash === null) return false
+  if (!(await verifyPassword(current, hash))) return false
+  await setUserPassword(db, userId, next)
+  return true
+}
+
 export async function setUserActive(db: Queryable, userId: string, active: boolean): Promise<void> {
   await db.query('UPDATE app_user SET is_active = $2 WHERE id = $1', [userId, active])
   if (!active) await db.query('DELETE FROM user_session WHERE user_id = $1', [userId])

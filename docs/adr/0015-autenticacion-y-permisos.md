@@ -75,6 +75,12 @@ Y lo que ya estaba decidido y no depende de nada de lo anterior:
   que hacer y lo que menos discusión tiene.
 - **Un permiso denegado se explica.** Igual que un hallazgo: qué hace falta para
   hacer eso, no un 403 pelado.
+- **Cambiarse la propia contraseña no depende de ningún rol.** Es la tercera
+  categoría de ruta, junto a las públicas y las que piden permiso: pide sesión
+  y nada más. Ponerle un permiso del catálogo permitiría que alguien se lo
+  quitara a otro, que es dejar a una persona encerrada con una contraseña que
+  no puede cambiar. La lista está declarada y auditada igual que la de rutas
+  públicas, y tiene una sola entrada.
 
 ## El catálogo se deriva del código, y se hace cumplir
 

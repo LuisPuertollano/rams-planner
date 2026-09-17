@@ -9,7 +9,13 @@
 
 import Fastify from 'fastify'
 import { describe, expect, it } from 'vitest'
-import { PERMISSIONS, PERMISSION_BY_CODE, PUBLIC_ROUTES, SCREENS } from './permissions.js'
+import {
+  PERMISSIONS,
+  PERMISSION_BY_CODE,
+  PUBLIC_ROUTES,
+  SCREENS,
+  SESSION_ONLY_ROUTES,
+} from './permissions.js'
 import {
   auditRoutes,
   collectRoutePermissions,
@@ -104,6 +110,25 @@ describe('permisos por ruta', () => {
     // Si alguien renombra un endpoint, el permiso se queda apuntando al vacío y
     // deja de proteger lo que decía proteger. Esto lo caza.
     expect(misplacedEnforcement(await rutasRegistradas())).toEqual([])
+  })
+
+  it('las rutas que sólo piden sesión son las de la propia cuenta, y ninguna más', () => {
+    // Esta lista es la que más vigilancia merece: lo que entre aquí deja de
+    // estar sujeto a los roles para siempre. Que sea una sola entrada, y que
+    // sea cambiarse la contraseña, no es casualidad.
+    expect([...SESSION_ONLY_ROUTES.keys()]).toEqual(['/api/auth/clave'])
+    for (const [ruta, razon] of SESSION_ONLY_ROUTES) {
+      expect(ruta.startsWith('/api/')).toBe(true)
+      expect(razon.length).toBeGreaterThan(20)
+    }
+  })
+
+  it('una ruta de sesión que además pida permiso rompe el arranque', () => {
+    const problemas = auditRoutes([
+      { method: 'POST', url: '/api/auth/clave', permission: 'usuarios.gestionar', project: undefined },
+    ])
+    expect(problemas).toHaveLength(1)
+    expect(problemas[0]?.problem).toContain('sólo pide sesión')
   })
 
   it('las rutas públicas son pocas, conocidas y con su razón escrita', () => {
