@@ -178,6 +178,7 @@ export function ReportView({ projects }: Props): React.JSX.Element {
         <>
           {!informe.costsHidden ? null : <div className="warn-banner">{t('informe.sinCostes')}</div>}
           {!informe.peopleHidden ? null : <div className="warn-banner">{t('informe.sinPersonas')}</div>}
+          {!informe.actualsHidden ? null : <div className="warn-banner">{t('informe.sinReales')}</div>}
 
           <section className="informe__resumen">
             <h3>{t('informe.seccion.resumen')}</h3>
@@ -205,6 +206,7 @@ export function ReportView({ projects }: Props): React.JSX.Element {
                   <tr>
                     <th>Mes</th>
                     <th>Comprometido</th>
+                    {informe.actualsHidden ? null : <th title={t('informe.col.fichadoTitulo')}>{t('informe.col.fichado')}</th>}
                     <th>Capacidad</th>
                     <th>Saturación</th>
                     {informe.costsHidden ? null : <th>Coste</th>}
@@ -215,6 +217,7 @@ export function ReportView({ projects }: Props): React.JSX.Element {
                     <tr key={mes.period}>
                       <td>{monthLabel(mes.period)}</td>
                       <td>{horas(mes.plannedMinutes)}</td>
+                      {informe.actualsHidden ? null : <td>{horas(mes.actualMinutes)}</td>}
                       <td>{informe.peopleHidden ? '—' : horas(mes.capacityMinutes)}</td>
                       <td className={utilizationClass(mes.utilizationBp)}>
                         {informe.peopleHidden ? '—' : percent(mes.utilizationBp)}
@@ -235,6 +238,7 @@ export function ReportView({ projects }: Props): React.JSX.Element {
                   <tr>
                     <th>Proyecto</th>
                     <th>Comprometido</th>
+                    {informe.actualsHidden ? null : <th title={t('informe.col.fichadoTitulo')}>{t('informe.col.fichado')}</th>}
                     {informe.costsHidden ? null : <th>Coste</th>}
                     <th>Tareas</th>
                     <th>Avance</th>
@@ -249,6 +253,7 @@ export function ReportView({ projects }: Props): React.JSX.Element {
                     <tr key={proyecto.projectId}>
                       <td title={proyecto.name}>{proyecto.code}</td>
                       <td>{horas(proyecto.plannedMinutes)}</td>
+                      {informe.actualsHidden ? null : <td>{horas(proyecto.actualMinutes)}</td>}
                       {informe.costsHidden ? null : <td>{euros(proyecto.costCents)}</td>}
                       <td>
                         {proyecto.tasksInPeriod} / {proyecto.tasksTotal}
@@ -273,6 +278,7 @@ export function ReportView({ projects }: Props): React.JSX.Element {
                   <tr>
                     <th>Persona</th>
                     <th>Comprometido</th>
+                    {informe.actualsHidden ? null : <th title={t('informe.col.fichadoTitulo')}>{t('informe.col.fichado')}</th>}
                     <th>Capacidad</th>
                     <th>Saturación</th>
                     <th>Peor mes</th>
@@ -284,6 +290,7 @@ export function ReportView({ projects }: Props): React.JSX.Element {
                     <tr key={persona.resourceId}>
                       <td>{persona.displayName}</td>
                       <td>{horas(persona.plannedMinutes)}</td>
+                      {informe.actualsHidden ? null : <td>{horas(persona.actualMinutes)}</td>}
                       <td>{horas(persona.capacityMinutes)}</td>
                       <td className={utilizationClass(persona.utilizationBp)}>
                         {percent(persona.utilizationBp)}
@@ -378,31 +385,54 @@ function contar(
   locale: string,
 ): string {
   const n = (nombre: string): number => punto.numbers[nombre] ?? 0
+  /**
+   * Las horas de una frase, donde el cero **se escribe**.
+   *
+   * En una celda, `hours` devuelve «—» y está bien: la raya dice «aquí no hay
+   * nada». Dentro de una frase que enumera un reparto, «— h posibles» no se lee
+   * como nada, se lee como un hueco sin rellenar. Ahí el cero es el dato.
+   */
+  const h = (nombre: string): string => (n(nombre) === 0 ? '0' : hours(n(nombre), 0, locale))
   switch (punto.kind) {
     case 'alcance':
       return t('informe.tldr.alcance', n('projects'), n('tasks'), n('months'))
     case 'trabajo':
       return t(
         'informe.tldr.trabajo',
-        hours(n('plannedMinutes'), 0, locale),
-        hours(n('capacityMinutes'), 0, locale),
+        h('plannedMinutes'),
+        h('capacityMinutes'),
         punto.numbers['utilizationBp'] === undefined ? '—' : percent(n('utilizationBp')),
+      )
+    case 'realidad':
+      return t(
+        'informe.tldr.realidad',
+        h('actualMinutes'),
+        h('plannedMinutes'),
+        // El mes va como etiqueta y no como cifra: es lo que hace comparable
+        // la comparación, no una magnitud.
+        punto.labels[0] === undefined || punto.labels[0] === '' ? '—' : monthLabel(punto.labels[0]),
+      )
+    case 'trabajo-fuera-de-plan':
+      return t(
+        'informe.tldr.trabajo-fuera-de-plan',
+        h('unplannedMinutes'),
+        percent(n('shareBp')),
       )
     case 'compromiso':
       return t(
         'informe.tldr.compromiso',
         percent(n('notFirmBp')),
-        hours(n('firmMinutes'), 0, locale),
-        hours(n('likelyMinutes'), 0, locale),
-        hours(n('possibleMinutes'), 0, locale),
+        h('firmMinutes'),
+        h('likelyMinutes'),
+        h('possibleMinutes'),
       )
     case 'capacidad-reservada':
       return t(
         'informe.tldr.capacidad-reservada',
-        hours(n('reservedMinutes'), 0, locale),
+        h('reservedMinutes'),
         percent(n('reservedBp')),
-        hours(n('grossMinutes'), 0, locale),
-        hours(n('plannableMinutes'), 0, locale),
+        h('grossMinutes'),
+        h('plannableMinutes'),
       )
     case 'avance':
       return t(

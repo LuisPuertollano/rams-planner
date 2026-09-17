@@ -63,6 +63,19 @@ export interface ReportCapacityCell {
   readonly grossMinutes: number
 }
 
+/**
+ * Una hora real, con el mismo corte que una celda de carga planificada.
+ *
+ * La misma forma a propósito: cruzar dos listas que se parecen es una suma, y
+ * cruzar dos que no, un trabajo.
+ */
+export interface ReportActualCell {
+  readonly resourceId: string
+  readonly projectId: string
+  readonly period: string
+  readonly actualMinutes: number
+}
+
 export interface ReportResource {
   readonly id: string
   readonly code: string
@@ -88,6 +101,13 @@ export interface ReportInput {
   readonly projects: readonly ReportProject[]
   readonly tasks: readonly ReportTask[]
   readonly load: readonly ReportLoadCell[]
+  /**
+   * Lo que se fichó de verdad. Vacío cuando quien pide el informe no tiene
+   * permiso para verlo, o cuando todavía no se ha cargado ningún parte: las
+   * dos cosas se distinguen con `actualsHidden`, porque «no puedes verlo» y
+   * «no hay nada» son respuestas muy distintas.
+   */
+  readonly actuals: readonly ReportActualCell[]
   readonly capacity: readonly ReportCapacityCell[]
   readonly resources: readonly ReportResource[]
   readonly findings: readonly ReportFinding[]
@@ -102,6 +122,8 @@ export interface ReportInput {
    * El informe lo omite y lo dice, en vez de dar un cero por respuesta.
    */
   readonly peopleHidden: boolean
+  /** Las horas reales no han llegado: falta el permiso. No es que sean cero. */
+  readonly actualsHidden: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -123,6 +145,8 @@ export interface Highlight {
 export type HighlightKind =
   | 'alcance'
   | 'trabajo'
+  | 'realidad'
+  | 'trabajo-fuera-de-plan'
   | 'compromiso'
   | 'capacidad-reservada'
   | 'avance'
@@ -135,6 +159,8 @@ export type HighlightKind =
 export interface MonthLine {
   readonly period: string
   readonly plannedMinutes: number
+  /** Lo fichado ese mes. Cero también cuando no se puede ver: mira `actualsHidden`. */
+  readonly actualMinutes: number
   readonly capacityMinutes: number
   readonly utilizationBp: number | null
   readonly costCents: number
@@ -145,6 +171,8 @@ export interface ProjectLine {
   readonly code: string
   readonly name: string
   readonly plannedMinutes: number
+  /** Lo fichado en este proyecto dentro del periodo. */
+  readonly actualMinutes: number
   readonly costCents: number
   /** Tareas con fechas dentro del periodo, y tareas del proyecto entero. */
   readonly tasksInPeriod: number
@@ -172,6 +200,8 @@ export interface PersonLine {
   readonly code: string
   readonly displayName: string
   readonly plannedMinutes: number
+  /** Lo que esta persona fichó dentro del periodo. */
+  readonly actualMinutes: number
   readonly capacityMinutes: number
   readonly utilizationBp: number | null
   /** El peor mes del periodo. Un promedio esconde justo esto. */
@@ -222,6 +252,31 @@ export interface ReportTotals {
   readonly plannedMinutes: number
   /** Los mismos minutos, repartidos por nivel de compromiso del proyecto. */
   readonly plannedByCommitment: CommitmentSplit
+  /**
+   * Lo fichado dentro del periodo y del alcance.
+   *
+   * Comparar esto con `plannedMinutes` a secas es un error corriente y conviene
+   * decirlo: el plan abarca el periodo entero y las horas sólo llegan hasta
+   * donde alguien ha fichado. Para eso está `actualsThrough`.
+   */
+  readonly actualMinutes: number
+  /**
+   * El último mes con horas cargadas (`AAAA-MM`), o nulo si no hay ninguna.
+   *
+   * Es el dato que hace comparable la comparación: sin él, un plan de seis
+   * meses frente a dos meses de partes parece un proyecto que va sobradísimo.
+   */
+  readonly actualsThrough: string | null
+  /**
+   * Horas fichadas en un proyecto del alcance donde **nadie planificó nada**
+   * ese mes.
+   *
+   * Es la idea que merecía copiarse de PlaTo, que crea sola una línea de plan
+   * con el entregable «Unplanned with Actuals» —setecientas nueve de sus tres
+   * mil doscientas filas son eso—. Aquí no se crea nada: escribir plan en
+   * nombre de nadie rompe P1. Se cuenta y se dice.
+   */
+  readonly unplannedActualMinutes: number
   readonly capacityMinutes: number
   /**
    * La capacidad antes de descontar lo indirecto y la reserva.
@@ -251,6 +306,8 @@ export interface Report {
   readonly asOf: string
   readonly costsHidden: boolean
   readonly peopleHidden: boolean
+  /** Las horas reales no han llegado: falta el permiso. No es que sean cero. */
+  readonly actualsHidden: boolean
   readonly tldr: readonly Highlight[]
   readonly totals: ReportTotals
   readonly months: readonly MonthLine[]
@@ -305,7 +362,23 @@ export function buildReport(input: ReportInput): Report {
   const compromisoDe = new Map(proyectos.map((p) => [p.id, p.commitment]))
   const porCompromiso = repartoPorCompromiso(carga, compromisoDe)
 
-  const personas = input.peopleHidden ? [] : lineasDePersona(proyectos, carga, capacidad, meses, input)
+  // Los reales, recortados al mismo alcance que la carga. Fuera del alcance no
+  // son de este informe, igual que no lo es la carga de otro proyecto.
+  const reales = input.actuals.filter((celda) => enAlcance.has(celda.projectId))
+  const totalReal = suma(reales, (c) => c.actualMinutes)
+  const hasta = ultimoMesConHoras(reales)
+
+  // Horas en un mes y un proyecto donde nadie planificó nada. No se crea plan
+  // por nadie (P1): se cuenta y se dice.
+  const planificadoPorHueco = new Set(carga.map((c) => `${c.projectId}|${c.period}`))
+  const fueraDePlan = suma(
+    reales.filter((celda) => !planificadoPorHueco.has(`${celda.projectId}|${celda.period}`)),
+    (c) => c.actualMinutes,
+  )
+
+  const personas = input.peopleHidden
+    ? []
+    : lineasDePersona(proyectos, carga, reales, capacidad, meses, input)
   const sobrecargadas = personas.flatMap((persona) =>
     persona.worst !== null && persona.worst.utilizationBp > SOBRECARGA_BP
       ? [{ persona, worst: persona.worst }]
@@ -331,6 +404,9 @@ export function buildReport(input: ReportInput): Report {
     tasksWithoutDates: sinFechas.length,
     plannedMinutes: totalPlanificado,
     plannedByCommitment: porCompromiso,
+    actualMinutes: totalReal,
+    actualsThrough: hasta,
+    unplannedActualMinutes: fueraDePlan,
     capacityMinutes: totalCapacidad,
     grossCapacityMinutes: totalBruto,
     utilizationBp: totalCapacidad === 0 ? null : ratioBp(totalPlanificado, totalCapacidad),
@@ -353,10 +429,11 @@ export function buildReport(input: ReportInput): Report {
     asOf: input.asOf,
     costsHidden: input.costsHidden,
     peopleHidden: input.peopleHidden,
+    actualsHidden: input.actualsHidden,
     tldr: resumen(input, totals, meses, peor, riesgos),
     totals,
-    months: lineasDeMes(meses, carga, capacidadPorMes),
-    projects: lineasDeProyecto(proyectos, tareas, enPeriodo, carga, riesgos, hallazgos),
+    months: lineasDeMes(meses, carga, reales, capacidadPorMes),
+    projects: lineasDeProyecto(proyectos, tareas, enPeriodo, carga, reales, riesgos, hallazgos),
     people: personas,
     risks: riesgos,
     findings: hallazgos,
@@ -370,6 +447,22 @@ export function buildReport(input: ReportInput): Report {
  * contaría como `firme`: es lo que el esquema pone por defecto, y callar un
  * trabajo es peor que contarlo de más.
  */
+/**
+ * El último mes del que hay horas, o nulo.
+ *
+ * Se devuelve el mes y no el día a propósito: el informe cuenta por meses, y un
+ * «hasta el 14 de marzo» invita a comparar medio mes de horas con un mes entero
+ * de plan.
+ */
+function ultimoMesConHoras(reales: readonly ReportActualCell[]): string | null {
+  let ultimo: string | null = null
+  for (const celda of reales) {
+    if (celda.actualMinutes === 0) continue
+    if (ultimo === null || celda.period > ultimo) ultimo = celda.period
+  }
+  return ultimo
+}
+
 function repartoPorCompromiso(
   carga: readonly ReportLoadCell[],
   compromisoDe: ReadonlyMap<string, CommitmentLevel>,
@@ -464,6 +557,43 @@ function resumen(
     })
   }
 
+  // Plan frente a realidad. Sólo cuando hay horas cargadas: sin partes, decir
+  // «0 h fichadas» sería afirmar algo que nadie ha comprobado.
+  if (!input.actualsHidden && totals.actualMinutes > 0) {
+    puntos.push({
+      kind: 'realidad',
+      severity: 'neutral',
+      numbers: {
+        actualMinutes: totals.actualMinutes,
+        plannedMinutes: totals.plannedMinutes,
+      },
+      // El mes hasta el que hay horas va como etiqueta y no como cifra, porque
+      // es lo que hace comparable la comparación: sin él, un plan de seis meses
+      // frente a dos de partes parece un proyecto que va sobradísimo.
+      labels: totals.actualsThrough === null ? [] : [totals.actualsThrough],
+    })
+  }
+
+  // Horas en un proyecto y un mes donde nadie planificó nada. Es la idea de
+  // PlaTo, que crea sola la línea de plan; aquí no se inventa plan, se avisa.
+  if (!input.actualsHidden && totals.unplannedActualMinutes > 0) {
+    puntos.push({
+      kind: 'trabajo-fuera-de-plan',
+      // Amarillo siempre: no es un error, es trabajo que está pasando y que el
+      // plan no conoce. Rojo cuando ya es la cuarta parte de lo fichado.
+      severity: totals.unplannedActualMinutes * 4 > totals.actualMinutes ? 'error' : 'warning',
+      numbers: {
+        unplannedMinutes: totals.unplannedActualMinutes,
+        actualMinutes: totals.actualMinutes,
+        // El denominador no puede ser cero aquí: lo de fuera del plan es un
+        // subconjunto de lo fichado y las horas no son negativas (lo garantiza
+        // el CHECK de la tabla), así que si hay algo fuera, hay algo.
+        shareBp: ratioBp(totals.unplannedActualMinutes, totals.actualMinutes),
+      },
+      labels: [],
+    })
+  }
+
   if (totals.tasksInPeriod > 0) {
     puntos.push({
       kind: 'avance',
@@ -546,9 +676,11 @@ function resumen(
 function lineasDeMes(
   meses: ReadonlySet<string>,
   carga: readonly ReportLoadCell[],
+  reales: readonly ReportActualCell[],
   capacidadPorMes: ReadonlyMap<string, number>,
 ): readonly MonthLine[] {
   const planificado = agrupa(carga, (c) => c.period, (c) => c.plannedMinutes)
+  const fichado = agrupa(reales, (c) => c.period, (c) => c.actualMinutes)
   const coste = agrupa(carga, (c) => c.period, (c) => c.costCents)
   return [...meses].sort().map((period) => {
     const plannedMinutes = planificado.get(period) ?? 0
@@ -556,6 +688,7 @@ function lineasDeMes(
     return {
       period,
       plannedMinutes,
+      actualMinutes: fichado.get(period) ?? 0,
       capacityMinutes,
       utilizationBp: capacityMinutes === 0 ? null : ratioBp(plannedMinutes, capacityMinutes),
       costCents: coste.get(period) ?? 0,
@@ -568,10 +701,12 @@ function lineasDeProyecto(
   tareas: readonly ReportTask[],
   enPeriodo: readonly ReportTask[],
   carga: readonly ReportLoadCell[],
+  reales: readonly ReportActualCell[],
   riesgos: readonly RiskLine[],
   hallazgos: readonly ReportFinding[],
 ): readonly ProjectLine[] {
   const planificado = agrupa(carga, (c) => c.projectId, (c) => c.plannedMinutes)
+  const fichado = agrupa(reales, (c) => c.projectId, (c) => c.actualMinutes)
   const coste = agrupa(carga, (c) => c.projectId, (c) => c.costCents)
 
   return proyectos.map((proyecto) => {
@@ -584,6 +719,7 @@ function lineasDeProyecto(
       code: proyecto.code,
       name: proyecto.name,
       plannedMinutes: planificado.get(proyecto.id) ?? 0,
+      actualMinutes: fichado.get(proyecto.id) ?? 0,
       costCents: coste.get(proyecto.id) ?? 0,
       tasksInPeriod: suyas.length,
       tasksTotal: todas.length,
@@ -601,11 +737,18 @@ function lineasDeProyecto(
 function lineasDePersona(
   proyectos: readonly ReportProject[],
   carga: readonly ReportLoadCell[],
+  reales: readonly ReportActualCell[],
   capacidad: readonly ReportCapacityCell[],
   meses: ReadonlySet<string>,
   input: ReportInput,
 ): readonly PersonLine[] {
-  const conTrabajo = new Set(carga.map((c) => c.resourceId))
+  const fichadoPorPersona = agrupa(reales, (c) => c.resourceId, (c) => c.actualMinutes)
+  // Quien tiene carga planificada **o** horas fichadas: alguien que trabajó en
+  // esto sin estar planificado es justo a quien hay que enseñar.
+  const conTrabajo = new Set([
+    ...carga.map((c) => c.resourceId),
+    ...reales.map((c) => c.resourceId),
+  ])
 
   const lineas = input.resources
     .filter((recurso) => conTrabajo.has(recurso.id))
@@ -634,6 +777,7 @@ function lineasDePersona(
         code: recurso.code,
         displayName: recurso.displayName,
         plannedMinutes,
+        actualMinutes: fichadoPorPersona.get(recurso.id) ?? 0,
         capacityMinutes,
         utilizationBp: capacityMinutes === 0 ? null : ratioBp(plannedMinutes, capacityMinutes),
         worst,

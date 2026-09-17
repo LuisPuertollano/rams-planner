@@ -314,6 +314,30 @@ export const PERMISSIONS: readonly PermissionDefinition[] = [
       'costes» llega sin importes.',
   },
 
+  // --- Los reales -----------------------------------------------------------
+  {
+    code: 'reales.ver',
+    scope: 'project',
+    screen: 'Informes',
+    label: 'Ver las horas reales',
+    detail:
+      'Las horas que se han fichado de verdad, frente a las planificadas. Es el dato que dice si el ' +
+      'plan se parece a lo que está pasando, y también quién ha trabajado en qué: sin este permiso ' +
+      'el informe sale sólo con lo planificado.',
+    // No protege una ruta: filtra lo que devuelve el informe. Sin él la lista
+    // de horas no llega —no llega a cero— y la respuesta lo dice.
+    enforcedIn: ['GET /api/report'],
+  },
+  {
+    code: 'reales.registrar',
+    scope: 'global',
+    screen: 'Datos',
+    label: 'Importar horas reales',
+    detail:
+      'Cargar el parte de horas. Es global y no por proyecto porque un fichero de horas trae todos ' +
+      'los proyectos a la vez, y quien lo carga tiene que poder escribir en todos.',
+  },
+
   // --- Comparar y ejecuciones ----------------------------------------------
   {
     code: 'ejecuciones.ver',

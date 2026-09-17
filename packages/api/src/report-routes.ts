@@ -15,6 +15,7 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import {
   latestRun,
+  readActualsInPeriod,
   readCapacityInPeriod,
   readFindings,
   readLoadInPeriod,
@@ -113,6 +114,9 @@ export function registerReportRoutes(app: FastifyInstance, pool: Pool): void {
 
       const verCostes = puede(request, 'costes.ver')
       const verCarga = puede(request, 'carga.ver')
+      // Las horas reales tienen su propio permiso porque son otro dato: dicen
+      // quién trabajó en qué, y eso no se deduce del plan.
+      const verReales = puede(request, 'reales.ver')
 
       const carga = (await readLoadInPeriod(db, run.id, from, to)).map((fila) => ({
         ...fila,
@@ -147,6 +151,9 @@ export function registerReportRoutes(app: FastifyInstance, pool: Pool): void {
           assignees: tarea.assignees,
         })),
         load: carga,
+        // Sin el permiso no llega la lista, no llega a cero: el informe dice
+        // «no puedes verlas» en vez de dar por hecho que no hay ninguna.
+        actuals: verReales ? await readActualsInPeriod(db, from, to) : [],
         capacity: verCarga ? await readCapacityInPeriod(db, run.id, from, to) : [],
         resources: verCarga
           ? (await readResources(db)).map((recurso) => ({
@@ -166,6 +173,7 @@ export function registerReportRoutes(app: FastifyInstance, pool: Pool): void {
         })),
         costsHidden: !verCostes,
         peopleHidden: !verCarga,
+        actualsHidden: !verReales,
       })
     })
   })

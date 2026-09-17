@@ -4,6 +4,7 @@ import {
   buildReport,
   type Highlight,
   type HighlightKind,
+  type ReportActualCell,
   type ReportCapacityCell,
   type ReportInput,
   type ReportProject,
@@ -48,6 +49,14 @@ const capacidad = (
   grossMinutes = capacityMinutes,
 ): ReportCapacityCell => ({ resourceId, period, capacityMinutes, grossMinutes })
 
+/** Una hora fichada, con el mismo corte que una celda de carga. */
+const real = (
+  resourceId: string,
+  projectId: string,
+  period: string,
+  actualMinutes: number,
+): ReportActualCell => ({ resourceId, projectId, period, actualMinutes })
+
 const entrada = (parcial: Partial<ReportInput>): ReportInput => ({
   runId: 'run-1',
   period: PERIODO,
@@ -56,10 +65,12 @@ const entrada = (parcial: Partial<ReportInput>): ReportInput => ({
   tasks: [],
   load: [],
   capacity: [],
+  actuals: [],
   resources: [],
   findings: [],
   costsHidden: false,
   peopleHidden: false,
+  actualsHidden: false,
   ...parcial,
 })
 
@@ -440,6 +451,7 @@ describe('los casos que no se ven hasta que pasan', () => {
     expect(marzo).toEqual({
       period: '2026-03',
       plannedMinutes: 0,
+      actualMinutes: 0,
       capacityMinutes: 10_000,
       utilizationBp: 0,
       costCents: 0,
@@ -581,5 +593,131 @@ describe('los casos que no se ven hasta que pasan', () => {
     )
     expect(punto(informe, 'capacidad-reservada')).toBeUndefined()
     expect(informe.totals.grossCapacityMinutes).toBe(informe.totals.capacityMinutes)
+  })
+
+  // --- Plan frente a realidad ----------------------------------------------
+
+  it('cruza lo planificado con lo fichado, y dice hasta cuándo hay horas', () => {
+    const informe = buildReport(
+      entrada({
+        resources: [{ id: 'r1', code: 'ANA', displayName: 'Ana' }],
+        load: [
+          { resourceId: 'r1', projectId: 'p1', period: '2026-02', plannedMinutes: 600, costCents: 0 },
+          { resourceId: 'r1', projectId: 'p1', period: '2026-03', plannedMinutes: 600, costCents: 0 },
+        ],
+        actuals: [real('r1', 'p1', '2026-02', 540), real('r1', 'p1', '2026-03', 660)],
+      }),
+    )
+
+    expect(informe.totals.actualMinutes).toBe(1_200)
+    // El mes, no el día: el informe cuenta por meses.
+    expect(informe.totals.actualsThrough).toBe('2026-03')
+    expect(informe.months.find((m) => m.period === '2026-02')?.actualMinutes).toBe(540)
+    expect(informe.projects[0]?.actualMinutes).toBe(1_200)
+    expect(informe.people[0]?.actualMinutes).toBe(1_200)
+
+    const punto = informe.tldr.find((h) => h.kind === 'realidad')
+    expect(punto?.numbers).toEqual({ actualMinutes: 1_200, plannedMinutes: 1_200 })
+    expect(punto?.labels).toEqual(['2026-03'])
+  })
+
+  it('cuenta las horas que caen donde nadie planificó nada', () => {
+    // La idea de PlaTo, que crea sola una línea de plan. Aquí no se inventa
+    // plan: se cuenta y se dice.
+    const informe = buildReport(
+      entrada({
+        resources: [{ id: 'r1', code: 'ANA', displayName: 'Ana' }],
+        load: [
+          { resourceId: 'r1', projectId: 'p1', period: '2026-02', plannedMinutes: 600, costCents: 0 },
+        ],
+        actuals: [
+          real('r1', 'p1', '2026-02', 600),
+          // Marzo no tiene nada planificado en p1: esto es trabajo fuera de plan.
+          real('r1', 'p1', '2026-03', 300),
+        ],
+      }),
+    )
+
+    expect(informe.totals.unplannedActualMinutes).toBe(300)
+    const punto = informe.tldr.find((h) => h.kind === 'trabajo-fuera-de-plan')
+    expect(punto?.severity).toBe('error')
+    expect(punto?.numbers['shareBp']).toBe(3_333)
+  })
+
+  it('un cuarto o menos de trabajo fuera de plan avisa en amarillo', () => {
+    const informe = buildReport(
+      entrada({
+        resources: [{ id: 'r1', code: 'ANA', displayName: 'Ana' }],
+        load: [
+          { resourceId: 'r1', projectId: 'p1', period: '2026-02', plannedMinutes: 600, costCents: 0 },
+        ],
+        actuals: [real('r1', 'p1', '2026-02', 900), real('r1', 'p1', '2026-03', 100)],
+      }),
+    )
+    expect(informe.tldr.find((h) => h.kind === 'trabajo-fuera-de-plan')?.severity).toBe('warning')
+  })
+
+  it('quien fichó sin estar planificado sale en el informe', () => {
+    // Es justo a quien hay que enseñar: trabajó en esto y el plan no lo sabe.
+    const informe = buildReport(
+      entrada({
+        resources: [
+          { id: 'r1', code: 'ANA', displayName: 'Ana' },
+          { id: 'r2', code: 'JAN', displayName: 'Jan' },
+        ],
+        load: [
+          { resourceId: 'r1', projectId: 'p1', period: '2026-02', plannedMinutes: 600, costCents: 0 },
+        ],
+        actuals: [real('r2', 'p1', '2026-02', 480)],
+      }),
+    )
+
+    const jan = informe.people.find((persona) => persona.code === 'JAN')
+    expect(jan?.plannedMinutes).toBe(0)
+    expect(jan?.actualMinutes).toBe(480)
+  })
+
+  it('sin permiso, el informe calla en vez de decir cero', () => {
+    const informe = buildReport(
+      entrada({
+        actualsHidden: true,
+        load: [
+          { resourceId: 'r1', projectId: 'p1', period: '2026-02', plannedMinutes: 600, costCents: 0 },
+        ],
+        // El servidor no las manda; esto comprueba que además el resumen calla.
+        actuals: [],
+      }),
+    )
+    expect(informe.actualsHidden).toBe(true)
+    expect(informe.tldr.find((h) => h.kind === 'realidad')).toBeUndefined()
+    expect(informe.tldr.find((h) => h.kind === 'trabajo-fuera-de-plan')).toBeUndefined()
+  })
+
+  it('sin partes cargados no dice nada de la realidad', () => {
+    const informe = buildReport(
+      entrada({
+        load: [
+          { resourceId: 'r1', projectId: 'p1', period: '2026-02', plannedMinutes: 600, costCents: 0 },
+        ],
+      }),
+    )
+    expect(informe.totals.actualMinutes).toBe(0)
+    expect(informe.totals.actualsThrough).toBeNull()
+    expect(informe.tldr.find((h) => h.kind === 'realidad')).toBeUndefined()
+  })
+
+  it('las horas de un proyecto fuera del alcance no son de este informe', () => {
+    const informe = buildReport(
+      entrada({
+        projects: [proyecto('p1', 'UNO', 'El del informe')],
+        resources: [{ id: 'r1', code: 'ANA', displayName: 'Ana' }],
+        load: [
+          { resourceId: 'r1', projectId: 'p1', period: '2026-02', plannedMinutes: 600, costCents: 0 },
+        ],
+        actuals: [real('r1', 'p1', '2026-02', 600), real('r1', 'p9', '2026-02', 9_999)],
+      }),
+    )
+    expect(informe.totals.actualMinutes).toBe(600)
+    expect(informe.totals.unplannedActualMinutes).toBe(0)
   })
 })

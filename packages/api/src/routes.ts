@@ -36,6 +36,7 @@ import { onlyVisible, visibleProjects } from './visibility.js'
 import { toCsv } from './csv.js'
 import { calculate, defaultScenarioId } from './engine.js'
 import { ImportError, importPlanCsv } from './import-plan.js'
+import { importActualsCsv } from './import-actuals.js'
 
 const bucketSchema = z.enum(['day', 'week', 'month', 'quarter']).default('month')
 
@@ -267,6 +268,53 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
       }
       throw error
     }
+  })
+
+  /**
+   * El parte de horas. Lo que pasó de verdad, frente a lo que se planificó.
+   *
+   * **No recalcula**, y es la decisión que lo define: el motor dice cuándo
+   * *puede* pasar el trabajo, y lo que ya pasó no cambia esa respuesta.
+   * Recalcular el plan entero por una hora fichada cambiaría el hash de
+   * entrada sin que ninguna fecha se moviera. El cruce se hace en el informe,
+   * que es donde alguien lo mira.
+   */
+  app.post('/api/import/actuals', { config: { permission: 'reales.registrar' } }, async (request, reply) => {
+    const text = typeof request.body === 'string' ? request.body : ''
+    if (text.trim() === '') return fallar(reply, 400, 'CSV_VACIO', 'El cuerpo debe ser el CSV en texto plano.')
+
+    try {
+      return await withTransaction(pool, (db) => importActualsCsv(db, text), {
+        comment: 'importación de horas reales desde CSV',
+      })
+    } catch (error) {
+      if (error instanceof ImportError) {
+        return fallar(reply, 422, 'CSV_INVALIDO', error.message, {
+          detalle: error.message,
+          rows: error.rows,
+        })
+      }
+      throw error
+    }
+  })
+
+  /** Plantilla del parte de horas, con las columnas que de verdad se leen. */
+  app.get('/api/import/plantilla-horas.csv', { config: { permission: 'reales.registrar' } }, async (_request, reply) => {
+    const columns = ['proyecto', 'tarea', 'persona', 'fecha', 'horas', 'origen', 'referencia']
+    const example = [
+      {
+        proyecto: 'EJEMPLO-1', tarea: 'Plan RAMS', persona: 'Ana Müller',
+        fecha: '2026-03-02', horas: '7,5', origen: 'parte', referencia: 'TS-1024',
+      },
+      {
+        proyecto: 'EJEMPLO-1', tarea: 'Hazard Log', persona: 'Marc Iglesias',
+        fecha: '2026-03-02', horas: '4', origen: '', referencia: '',
+      },
+    ]
+    return reply
+      .header('content-type', 'text/csv; charset=utf-8')
+      .header('content-disposition', 'attachment; filename="plantilla-horas.csv"')
+      .send(toCsv(example, columns))
   })
 
   /** Plantilla del CSV de importación, para no tener que adivinar las columnas. */
