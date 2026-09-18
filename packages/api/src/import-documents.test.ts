@@ -44,6 +44,7 @@ describe('el catálogo de documentos que llega en un CSV', () => {
       // 450 h son 27.000 minutos: el minuto es la unidad (P5).
       standardMinutes: 27_000,
       taskCode: 'PWTDF-D800',
+      subactividades: null,
       sortKey: 10,
       esperaA: ['S-HAZLOG'],
       // Sin ninguna de las cinco columnas de firma, el fichero no habla del
@@ -191,5 +192,60 @@ describe('el ciclo de firma que llega en el CSV', () => {
   it('un rol con espacios de sobra entra limpio', () => {
     const [fila] = parseDocumentsCsv(conFirmas('S-SAP;Safety Plan;;;;;;;;;  Ing. RAMS  ;;;PrEM;'))
     expect(fila?.firmas?.map((firma) => firma.role)).toEqual(['Ing. RAMS', 'PrEM'])
+  })
+})
+
+const CON_CADENA =
+  'codigo;nombre;crear;revisar_1;revisar_2;revisar_3;soportar;autor;verificador_1'
+
+const conCadena = (...filas: readonly string[]): string => [CON_CADENA, ...filas].join('\n')
+
+describe('la cadena de subactividades que llega en el CSV', () => {
+  it('lee rol y horas, y pasa las horas a minutos', () => {
+    const [fila] = parseDocumentsCsv(conCadena('S-FMECA;FMECA;Ing. RAMS:30;Ing. Sistemas:4;;;Jefe RAMS:10;;'))
+    expect(fila?.subactividades).toEqual([
+      { step: 'create', position: 1, role: 'Ing. RAMS', standardMinutes: 1800, signature: null },
+      { step: 'review_1', position: 1, role: 'Ing. Sistemas', standardMinutes: 240, signature: null },
+      { step: 'support', position: 1, role: 'Jefe RAMS', standardMinutes: 600, signature: null },
+    ])
+  })
+
+  it('el tercer trozo cita la firma que esa subactividad descarga', () => {
+    // Es lo que permite avisar de una firma que cuesta minutos y que ninguna
+    // subactividad hace, que si no se pierde sin que nadie lo note.
+    const [fila] = parseDocumentsCsv(
+      conCadena('S-FMECA;FMECA;Ing. RAMS:30:autor;Ing. Sistemas:4:verificador_1;;;;Ing. RAMS;Ing. Sistemas'),
+    )
+    expect(fila?.subactividades?.[0]?.signature).toEqual({ step: 'author', position: 1 })
+    expect(fila?.subactividades?.[1]?.signature).toEqual({ step: 'verifier', position: 1 })
+  })
+
+  it('una casilla sin horas entra, porque un hito trae rol y no trae horas', () => {
+    // La primera versión de esto las exigía, y el catálogo de verdad lo
+    // desmintió a la primera: las doce puertas traen su rol y ninguna hora.
+    // Que no sirva para partir se avisa al terminar; no se rechaza el fichero.
+    const [fila] = parseDocumentsCsv(conCadena('S-FMECA;FMECA;Ing. RAMS;;;;;;'))
+    expect(fila?.subactividades).toEqual([
+      { step: 'create', position: 1, role: 'Ing. RAMS', standardMinutes: null, signature: null },
+    ])
+  })
+
+  it('una firma que no existe como casilla se dice con los nombres que sí valen', () => {
+    expect(falla(conCadena('S-FMECA;FMECA;Ing. RAMS:30:jefazo;;;;;;')).rows.join(' ')).toContain(
+      'verificador_1',
+    )
+  })
+
+  it('la columna ausente no dice nada de la cadena y no la toca', () => {
+    // Misma distinción que `espera_a` y que las firmas: ausente no es vacía.
+    const [sinColumnas] = parseDocumentsCsv(fichero('S-FMECA;FMECA;documento;;;;;;;'))
+    expect(sinColumnas?.subactividades).toBeNull()
+    const [conColumnasVacias] = parseDocumentsCsv(conCadena('S-FMECA;FMECA;;;;;;;'))
+    expect(conColumnasVacias?.subactividades).toEqual([])
+  })
+
+  it('los niveles no son rondas: puede haber revisión 2 sin revisión 1', () => {
+    const [fila] = parseDocumentsCsv(conCadena('S-FMECA;FMECA;Ing. RAMS:30;;Jefe RAMS:2;;;;'))
+    expect(fila?.subactividades?.map((a) => a.step)).toEqual(['create', 'review_2'])
   })
 })

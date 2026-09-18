@@ -84,7 +84,13 @@ aquí va el orden y el porqué:
 2. **Competencias** — quién sabe hacer qué. Es lo que después permite que el
    reparto proponga a alguien y no a cualquiera.
 3. **Documentos** — el catálogo de entregables y la matriz de precedencias.
-   Se declara **una vez** y vale para todos los proyectos.
+   Se declara **una vez** y vale para todos los proyectos. Si lo tienes en una
+   hoja, entra por CSV con su cadena de subactividades incluida: cinco columnas,
+   `rol:horas` en cada una.
+3.bis **Tu plantilla**, si la tienes. El CSV de plan con un «sí» en la columna
+   `plantilla` crea el molde de tu departamento —fases, tareas, duraciones y
+   dependencias— sin personas. Y la columna `entregable` lo ata al catálogo, que
+   es lo que después permite partir en subactividades y poner fechas de puerta.
 4. **Plan** — el proyecto, sus tareas y sus dependencias.
 5. **Las puertas del proyecto** — cuándo cae cada revisión de certificación.
    Es lo que convierte «este documento va a la revisión de diseño» en una fecha.

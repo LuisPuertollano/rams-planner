@@ -89,7 +89,7 @@ export const en: Diccionario = {
   'documentos.plantilla': 'Template',
   'equipo.importado': 'Team loaded: %s row(s) in the file, %s created, %s updated, %s skill(s) set and %s rate(s).',
   'equipo.competenciasNuevas': '%s skill(s) that did not exist were created.',
-  'documentos.importado': 'Catalogue loaded: %s file row(s), %s new, %s updated and %s dependency/dependencies.',
+  'documentos.importado': 'Catalogue loaded: %s file row(s), %s new, %s updated, %s dependency/dependencies and %s subactivity/subactivities.',
   'documentos.yMas': '…and %s more.',
   'documentos.nuevo': '+ Document',
   'documentos.nuevo.nombre': 'Name of the document (for example, “Preliminary Hazard Log”)',
@@ -283,6 +283,8 @@ export const en: Diccionario = {
   'importar.yMas': '…and %s more.',
   'importar.plan.titulo': 'Import a whole plan from a CSV: projects, phases, tasks, links and assignments',
   'importar.plan.hecho': 'Imported: %s project(s), %s phase(s), %s task(s), %s link(s) and %s assignment(s). The plan has been recalculated.',
+  'importar.plan.entregables': 'And %s task(s) are now linked to their catalogue deliverable.',
+  'importar.plan.plantilla': 'It came in as a TEMPLATE: it is not calculated and carries no people. It is a mould for creating projects.',
   'importar.plan.personasNuevas': 'People created: %s. They were created with a standard working day and no rate: check them.',
 
   'tab.informes': 'Reports',

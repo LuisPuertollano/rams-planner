@@ -30,10 +30,16 @@
  * porque nadie va a repasar ochenta filas buscando la casilla roja.
  */
 
-import { checkSignatureCycle, type Signature } from '@planner/domain'
+import {
+  checkSignatureCycle,
+  type ActivitySignatureRef,
+  type DocumentActivity,
+  type Signature,
+} from '@planner/domain'
 import {
   createDocumentType,
   readDocumentTypes,
+  setActivities,
   setPredecessors,
   setSignatures,
   updateDocumentType,
@@ -71,6 +77,12 @@ interface FilaLeida extends DocumentTypeFields {
    * no hay ciclo y se borra el que hubiera.
    */
   readonly firmas: readonly Signature[] | null
+  /**
+   * La cadena que declara la fila. `null` cuando el fichero no trae ninguna de
+   * las cinco columnas: entonces no dice nada de la cadena y no se toca, igual
+   * que `esperaA` y que las firmas.
+   */
+  readonly subactividades: readonly DocumentActivity[] | null
 }
 
 /** Las cinco casillas del ciclo, y a qué paso va cada una. */
@@ -82,6 +94,32 @@ const COLUMNAS_DE_FIRMA = [
   { columna: 'revisores', step: 'reviewer', position: 1, lista: true },
 ] as const
 
+/**
+ * Las cinco casillas de la cadena, y a qué paso va cada una.
+ *
+ * Mismo reparto que las firmas y por el mismo motivo: son las cinco que la
+ * pantalla enseña, así que una columna por casilla se lee de un vistazo y se
+ * rellena en Excel sin inventarse una sintaxis. La posición es siempre 1 —el
+ * modelo admite varias por paso, y ninguna cadena real de las que han pasado
+ * por aquí la ha usado—.
+ */
+const COLUMNAS_DE_SUBACTIVIDAD = [
+  { columna: 'crear', step: 'create' },
+  { columna: 'revisar_1', step: 'review_1' },
+  { columna: 'revisar_2', step: 'review_2' },
+  { columna: 'revisar_3', step: 'review_3' },
+  { columna: 'soportar', step: 'support' },
+] as const
+
+/** Los nombres con los que una subactividad cita la firma que descarga. */
+const FIRMA_POR_NOMBRE: Readonly<Record<string, ActivitySignatureRef>> = {
+  autor: { step: 'author', position: 1 },
+  verificador_1: { step: 'verifier', position: 1 },
+  verificador_2: { step: 'verifier', position: 2 },
+  aprobador: { step: 'approver', position: 1 },
+  revisores: { step: 'reviewer', position: 1 },
+}
+
 export interface DocumentsSummary {
   readonly rows: number
   readonly created: number
@@ -89,6 +127,8 @@ export interface DocumentsSummary {
   readonly links: number
   /** Cuántas firmas se escribieron. Cero también cuando el fichero no habla del ciclo. */
   readonly signatures: number
+  /** Cuántas subactividades se escribieron. Cero también cuando el fichero no habla de la cadena. */
+  readonly activities: number
   readonly warnings: readonly string[]
 }
 
@@ -142,6 +182,7 @@ export function parseDocumentsCsv(text: string): readonly FilaLeida[] {
     if (kind === undefined || code === '' || name === '') continue
     const esperaTexto = fila['espera_a']
     const firmas = leerFirmas(fila, columnas)
+    const subactividades = leerSubactividades(fila, columnas, line, problemas)
     leidas.push({
       line,
       code,
@@ -158,6 +199,7 @@ export function parseDocumentsCsv(text: string): readonly FilaLeida[] {
       // Con la columna vacía, dice que no espera a nadie y se borran.
       esperaA: esperaTexto === undefined ? null : listaDeCodigos(esperaTexto),
       firmas,
+      subactividades,
     })
   }
 
@@ -175,6 +217,8 @@ export async function importDocumentsCsv(db: Queryable, text: string): Promise<D
   let created = 0
   let updated = 0
   let signatures = 0
+  let activities = 0
+  const sinMinutos: string[] = []
   for (const fila of filas) {
     // `line` y `esperaA` son del fichero, no de la ficha: la primera es para
     // los mensajes de error y la segunda se resuelve más abajo, cuando ya
@@ -206,6 +250,16 @@ export async function importDocumentsCsv(db: Queryable, text: string): Promise<D
     if (id !== undefined && fila.firmas !== null) {
       await setSignatures(db, id, fila.firmas)
       signatures += fila.firmas.length
+    }
+    // La cadena, DESPUÉS de las firmas y por una razón que el esquema impone:
+    // una subactividad apunta a la firma que descarga con una clave ajena, así
+    // que la firma tiene que existir antes.
+    if (id !== undefined && fila.subactividades !== null) {
+      await setActivities(db, id, fila.subactividades)
+      activities += fila.subactividades.length
+      if (fila.subactividades.some((actividad) => actividad.standardMinutes === null)) {
+        sinMinutos.push(fila.code)
+      }
     }
   }
 
@@ -253,7 +307,17 @@ export async function importDocumentsCsv(db: Queryable, text: string): Promise<D
     updated,
     links,
     signatures,
-    warnings: avisos(filas, aristas),
+    activities,
+    warnings: [
+      ...avisos(filas, aristas),
+      // Una cadena sin minutos entra, pero no sirve para partir una tarea: el
+      // reparto usa la proporción del catálogo y sin minutos no hay proporción.
+      ...(sinMinutos.length === 0
+        ? []
+        : [
+            `Estas cadenas entran sin horas en alguna casilla, así que no se puede partir con ellas: ${sinMinutos.join(', ')}.`,
+          ]),
+    ],
   }
 }
 
@@ -358,6 +422,70 @@ function frase(code: string, payload: Readonly<Record<string, string | number>>)
  * dato que casi nadie tiene el primer día, y que se rellena mejor en la ficha
  * del entregable, una a una, que en una hoja de ochenta filas.
  */
+/**
+ * La cadena de una fila: `crear`, `revisar_1`…`revisar_3`, `soportar`.
+ *
+ * Cada casilla se escribe `rol:horas` y, si hace falta, `rol:horas:firma`, con
+ * la firma nombrada como su columna —«autor», «verificador_1»…—. Ese tercer
+ * trozo es lo que permite que la herramienta avise de *una firma que cuesta
+ * minutos y que ninguna subactividad hace*, que si no se pierde sin que nadie
+ * lo note (ADR-0037).
+ *
+ * Las horas son **opcionales**, y la primera versión de esto las exigía. El
+ * catálogo de verdad lo desmintió a la primera: un hito —una puerta de
+ * revisión— trae su rol y no trae horas, y el esquema permite `standard_minutes`
+ * nulo justamente por eso. Rechazar el fichero entero por ello dejaba fuera un
+ * catálogo correcto.
+ *
+ * Lo que sí importa se dice en vez de imponerse: partir una tarea reparte su
+ * tamaño **en la proporción del catálogo** (ADR-0039), así que una cadena sin
+ * minutos entra pero no sirve para partir. Se avisa al terminar, con la cuenta,
+ * y el descarte `catalogo-sin-minutos` ya estaba ahí para cuando alguien lo
+ * intente.
+ */
+function leerSubactividades(
+  fila: Readonly<Record<string, string | undefined>>,
+  columnas: ReadonlySet<string>,
+  line: number,
+  problemas: string[],
+): readonly DocumentActivity[] | null {
+  if (!COLUMNAS_DE_SUBACTIVIDAD.some((casilla) => columnas.has(casilla.columna))) return null
+
+  const cadena: DocumentActivity[] = []
+  for (const casilla of COLUMNAS_DE_SUBACTIVIDAD) {
+    const texto = (fila[casilla.columna] ?? '').trim()
+    if (texto === '') continue
+    const trozos = texto.split(':').map((trozo) => trozo.trim())
+    const role = trozos[0] ?? ''
+    if (role === '') {
+      problemas.push(`Fila ${String(line)}: «${casilla.columna}» no dice qué rol la hace`)
+      continue
+    }
+    const horas = trozos.length > 1 ? leerNumero(trozos[1], casilla.columna, line, problemas) : null
+    let signature: ActivitySignatureRef | null = null
+    const nombreDeFirma = trozos[2]
+    if (nombreDeFirma !== undefined && nombreDeFirma !== '') {
+      const referencia = FIRMA_POR_NOMBRE[nombreDeFirma.toLowerCase()]
+      if (referencia === undefined) {
+        problemas.push(
+          `Fila ${String(line)}: «${nombreDeFirma}» no es una casilla de firma. ` +
+            `Las que hay: ${Object.keys(FIRMA_POR_NOMBRE).join(', ')}`,
+        )
+        continue
+      }
+      signature = referencia
+    }
+    cadena.push({
+      step: casilla.step,
+      position: 1,
+      role,
+      standardMinutes: horas === null ? null : Math.round(horas * MINUTOS_POR_HORA),
+      signature,
+    })
+  }
+  return cadena
+}
+
 function leerFirmas(
   fila: Readonly<Record<string, string | undefined>>,
   columnas: ReadonlySet<string>,

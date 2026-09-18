@@ -26,6 +26,8 @@ export interface ImportSummary {
   readonly tasks: number
   readonly dependencies: number
   readonly assignments: number
+  /** Tareas enlazadas con un entregable del catálogo. */
+  readonly deliverables: number
   readonly resourcesCreated: readonly string[]
   readonly warnings: readonly string[]
 }
@@ -69,20 +71,43 @@ export async function importPlanCsv(db: Queryable, text: string): Promise<Import
   const resources = await ensureResources(db, rows, warnings, created)
   const ramsFieldId = await ensureRamsField(db)
 
+  const documentos = await leerCatalogo(db)
+  const sinCatalogo = new Set<string>()
+
   let phases = 0
   let tasks = 0
   let dependencies = 0
   let assignments = 0
+  let deliverables = 0
 
   for (const code of projectCodes) {
     const projectRows = rows.filter((row) => row['proyecto'] === code)
     const start = earliestDate(projectRows) ?? todayIso()
+    // La plantilla es del proyecto, no de la fila: basta declararla en una y
+    // vale para todas sus filas. Escribirla en unas sí y en otras no sería una
+    // contradicción dentro del mismo fichero, y por eso se toma la respuesta
+    // afirmativa de cualquiera de ellas en vez de la de la primera a secas.
+    const esPlantilla = projectRows.some((row) => esQueSi(row['plantilla'] ?? ''))
     const project = await db.query<{ id: string }>(
-      `INSERT INTO project (code, name, calendar_id, status_start, priority, currency)
-       VALUES ($1, $2, $3, $4, 500, 'EUR') RETURNING id`,
-      [code, projectRows[0]?.['nombre_proyecto'] ?? code, CAL_BW, start],
+      `INSERT INTO project (code, name, calendar_id, status_start, priority, currency, is_template)
+       VALUES ($1, $2, $3, $4, 500, 'EUR', $5) RETURNING id`,
+      [code, projectRows[0]?.['nombre_proyecto'] ?? code, CAL_BW, start, esPlantilla],
     )
     const projectId = project.rows[0]?.id ?? ''
+
+    // Una plantilla describe el trabajo, no quién lo hace, y la base lo impone
+    // con un disparador. Si el fichero trae personas, se dicen y se dejan
+    // fuera: reventar la importación entera por una columna que sobra sería
+    // castigar a quien exporta su plan y lo marca como molde.
+    if (esPlantilla) {
+      const conGente = projectRows.filter((row) => splitList(row['recurso'] ?? '').length > 0).length
+      if (conGente > 0) {
+        warnings.push(
+          `«${code}» entra como plantilla, así que sus ${String(conGente)} asignación(es) se quedan fuera: ` +
+            'una plantilla describe el trabajo, no quién lo hace.',
+        )
+      }
+    }
 
     const phaseIds = new Map<string, string>()
     const taskIds = new Map<string, string>()
@@ -139,6 +164,23 @@ export async function importPlanCsv(db: Queryable, text: string): Promise<Import
         ],
       )
 
+      // Qué entregable produce esta tarea. Es lo que conecta el plan importado
+      // con el catálogo, y sin ello las dos cosas que cuelgan de esa conexión
+      // —partir en subactividades y la fecha objetivo de la puerta— no llegan
+      // nunca a un plan que haya entrado por aquí.
+      const codigoEntregable = row['entregable'] ?? ''
+      if (codigoEntregable !== '') {
+        const documentTypeId = documentos.get(codigoEntregable.trim().toLowerCase())
+        if (documentTypeId === undefined) sinCatalogo.add(codigoEntregable.trim())
+        else {
+          await db.query(
+            'INSERT INTO node_document (node_id, document_type_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+            [nodeId, documentTypeId],
+          )
+          deliverables += 1
+        }
+      }
+
       const discipline = row['disciplina'] ?? ''
       if (discipline !== '') {
         await db.query('INSERT INTO field_value (field_id, entity_id, value_text) VALUES ($1, $2, $3)', [
@@ -148,7 +190,7 @@ export async function importPlanCsv(db: Queryable, text: string): Promise<Import
         ])
       }
 
-      for (const person of splitList(row['recurso'] ?? '')) {
+      for (const person of esPlantilla ? [] : splitList(row['recurso'] ?? '')) {
         const resourceId = resources.get(person.toLowerCase())
         if (resourceId === undefined) continue
         const units = parseNumber(row['dedicacion'] ?? '') ?? 100
@@ -181,15 +223,44 @@ export async function importPlanCsv(db: Queryable, text: string): Promise<Import
     }
   }
 
+  if (sinCatalogo.size > 0) {
+    warnings.push(
+      `Estos códigos de «entregable» no están en el catálogo y no se han enlazado: ${[...sinCatalogo].sort().join(', ')}. ` +
+        'Carga primero el catálogo de documentos y vuelve a importar.',
+    )
+  }
+
   return {
     projects: projectCodes.length,
     phases,
     tasks,
     dependencies,
     assignments,
+    deliverables,
     resourcesCreated: created,
     warnings,
   }
+}
+
+/** El catálogo por código, en minúsculas: el fichero no conoce los uuid. */
+async function leerCatalogo(db: Queryable): Promise<ReadonlyMap<string, string>> {
+  const { rows } = await db.query<{ id: string; code: string }>(
+    'SELECT id, code FROM document_type WHERE deleted_at IS NULL',
+  )
+  return new Map(rows.map((row) => [row.code.trim().toLowerCase(), row.id]))
+}
+
+/**
+ * Una casilla que dice que sí.
+ *
+ * Cuatro idiomas y una hoja de cálculo: quien marca una columna escribe «sí»,
+ * «yes», «ja», «oui», «x», «1» o «true». Rechazar todo lo que no sea una de
+ * ellas convertiría un fichero correcto en un error por una tilde.
+ */
+function esQueSi(valor: string): boolean {
+  return ['si', 'sí', 'yes', 'ja', 'oui', 'x', '1', 'true', 'verdadero', 'wahr', 'vrai'].includes(
+    valor.trim().toLowerCase(),
+  )
 }
 
 async function ensureResources(

@@ -167,6 +167,22 @@ Para hacerte tus propias plantillas, en el panel **✎** de cualquier proyecto:
 Lo normal es planificar un proyecto de verdad, verlo funcionar, y cuando
 funcione, **guardarlo como plantilla** para el siguiente.
 
+**Y si tu plantilla ya existe en una hoja de cálculo**, entra por el CSV de plan
+como cualquier otro: pon **«sí» en la columna `plantilla`** —basta en una fila— y
+el proyecto se crea como molde. Dos cosas que conviene saber antes:
+
+- **Las personas se quedan fuera**, porque una plantilla no lleva gente. Si el
+  fichero trae la columna `recurso` rellena, se avisa y se ignora; el fichero no
+  se rechaza por eso.
+- **La columna `entregable`** dice qué documento del catálogo produce cada tarea,
+  por su código. Es pequeña y es la que más abre: de ese enlace cuelgan partir la
+  tarea en su cadena de subactividades y la fecha objetivo de su puerta. Sin
+  ella, esas dos cosas no llegan nunca a un plan importado.
+
+Un código de entregable que no esté en el catálogo no aborta nada: se enumeran al
+terminar. Lo normal es cargar el plan antes que el catálogo, así que se vuelve a
+importar el mismo fichero después y se enlaza.
+
 #### A mano
 
 En la pestaña **Plan**:
@@ -442,6 +458,28 @@ quedaría fuera del plan sin que nadie lo notara.
 En la lista, la columna **Subactividades** resume la cadena —«S-Eng › TL RAMS»—
 y lo que suma. La ⚠ delante significa que hay algo que mirar; pasa el ratón por
 encima y lo dice.
+
+**La cadena entera cabe en el CSV del catálogo**, que es como se carga un catálogo
+de verdad sin teclear ochenta cadenas. Cinco columnas —`crear`, `revisar_1`,
+`revisar_2`, `revisar_3`, `soportar`— y cada una se escribe `rol:horas`:
+
+```
+crear = Ing. RAMS:30        revisar_1 = Ing. Sistemas:4:verificador_1
+```
+
+Ese tercer trozo opcional dice **qué firma descarga** esa subactividad, con el
+nombre de su propia columna. Y el CSV que exportas trae ya todo eso dentro, así
+que la mejor plantilla para tu catálogo es tu propio catálogo exportado.
+
+Dos detalles que ahorran un viaje:
+
+- **Las horas son opcionales, pero sin ellas no se puede partir.** Partir una
+  tarea reparte su tamaño en la *proporción* del catálogo, y sin horas no hay
+  proporción. El resultado de la importación nombra las cadenas que entraron sin
+  ellas.
+- **Un hito no lleva cadena.** No se crea ni se revisa: es un instante. Su
+  esfuerzo —las horas de su propia reunión, si es una puerta de revisión— va en
+  la columna `horas`, no en una casilla de la cadena.
 
 **Partir las tareas en su cadena.** Debajo del catálogo hay un panel que hace
 con el plan lo que el catálogo declara: «Redactar el FMECA — 40 h» pasa a ser un
