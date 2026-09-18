@@ -36,6 +36,7 @@ parece una mala idea, aquí está el razonamiento que había detrás.
 | [0029](0029-una-portada-y-seis-pestanas.md) | Una portada que contesta «¿qué miro hoy?» y catorce pestañas agrupadas en seis | P1, P7 |
 | [0030](0030-ni-una-frase-a-mano.md) | Ni una frase de la interfaz escrita a mano: todo al diccionario, y una regla que lo vigila | P1, P6 |
 | [0031](0031-el-panel-de-capacidad.md) | El panel de capacidad reproduce la hoja de Excel que ya se usaba, con sus tablas rellenas | P1, P2, P5, P7 |
+| [0033](0033-las-pruebas-recogen-lo-suyo.md) | Cada fichero de integración borra las ejecuciones que creó; una línea base no se toca | P2, P7 |
 
 ## Decisiones tomadas por defecto
 
