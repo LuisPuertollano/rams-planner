@@ -103,6 +103,29 @@ Lo importante de la importación:
 - Las personas que no existan **se crean solas**, con jornada estándar y **sin
   tarifa**. La respuesta te dice cuáles. Vuelve a la pestaña Equipo y complétalas.
 
+##### Si tu plan vive en un Gantt de Excel
+
+Hay un conversor en el repositorio, `tools/gantt-a-plan.mjs`, para las hojas de
+Gantt con la forma del libro del equipo —una fila por subactividad, con su
+columna de tipo, de misión y de predecesora—:
+
+```
+node tools/gantt-a-plan.mjs gantt.csv --proyecto "Línea 4" > plan.csv
+```
+
+Exporta la hoja a CSV desde Excel («Guardar como → CSV») y pásala por ahí. El
+plan sale por la salida estándar; por la de errores sale **el parte de lo que se
+pierde**, y ése hay que leerlo:
+
+- Los enlaces **SS y FF se descartan**: el CSV sólo sabe decir fin-comienzo, y
+  convertirlos haría esperar a algo que iba en paralelo.
+- Los **desfases** se pierden: no hay columna para ellos.
+- Una tarea con **cero días se convierte en hito** al importar. Si no lo es,
+  dale duración antes.
+
+El fichero del Gantt **no se sube a ningún sitio**: el conversor corre en tu
+máquina y el CSV que sale también es tuyo.
+
 #### A partir de una plantilla
 
 Es lo que de verdad se usa cuando los proyectos se parecen entre sí, que en
