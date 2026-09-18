@@ -19,6 +19,7 @@ import { registerDocumentRoutes } from './document-routes.js'
 import { describeZodError, fallar } from './errors.js'
 import { registerMatrixRoutes } from './matrix-routes.js'
 import { registerSubactivityRoutes } from './subactivity-routes.js'
+import { registerGateRoutes } from './gate-routes.js'
 import { registerPlanRoutes } from './plan-routes.js'
 import { auditRoutes, collectRoutePermissions } from './route-permissions.js'
 import { registerRebalanceRoutes } from './rebalance-routes.js'
@@ -45,6 +46,7 @@ export function registerAllRoutes(app: FastifyInstance, pool: Pool): void {
   registerDocumentRoutes(app, pool)
   registerMatrixRoutes(app, pool)
   registerSubactivityRoutes(app, pool)
+  registerGateRoutes(app, pool)
   registerRebalanceRoutes(app, pool)
   registerReportRoutes(app, pool)
 }
