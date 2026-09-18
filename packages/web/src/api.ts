@@ -889,14 +889,43 @@ export async function fetchEntityHistory(entityId: string): Promise<readonly Cha
 // Documentos y la matriz de precedencias
 // ---------------------------------------------------------------------------
 
+/** Un catálogo real mezcla tres cosas que se leen distinto. */
+export const DOCUMENT_KINDS = ['documento', 'hito', 'fase'] as const
+
+export type DocumentKind = (typeof DOCUMENT_KINDS)[number]
+
 export interface DocumentType {
   readonly id: string
   readonly code: string
   readonly name: string
   readonly description: string | null
+  readonly kind: DocumentKind
+  /** Safety, RAM, ILS… Texto libre: cada equipo tiene las suyas. */
+  readonly discipline: string | null
+  /** La puerta de certificación a la que va (TTG, IGR, IQA…). */
+  readonly gate: string | null
+  /** Semanas antes de esa puerta. Dato declarado; el motor todavía no lo usa. */
+  readonly weeksBeforeGate: number | null
+  /** El esfuerzo típico, en minutos. Un hito también puede traerlo. */
+  readonly standardMinutes: number | null
+  readonly taskCode: string | null
   readonly sortKey: number
   /** En cuántas tareas se entrega. Para avisar antes de retirarlo. */
   readonly usedInTasks: number
+}
+
+/** Lo que se puede escribir de una ficha. Todo opcional menos lo que se crea. */
+export interface DocumentFields {
+  readonly code?: string
+  readonly name?: string
+  readonly description?: string | null
+  readonly kind?: DocumentKind
+  readonly discipline?: string | null
+  readonly gate?: string | null
+  readonly weeksBeforeGate?: number | null
+  readonly standardMinutes?: number | null
+  readonly taskCode?: string | null
+  readonly sortKey?: number
 }
 
 /** La fila es condición necesaria de la columna. */
@@ -918,16 +947,49 @@ export async function fetchDocuments(): Promise<DocumentCatalogue> {
 export async function createDocumentType(
   code: string,
   name: string,
-  description: string | null,
+  fields: DocumentFields = {},
 ): Promise<void> {
-  return send('/api/documents', 'POST', { code, name, description })
+  return send('/api/documents', 'POST', { ...fields, code, name })
 }
 
 export async function updateDocumentType(
   documentId: string,
-  changes: { readonly code?: string; readonly name?: string; readonly description?: string | null },
+  changes: DocumentFields,
 ): Promise<void> {
   return send(`/api/documents/${documentId}`, 'PATCH', changes)
+}
+
+/**
+ * Los predecesores de un documento, de golpe.
+ *
+ * Es lo que hace usable la matriz cuando el catálogo crece: con ochenta
+ * entregables la rejilla tiene 6.400 casillas, y marcar seis en ella es
+ * puntería. Sustituye la lista entera.
+ */
+export async function setPredecessors(
+  documentId: string,
+  predecessorIds: readonly string[],
+): Promise<void> {
+  return send(`/api/documents/${documentId}/predecessors`, 'PUT', { predecessorIds })
+}
+
+export interface DocumentsImported {
+  readonly rows: number
+  readonly created: number
+  readonly updated: number
+  readonly links: number
+  readonly warnings: readonly string[]
+}
+
+/** El catálogo entero desde un CSV. El código manda: recargar no duplica. */
+export async function importDocumentsCsv(text: string): Promise<DocumentsImported> {
+  const response = await fetch('/api/documents/import', {
+    method: 'POST',
+    headers: { 'content-type': 'text/csv' },
+    body: text,
+  })
+  if (!response.ok) throw await comoError(response, 'No se pudo importar el catálogo')
+  return (await response.json()) as DocumentsImported
 }
 
 export async function removeDocumentType(documentId: string): Promise<void> {

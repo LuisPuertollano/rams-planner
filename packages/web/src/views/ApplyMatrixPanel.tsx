@@ -8,7 +8,7 @@ import {
   type SkipReason,
 } from '../api.js'
 import { errorText } from '../errors.js'
-import { useT } from '../i18n/index.js'
+import { useT, type Diccionario } from '../i18n/index.js'
 
 interface Props {
   readonly projects: readonly Project[]
@@ -18,11 +18,9 @@ interface Props {
   readonly onApplied: () => void
 }
 
-const MOTIVO: Readonly<Record<SkipReason, string>> = {
-  'ya-existe': 'ya está en el plan',
-  'misma-tarea': 'la misma tarea entrega los dos',
-  'crearia-un-ciclo': 'cerraría un ciclo',
-}
+/** El porqué de cada descarte vive en el diccionario, como todo lo que se lee. */
+const motivoDe = (razon: SkipReason): keyof Diccionario =>
+  `aplicar.motivo.${razon}` as keyof Diccionario
 
 /**
  * Aplicar la matriz a un proyecto.
@@ -83,8 +81,7 @@ export function ApplyMatrixPanel({ projects, canApply, onApplied }: Props): Reac
     if (aCrear.length === 0) return
     if (
       !window.confirm(
-        `Se van a crear ${String(aCrear.length)} dependencia(s) fin-comienzo y se recalculará el plan. ` +
-          'Las dependencias creadas se pueden quitar una a una después. ¿Seguir?',
+        t('aplicar.confirma', aCrear.length),
       )
     ) {
       return
@@ -115,11 +112,8 @@ export function ApplyMatrixPanel({ projects, canApply, onApplied }: Props): Reac
 
   return (
     <section style={{ padding: '0 16px 24px' }}>
-      <h3 style={{ marginBottom: 4 }}>Aplicar la matriz a un proyecto</h3>
-      <p className="faint" style={{ maxWidth: '96ch', marginTop: 0 }}>
-        Cruza esta matriz con lo que entrega cada tarea del proyecto y propone las dependencias que faltan.
-        No escribe nada hasta que lo apruebas, y lo que no cuadre se puede desmarcar.
-      </p>
+      <h3 style={{ marginBottom: 4 }}>{t('aplicar.titulo')}</h3>
+      <p className="faint" style={{ maxWidth: '96ch', marginTop: 0 }}>{t('aplicar.explica')}</p>
 
       <div className="toolbar">
         <select
@@ -132,7 +126,7 @@ export function ApplyMatrixPanel({ projects, canApply, onApplied }: Props): Reac
             setHecho(null)
           }}
         >
-          {aplicables.length === 0 ? <option value="">No hay proyectos</option> : null}
+          {aplicables.length === 0 ? <option value="">{t('aplicar.sinProyectos')}</option> : null}
           {aplicables.map((proyecto) => (
             <option key={proyecto.id} value={proyecto.id}>
               {proyecto.code} · {proyecto.name}
@@ -140,7 +134,7 @@ export function ApplyMatrixPanel({ projects, canApply, onApplied }: Props): Reac
           ))}
         </select>
         <button className="button" disabled={busy || projectId === ''} onClick={previsualizar}>
-          Previsualizar
+          {t('aplicar.previsualizar')}
         </button>
         {plan === null || !canApply ? null : (
           <button
@@ -148,7 +142,7 @@ export function ApplyMatrixPanel({ projects, canApply, onApplied }: Props): Reac
             disabled={busy || seleccionadas === 0}
             onClick={aplicar}
           >
-            Crear {String(seleccionadas)} dependencia(s)
+            {t('aplicar.crear', seleccionadas)}
           </button>
         )}
       </div>
@@ -159,22 +153,16 @@ export function ApplyMatrixPanel({ projects, canApply, onApplied }: Props): Reac
       {plan === null ? null : (
         <>
           {plan.create.length === 0 && plan.skipped.length === 0 ? (
-            <p className="faint">
-              La matriz no exige nada aquí: o ninguna tarea de este proyecto declara qué documento entrega,
-              o todavía no hay cruces marcadas arriba.
-            </p>
+            <p className="faint">{t('aplicar.nadaQueHacer')}</p>
           ) : null}
 
           {plan.missingDocuments.length === 0 ? null : (
             <div className="warn-banner">
-              La matriz nombra {String(plan.missingDocuments.length)} documento(s) que ninguna tarea de este
-              proyecto entrega:{' '}
-              <b>
-                {plan.missingDocuments
-                  .map((id) => nombreDocumento.get(id) ?? id.slice(0, 8))
-                  .join(', ')}
-              </b>
-              . No es un error, pero la propuesta está incompleta mientras siga así.
+              {t(
+                'aplicar.faltanDocumentos',
+                plan.missingDocuments.length,
+                plan.missingDocuments.map((id) => nombreDocumento.get(id) ?? id.slice(0, 8)).join(', '),
+              )}
             </div>
           )}
 
@@ -183,9 +171,9 @@ export function ApplyMatrixPanel({ projects, canApply, onApplied }: Props): Reac
               <thead>
                 <tr>
                   <th style={{ width: 40 }} />
-                  <th>Esta tarea…</th>
-                  <th>…precede a esta otra</th>
-                  <th>Porque la matriz dice</th>
+                  <th>{t('aplicar.col.deTarea')}</th>
+                  <th>{t('aplicar.col.aTarea')}</th>
+                  <th>{t('aplicar.col.porque')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -198,7 +186,7 @@ export function ApplyMatrixPanel({ projects, canApply, onApplied }: Props): Reac
                           type="checkbox"
                           checked={!excluidas.has(id)}
                           disabled={busy || !canApply}
-                          aria-label="Crear esta dependencia"
+                          aria-label={t('aplicar.crearEsta')}
                           onChange={() => {
                             const siguiente = new Set(excluidas)
                             if (siguiente.has(id)) siguiente.delete(id)
@@ -223,7 +211,7 @@ export function ApplyMatrixPanel({ projects, canApply, onApplied }: Props): Reac
           {plan.skipped.length === 0 ? null : (
             <details style={{ marginTop: 12 }}>
               <summary className="faint">
-                {String(plan.skipped.length)} que la matriz exige y no se van a crear
+                {t('aplicar.descartadas', plan.skipped.length)}
               </summary>
               <table className="grid grid--texto" style={{ marginTop: 8 }}>
                 <tbody>
@@ -232,7 +220,7 @@ export function ApplyMatrixPanel({ projects, canApply, onApplied }: Props): Reac
                       <td>{nombreTarea.get(dep.predecessorNodeId) ?? dep.predecessorNodeId}</td>
                       <td>{nombreTarea.get(dep.successorNodeId) ?? dep.successorNodeId}</td>
                       <td className={dep.reason === 'crearia-un-ciclo' ? 'sensible' : 'faint'}>
-                        {MOTIVO[dep.reason]}
+                        {t(motivoDe(dep.reason))}
                         {dep.path === undefined
                           ? null
                           : `: ${dep.path.map((n) => nombreTarea.get(n) ?? n.slice(0, 8)).join(' ▸ ')}`}
