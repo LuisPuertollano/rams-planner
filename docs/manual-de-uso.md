@@ -736,6 +736,14 @@ Es una heurística y está declarada como tal. Tres cosas que conviene saber:
 3. **Cuando una asignación no cabe ni sola en la jornada de la persona, lo dice**
    en vez de retrasarla eternamente. Ahí lo que hay que cambiar es la dedicación,
    la duración o el calendario, no la fecha.
+4. **Tarda.** En una cartera de dos mil tareas son unos treinta segundos: es un
+   botón que se pulsa y se espera, no algo instantáneo. Cada vuelta reprograma
+   el plan, y hace cuatrocientas.
+5. **Puede terminar diciendo que no ha podido**, y eso suele ser la respuesta
+   correcta, no un fallo. Nivelar sólo sabe **mover** trabajo; si el equipo está
+   por debajo de lo que el plan pide, no hay sitio al que moverlo. Cuando pase,
+   mira las sobrecargas que quedan: te están diciendo cuánta gente falta, no que
+   haya que insistir con el botón.
 
 ---
 
