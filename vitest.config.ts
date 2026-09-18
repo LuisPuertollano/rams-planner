@@ -27,6 +27,17 @@ export default defineConfig({
     // Sin DATABASE_URL esas pruebas se saltan y no hay nada que serializar, así
     // que el bucle rápido de desarrollo mantiene el paralelismo.
     fileParallelism: process.env['DATABASE_URL'] === undefined,
+    // Los 5 s de serie de vitest son para una prueba en memoria. Una de
+    // integración hace logins de verdad —el hash de la contraseña es
+    // deliberadamente lento— y recalcula planes enteros contra PostgreSQL: la
+    // más lenta ronda el segundo en una base recién migrada, y en un runner
+    // cargado eso deja un margen de cinco veces, que es poco.
+    //
+    // No tapa ningún fallo conocido: lo que hacía crecer las pruebas sin
+    // límite era que nadie borraba las ejecuciones, y eso se arregla en su
+    // sitio (`deleteRunsSince` en el `afterAll` de cada fichero). Esto es sólo
+    // un plazo elegido para el trabajo que hacen, en vez de heredado.
+    testTimeout: process.env['DATABASE_URL'] === undefined ? 5_000 : 30_000,
     coverage: {
       provider: 'v8',
       include: ['packages/*/src/**/*.ts'],
