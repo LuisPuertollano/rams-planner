@@ -44,6 +44,7 @@ import { HistoryView } from './views/HistoryView.js'
 import { HeatmapView } from './views/HeatmapView.js'
 import { ImportsView } from './views/ImportsView.js'
 import { MatrixView } from './views/MatrixView.js'
+import { PanelView } from './views/PanelView.js'
 import { PlanView } from './views/PlanView.js'
 import { RebalanceView } from './views/RebalanceView.js'
 import { ReportView } from './views/ReportView.js'
@@ -606,6 +607,8 @@ function Planner({
                 puedeVerReales={puede('reales.ver')}
                 onIr={irALaVista}
               />
+            ) : vista === 'panel' ? (
+              <PanelView state={state} data={data} puedeVerReales={puede('reales.ver')} />
             ) : vista === 'carga' ? (
               <MatrixView
                 costsHidden={data.costsHidden}

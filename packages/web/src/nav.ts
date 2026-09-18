@@ -19,7 +19,7 @@ type ClaveDeNota = Extract<keyof Diccionario, `nota.${string}`>
 export type VistaId =
   | 'hoy'
   | 'plan' | 'cronograma'
-  | 'carga' | 'saturacion' | 'reparto' | 'informes'
+  | 'panel' | 'carga' | 'saturacion' | 'reparto' | 'informes'
   | 'equipo' | 'calendario' | 'competencias'
   | 'documentos' | 'importaciones'
   | 'comparar' | 'registro' | 'admin'
@@ -93,6 +93,21 @@ export const GRUPOS: readonly Grupo[] = [
     label: 'grupo.capacidad',
     hint: 'grupo.capacidad.pista',
     vistas: [
+      // El panel va primero: contesta «¿cabe el trabajo?» de un vistazo, y las
+      // otras tres pantallas son el detalle de esa misma pregunta.
+      {
+        id: 'panel',
+        label: 'tab.panel',
+        hint: 'tab.panel.pista',
+        nota: 'nota.derivado',
+        permission: ['carga.ver'],
+        everywhere: true,
+        // El panel trae sus propias seis cifras y su propia línea de frescura.
+        // Dejar además la fila global ponía «Personas sobrecargadas 6» justo
+        // encima de «Por encima 0»: dos medidas distintas —el día y el mes—
+        // contradiciéndose a diez centímetros.
+        sinCifras: true,
+      },
       {
         id: 'carga',
         label: 'tab.carga',
