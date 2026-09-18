@@ -1009,9 +1009,47 @@ export interface DocumentPrecedence {
   readonly note: string | null
 }
 
+/** Los cuatro papeles del ciclo, en el orden en que se firman. */
+export const SIGNATURE_STEPS = ['author', 'verifier', 'approver', 'reviewer'] as const
+
+export type SignatureStep = (typeof SIGNATURE_STEPS)[number]
+
+/**
+ * Una firma del ciclo de un entregable. **Rol, nunca persona**: el catálogo
+ * dice que hace falta un jefe RAMS, no quién lo es esta semana, y por eso aquí
+ * no hay ningún identificador de recurso.
+ */
+export interface Signature {
+  readonly step: SignatureStep
+  /** Distingue Verificador 1 de Verificador 2. Autor y aprobador llevan 1. */
+  readonly position: number
+  readonly role: string
+  /** Lo que cuesta la firma. Declarado; todavía no entra en la carga de nadie. */
+  readonly standardMinutes: number | null
+}
+
+export interface DocumentSignature extends Signature {
+  readonly documentTypeId: string
+}
+
+/**
+ * Lo que está mal repartido en un ciclo, con su código y sus datos.
+ *
+ * Lo calcula el servidor y la frase la escribe el diccionario: el mismo
+ * contrato que los hallazgos, los permisos y los errores. Repetir aquí la
+ * comprobación habría sido tener la regla escrita dos veces.
+ */
+export interface SignatureProblem {
+  readonly documentTypeId: string
+  readonly code: string
+  readonly payload: Readonly<Record<string, string | number>>
+}
+
 export interface DocumentCatalogue {
   readonly types: readonly DocumentType[]
   readonly precedences: readonly DocumentPrecedence[]
+  readonly signatures: readonly DocumentSignature[]
+  readonly signatureProblems: readonly SignatureProblem[]
 }
 
 export async function fetchDocuments(): Promise<DocumentCatalogue> {
@@ -1052,6 +1090,7 @@ export interface DocumentsImported {
   readonly created: number
   readonly updated: number
   readonly links: number
+  readonly signatures: number
   readonly warnings: readonly string[]
 }
 
@@ -1064,6 +1103,20 @@ export async function importDocumentsCsv(text: string): Promise<DocumentsImporte
   })
   if (!response.ok) throw await comoError(response, 'No se pudo importar el catálogo')
   return (await response.json()) as DocumentsImported
+}
+
+/**
+ * El ciclo de firma de un entregable, de golpe. **Sustituye el ciclo entero**:
+ * lo que no venga se borra, igual que los predecesores.
+ *
+ * Un ciclo mal repartido se guarda igual; avisar es trabajo de la pantalla, que
+ * usa `checkSignatureCycle`, la misma función que usa la importación.
+ */
+export async function setSignatures(
+  documentId: string,
+  signatures: readonly Signature[],
+): Promise<void> {
+  return send(`/api/documents/${documentId}/signatures`, 'PUT', { signatures })
 }
 
 export async function removeDocumentType(documentId: string): Promise<void> {

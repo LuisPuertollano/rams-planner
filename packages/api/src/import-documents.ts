@@ -30,10 +30,12 @@
  * porque nadie va a repasar ochenta filas buscando la casilla roja.
  */
 
+import { checkSignatureCycle, type Signature } from '@planner/domain'
 import {
   createDocumentType,
   readDocumentTypes,
   setPredecessors,
+  setSignatures,
   updateDocumentType,
   type DocumentKind,
   type DocumentTypeFields,
@@ -62,13 +64,31 @@ interface FilaLeida extends DocumentTypeFields {
   readonly line: number
   /** Códigos, no identificadores: el fichero no conoce los uuid. */
   readonly esperaA: readonly string[] | null
+  /**
+   * El ciclo de firma que declara la fila, por rol. `null` cuando el fichero no
+   * trae ninguna de las cinco columnas: entonces no dice nada del ciclo y no se
+   * toca, igual que `esperaA`. Con las columnas presentes pero vacías, dice que
+   * no hay ciclo y se borra el que hubiera.
+   */
+  readonly firmas: readonly Signature[] | null
 }
+
+/** Las cinco casillas del ciclo, y a qué paso va cada una. */
+const COLUMNAS_DE_FIRMA = [
+  { columna: 'autor', step: 'author', position: 1, lista: false },
+  { columna: 'verificador_1', step: 'verifier', position: 1, lista: false },
+  { columna: 'verificador_2', step: 'verifier', position: 2, lista: false },
+  { columna: 'aprobador', step: 'approver', position: 1, lista: false },
+  { columna: 'revisores', step: 'reviewer', position: 1, lista: true },
+] as const
 
 export interface DocumentsSummary {
   readonly rows: number
   readonly created: number
   readonly updated: number
   readonly links: number
+  /** Cuántas firmas se escribieron. Cero también cuando el fichero no habla del ciclo. */
+  readonly signatures: number
   readonly warnings: readonly string[]
 }
 
@@ -121,6 +141,7 @@ export function parseDocumentsCsv(text: string): readonly FilaLeida[] {
 
     if (kind === undefined || code === '' || name === '') continue
     const esperaTexto = fila['espera_a']
+    const firmas = leerFirmas(fila, columnas)
     leidas.push({
       line,
       code,
@@ -136,6 +157,7 @@ export function parseDocumentsCsv(text: string): readonly FilaLeida[] {
       // Sin columna, la fila no dice nada de sus predecesores y no se tocan.
       // Con la columna vacía, dice que no espera a nadie y se borran.
       esperaA: esperaTexto === undefined ? null : listaDeCodigos(esperaTexto),
+      firmas,
     })
   }
 
@@ -152,6 +174,7 @@ export async function importDocumentsCsv(db: Queryable, text: string): Promise<D
 
   let created = 0
   let updated = 0
+  let signatures = 0
   for (const fila of filas) {
     // `line` y `esperaA` son del fichero, no de la ficha: la primera es para
     // los mensajes de error y la segunda se resuelve más abajo, cuando ya
@@ -169,12 +192,20 @@ export async function importDocumentsCsv(db: Queryable, text: string): Promise<D
       sortKey: fila.sortKey,
     }
     const conocido = idPorCodigo.get(fila.code.toLowerCase())
+    let id = conocido
     if (conocido === undefined) {
-      idPorCodigo.set(fila.code.toLowerCase(), await createDocumentType(db, campos))
+      id = await createDocumentType(db, campos)
+      idPorCodigo.set(fila.code.toLowerCase(), id)
       created += 1
     } else {
       await updateDocumentType(db, conocido, campos)
       updated += 1
+    }
+    // El ciclo de firma se sustituye entero, como los predecesores. Sin las
+    // columnas en el fichero, `firmas` es null y no se toca nada.
+    if (id !== undefined && fila.firmas !== null) {
+      await setSignatures(db, id, fila.firmas)
+      signatures += fila.firmas.length
     }
   }
 
@@ -221,12 +252,14 @@ export async function importDocumentsCsv(db: Queryable, text: string): Promise<D
     created,
     updated,
     links,
+    signatures,
     warnings: avisos(filas, aristas),
   }
 }
 
 /**
- * Lo que no impide cargar el fichero pero merece leerse: los ciclos.
+ * Lo que no impide cargar el fichero pero merece leerse: los ciclos de la
+ * matriz y los ciclos de firma mal repartidos.
  *
  * No se rechazan, por lo mismo que la pantalla deja marcar la casilla que
  * cierra uno: a veces se descubre justo entonces. Pero se dicen, porque nadie
@@ -270,9 +303,84 @@ function avisos(
   }
 
   // Un mismo ciclo aparece una vez por cada nodo desde el que se entra.
-  return [...new Set(ciclos)]
+  const deLaMatriz = [...new Set(ciclos)]
     .slice(0, 10)
     .map((ruta) => `Ciclo: ${ruta}. Ningún plan que salga de aquí se puede calcular.`)
+
+  return [...deLaMatriz, ...avisosDeFirma(filas)]
+}
+
+/**
+ * Lo que está mal repartido en un ciclo de firma.
+ *
+ * La frase se escribe aquí, en castellano, igual que la del ciclo de la matriz:
+ * el resumen de una importación es un texto que se lee una vez y se cierra, no
+ * una pantalla que vive en cuatro idiomas. La ficha del entregable sí recibe el
+ * código y el dato, y ahí la frase la escribe el diccionario.
+ */
+function avisosDeFirma(filas: readonly FilaLeida[]): readonly string[] {
+  const avisos: string[] = []
+  for (const fila of filas) {
+    if (fila.firmas === null) continue
+    for (const problema of checkSignatureCycle(fila.kind ?? 'documento', fila.firmas)) {
+      avisos.push(`Fila ${String(fila.line)} («${fila.code}»): ${frase(problema.code, problema.payload)}`)
+    }
+  }
+  return avisos.slice(0, 20)
+}
+
+function frase(code: string, payload: Readonly<Record<string, string | number>>): string {
+  const rol = String(payload['role'] ?? '')
+  switch (code) {
+    case 'SIGNATURE_NO_AUTHOR':
+      return 'el ciclo de firma no dice quién lo escribe.'
+    case 'SIGNATURE_NO_APPROVER':
+      return 'el ciclo de firma no dice quién lo aprueba, así que el entregable no se puede cerrar.'
+    case 'SIGNATURE_NOT_INDEPENDENT':
+      return `«${rol}» firma su propio trabajo: es el autor y también ${String(payload['step']) === 'approver' ? 'el aprobador' : 'un verificador'}.`
+    case 'SIGNATURE_ROLE_REPEATED':
+      return `«${rol}» aparece dos veces en el mismo paso: es una firma escrita dos veces, no dos firmas.`
+    case 'SIGNATURE_ON_CONTAINER':
+      return `es un ${String(payload['kind'])} y trae ciclo de firma; una fase agrupa y un hito es un instante, ninguno se firma.`
+    default:
+      return code
+  }
+}
+
+/**
+ * Las cinco casillas del ciclo de firma de una fila.
+ *
+ * Devuelve `null` cuando el fichero no trae ninguna de las cinco columnas: un
+ * catálogo que no habla del ciclo no lo borra. Es la misma regla que `espera_a`
+ * y por el mismo motivo — un fichero parcial toca lo que nombra y nada más.
+ *
+ * El esfuerzo de cada firma no viaja en el CSV. Son cinco columnas más para un
+ * dato que casi nadie tiene el primer día, y que se rellena mejor en la ficha
+ * del entregable, una a una, que en una hoja de ochenta filas.
+ */
+function leerFirmas(
+  fila: Readonly<Record<string, string | undefined>>,
+  columnas: ReadonlySet<string>,
+): readonly Signature[] | null {
+  if (!COLUMNAS_DE_FIRMA.some((casilla) => columnas.has(casilla.columna))) return null
+
+  const firmas: Signature[] = []
+  for (const casilla of COLUMNAS_DE_FIRMA) {
+    const texto = (fila[casilla.columna] ?? '').trim()
+    if (texto === '') continue
+    const roles = casilla.lista ? listaDeCodigos(texto) : [texto]
+    for (const [indice, role] of roles.entries()) {
+      firmas.push({
+        step: casilla.step,
+        // Una lista ocupa posiciones consecutivas desde la suya; una casilla
+        // simple, la que le toca. Así «Calidad|Compras» son revisor 1 y 2.
+        position: casilla.position + indice,
+        role,
+        standardMinutes: null,
+      })
+    }
+  }
+  return firmas
 }
 
 function vacioANulo(valor: string | undefined): string | null {

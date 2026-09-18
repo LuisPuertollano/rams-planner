@@ -41,6 +41,7 @@ export const ERROR_CODES = [
   // --- Catálogos ------------------------------------------------------------
   'DOCUMENTO_YA_EXISTE',
   'DOCUMENTO_NO_SE_ESPERA_A_SI_MISMO',
+  'FIRMA_CASILLA_REPETIDA',
   'COMPETENCIA_YA_EXISTE',
   // --- Peticiones -----------------------------------------------------------
   'DATOS_INVALIDOS',

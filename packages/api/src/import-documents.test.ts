@@ -46,6 +46,9 @@ describe('el catálogo de documentos que llega en un CSV', () => {
       taskCode: 'PWTDF-D800',
       sortKey: 10,
       esperaA: ['S-HAZLOG'],
+      // Sin ninguna de las cinco columnas de firma, el fichero no habla del
+      // ciclo y no lo toca: null y no lista vacía, que significaría «bórralo».
+      firmas: null,
     })
   })
 
@@ -132,5 +135,61 @@ describe('el catálogo de documentos que llega en un CSV', () => {
     expect(fila?.code).toBe('A')
     expect(fila?.gate).toBeNull()
     expect(fila?.standardMinutes).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// El ciclo de firma
+// ---------------------------------------------------------------------------
+
+const CABECERA_FIRMAS = `${CABECERA};autor;verificador_1;verificador_2;aprobador;revisores`
+const conFirmas = (...filas: readonly string[]): string => [CABECERA_FIRMAS, ...filas].join('\n')
+
+describe('el ciclo de firma que llega en el CSV', () => {
+  it('lee las cinco casillas y las coloca en su paso y su posición', () => {
+    const [fila] = parseDocumentsCsv(
+      conFirmas('S-SAP;Safety Plan;;;;;;;;;Ing. RAMS;Ing. Sistemas;Jefe RAMS;PrEM;Calidad|Compras'),
+    )
+    expect(fila?.firmas).toEqual([
+      { step: 'author', position: 1, role: 'Ing. RAMS', standardMinutes: null },
+      { step: 'verifier', position: 1, role: 'Ing. Sistemas', standardMinutes: null },
+      { step: 'verifier', position: 2, role: 'Jefe RAMS', standardMinutes: null },
+      { step: 'approver', position: 1, role: 'PrEM', standardMinutes: null },
+      { step: 'reviewer', position: 1, role: 'Calidad', standardMinutes: null },
+      { step: 'reviewer', position: 2, role: 'Compras', standardMinutes: null },
+    ])
+  })
+
+  it('las columnas presentes pero vacías dicen «no hay ciclo», y eso borra el que hubiera', () => {
+    const [fila] = parseDocumentsCsv(conFirmas('S-SAP;Safety Plan;;;;;;;;;;;;;'))
+    // Lista vacía, no null: la diferencia es la misma que en espera_a.
+    expect(fila?.firmas).toEqual([])
+  })
+
+  it('sin las columnas, el fichero no habla del ciclo y no lo toca', () => {
+    const [fila] = parseDocumentsCsv(fichero('S-SAP;Safety Plan;;;;;;;;'))
+    expect(fila?.firmas).toBeNull()
+  })
+
+  it('basta con que venga una de las cinco columnas', () => {
+    const texto = ['codigo;nombre;aprobador', 'S-SAP;Safety Plan;PrEM'].join('\n')
+    const [fila] = parseDocumentsCsv(texto)
+    expect(fila?.firmas).toEqual([
+      { step: 'approver', position: 1, role: 'PrEM', standardMinutes: null },
+    ])
+  })
+
+  it('un ciclo mal repartido no rechaza el fichero: se lee y se avisa después', () => {
+    // El autor se verifica a sí mismo y no hay aprobador. El parser no protesta;
+    // el aviso lo da la importación, como con los ciclos de la matriz.
+    const [fila] = parseDocumentsCsv(
+      conFirmas('S-SAP;Safety Plan;;;;;;;;;Ing. RAMS;Ing. RAMS;;;'),
+    )
+    expect(fila?.firmas).toHaveLength(2)
+  })
+
+  it('un rol con espacios de sobra entra limpio', () => {
+    const [fila] = parseDocumentsCsv(conFirmas('S-SAP;Safety Plan;;;;;;;;;  Ing. RAMS  ;;;PrEM;'))
+    expect(fila?.firmas?.map((firma) => firma.role)).toEqual(['Ing. RAMS', 'PrEM'])
   })
 })
