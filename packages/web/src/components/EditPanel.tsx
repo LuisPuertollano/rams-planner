@@ -20,7 +20,7 @@ import {
 } from '../api.js'
 import { percent } from '../format.js'
 import { errorText } from '../errors.js'
-import { useT } from '../i18n/index.js'
+import { existeClave, useT, type Traductor } from '../i18n/index.js'
 import { EntityHistory } from './EntityHistory.js'
 
 interface Props {
@@ -32,12 +32,13 @@ interface Props {
   readonly onChanged: () => void
 }
 
-const LINK_KINDS: readonly { value: string; label: string }[] = [
-  { value: 'FS', label: 'fin → inicio' },
-  { value: 'SS', label: 'inicio → inicio' },
-  { value: 'FF', label: 'fin → fin' },
-  { value: 'SF', label: 'inicio → fin' },
-]
+const LINK_KINDS = ['FS', 'SS', 'FF', 'SF'] as const
+
+/** Cómo se lee un tipo de enlace. El código es el contrato; la frase, no. */
+function nombreDelEnlace(t: Traductor['t'], kind: string): string {
+  const clave = `enlace.${kind}`
+  return existeClave(clave) ? t(clave) : kind
+}
 
 const isContainer = (task: TaskRow): boolean => task.kind === 'phase' || task.kind === 'work_package'
 
@@ -109,23 +110,30 @@ export function EditPanel({ task, tasks, resources, onClose, onChanged }: Props)
 
   return (
     <>
-      <button className="backdrop" onClick={onClose} aria-label="Cerrar" />
-      <aside className="why" role="dialog" aria-label={`Editar: ${task.name}`}>
+      <button className="backdrop" onClick={onClose} aria-label={t('boton.cerrar')} />
+      <aside className="why" role="dialog" aria-label={t('editar.titulo', task.name)}>
         <div className="why__head">
           <div>
-            <h2>Editar</h2>
+            <h2>{t('editar.editar')}</h2>
             <p className="faint" style={{ margin: '2px 0 0', fontSize: 12 }}>
-              {task.path} · {isContainer(task) ? 'contenedor' : task.kind === 'milestone' ? 'hito' : 'tarea'}
+              {task.path} ·{' '}
+              {isContainer(task)
+                ? t('editar.contenedor')
+                : task.kind === 'milestone'
+                  ? t('editar.hito')
+                  : t('editar.tarea')}
             </p>
           </div>
-          <button className="button" onClick={onClose} style={{ marginLeft: 'auto' }}>Cerrar</button>
+          <button className="button" onClick={onClose} style={{ marginLeft: 'auto' }}>
+            {t('boton.cerrar')}
+          </button>
         </div>
 
         <div className="why__body">
           {error === null ? null : <div className="error-banner">{error}</div>}
 
           <label className="field">
-            <span>Nombre</span>
+            <span>{t('col.nombre')}</span>
             <input
               className="input"
               value={name}
@@ -141,10 +149,8 @@ export function EditPanel({ task, tasks, resources, onClose, onChanged }: Props)
 
           {isContainer(task) ? (
             <div className="card">
-              <h3 className="card__title">Colgar trabajo aquí</h3>
-              <p className="card__note">
-                Se añade al final. La duración por defecto de una tarea nueva es un día; se ajusta en la tabla.
-              </p>
+              <h3 className="card__title">{t('editar.colgar')}</h3>
+              <p className="card__note">{t('editar.colgarNota')}</p>
               <div className="inline-form" style={{ marginTop: 8 }}>
                 <AddChild
                   busy={busy}
@@ -166,19 +172,16 @@ export function EditPanel({ task, tasks, resources, onClose, onChanged }: Props)
             <>
               <div className="card">
                 <div className="card__head">
-                  <h3 className="card__title">Equipo de la tarea</h3>
+                  <h3 className="card__title">{t('editar.equipo')}</h3>
                 </div>
-                <p className="card__note">
-                  La dedicación es el porcentaje de la jornada de esa persona que va a esta tarea. De aquí sale
-                  la carga.
-                </p>
+                <p className="card__note">{t('editar.equipoNota')}</p>
                 {myAssignments.length === 0 ? (
-                  <p className="faint" style={{ margin: '8px 0 0' }}>
-                    Sin nadie asignado: esta tarea ocupa tiempo en el calendario pero no consume capacidad.
-                  </p>
+                  <p className="faint" style={{ margin: '8px 0 0' }}>{t('editar.sinEquipo')}</p>
                 ) : (
                   <table className="grid grid--inline">
-                    <thead><tr><th>Persona</th><th>Dedicación</th><th /></tr></thead>
+                    <thead>
+                      <tr><th>{t('col.persona')}</th><th>{t('col.dedicacion')}</th><th /></tr>
+                    </thead>
                     <tbody>
                       {myAssignments.map((row) => (
                         <tr key={row.id}>
@@ -188,7 +191,7 @@ export function EditPanel({ task, tasks, resources, onClose, onChanged }: Props)
                             <button
                               className="button"
                               disabled={busy}
-                              title="Quitar de la tarea"
+                              title={t('editar.quitarPersona')}
                               onClick={() => { run(async () => { await unassign(row.id) }) }}
                             >
                               ✕
@@ -211,18 +214,17 @@ export function EditPanel({ task, tasks, resources, onClose, onChanged }: Props)
               </div>
 
               <div className="card">
-                <h3 className="card__title">Documentos que entrega</h3>
-                <p className="card__note">
-                  Lo que conecta esta tarea con la matriz de documentos. Marcado aquí, el orden declarado en
-                  la matriz sabe de qué tareas habla.
-                </p>
+                <h3 className="card__title">{t('editar.documentos')}</h3>
+                <p className="card__note">{t('editar.documentosNota')}</p>
                 {documentos === null ? null : documentos.types.length === 0 ? (
                   <p className="faint" style={{ margin: '8px 0 0' }}>
-                    No hay documentos declarados todavía. Se llenan en la pestaña <b>Documentos</b>.
+                    {t('editar.sinDocumentos', t('tab.documentos'))}
                   </p>
                 ) : (
                   <table className="grid grid--inline">
-                    <thead><tr><th>Documento</th><th>¿Lo entrega?</th></tr></thead>
+                    <thead>
+                      <tr><th>{t('col.documento')}</th><th>{t('editar.loEntrega')}</th></tr>
+                    </thead>
                     <tbody>
                       {documentos.types.map((tipo) => {
                         const entrega = (structure?.documents ?? []).some(
@@ -236,7 +238,7 @@ export function EditPanel({ task, tasks, resources, onClose, onChanged }: Props)
                                 type="checkbox"
                                 checked={entrega}
                                 disabled={busy}
-                                aria-label={`Esta tarea entrega ${tipo.name}`}
+                                aria-label={t('editar.entregaAria', tipo.name)}
                                 onChange={() => {
                                   run(async () => { await setNodeDocument(task.nodeId, tipo.id, !entrega) })
                                 }}
@@ -251,14 +253,13 @@ export function EditPanel({ task, tasks, resources, onClose, onChanged }: Props)
               </div>
 
               <div className="card">
-                <h3 className="card__title">Competencias que pide</h3>
-                <p className="card__note">
-                  El motor avisa cuando alguien está en esta tarea sin la competencia, o con ella por debajo del
-                  nivel. No impide nada: quién es capaz de qué lo decides tú, no la herramienta.
-                </p>
+                <h3 className="card__title">{t('editar.competencias')}</h3>
+                <p className="card__note">{t('editar.competenciasNota')}</p>
                 {skills === null ? null : (
                   <table className="grid grid--inline">
-                    <thead><tr><th>Competencia</th><th>Nivel mínimo</th></tr></thead>
+                    <thead>
+                      <tr><th>{t('col.competencia')}</th><th>{t('editar.nivelMinimo')}</th></tr>
+                    </thead>
                     <tbody>
                       {skills.skills.map((skill) => {
                         const actual =
@@ -279,7 +280,7 @@ export function EditPanel({ task, tasks, resources, onClose, onChanged }: Props)
                                   run(async () => { await setNodeSkill(task.nodeId, skill.id, siguiente) })
                                 }}
                               >
-                                <option value={0}>no la pide</option>
+                                <option value={0}>{t('editar.noLaPide')}</option>
                                 {[1, 2, 3, 4, 5].map((level) => (
                                   <option key={level} value={level}>{level}</option>
                                 ))}
@@ -294,29 +295,31 @@ export function EditPanel({ task, tasks, resources, onClose, onChanged }: Props)
               </div>
 
               <div className="card">
-                <h3 className="card__title">Depende de</h3>
-                <p className="card__note">
-                  Las predecesoras mandan sobre las fechas. El desfase se cuenta en días laborables de la tarea
-                  que espera, y puede ser negativo para adelantar.
-                </p>
+                <h3 className="card__title">{t('editar.dependeDe')}</h3>
+                <p className="card__note">{t('editar.dependeDeNota')}</p>
                 {myPredecessors.length === 0 ? (
-                  <p className="faint" style={{ margin: '8px 0 0' }}>
-                    Sin predecesoras: arranca con el proyecto o con su restricción.
-                  </p>
+                  <p className="faint" style={{ margin: '8px 0 0' }}>{t('editar.sinPredecesoras')}</p>
                 ) : (
                   <table className="grid grid--inline">
-                    <thead><tr><th>Predecesora</th><th>Enlace</th><th>Desfase</th><th /></tr></thead>
+                    <thead>
+                      <tr>
+                        <th>{t('col.predecesora')}</th>
+                        <th>{t('col.enlace')}</th>
+                        <th>{t('col.desfase')}</th>
+                        <th />
+                      </tr>
+                    </thead>
                     <tbody>
                       {myPredecessors.map((row) => (
                         <tr key={row.id}>
                           <td>{nameOfNode.get(row.predecessorNodeId) ?? '—'}</td>
-                          <td>{LINK_KINDS.find((item) => item.value === row.kind)?.label ?? row.kind}</td>
+                          <td>{nombreDelEnlace(t, row.kind)}</td>
                           <td>{row.lagMinutes === 0 ? '—' : `${String(Math.round(row.lagMinutes / 480))} d`}</td>
                           <td>
                             <button
                               className="button"
                               disabled={busy}
-                              title="Quitar la dependencia"
+                              title={t('editar.quitarDependencia')}
                               onClick={() => { run(async () => { await unlink(row.id) }) }}
                             >
                               ✕
@@ -343,21 +346,18 @@ export function EditPanel({ task, tasks, resources, onClose, onChanged }: Props)
           <EntityHistory entityId={task.nodeId} />
 
           <div className="card">
-            <h3 className="card__title">Quitar del plan</h3>
-            <p className="card__note">
-              Se da de baja esto y todo lo que cuelgue. No se borra nada: los cálculos ya hechos se siguen
-              explicando igual.
-            </p>
+            <h3 className="card__title">{t('editar.quitar')}</h3>
+            <p className="card__note">{t('editar.quitarNota')}</p>
             <button
               className="button"
               disabled={busy}
               onClick={() => {
-                if (window.confirm(`¿Quitar «${task.name}» del plan, con todo lo que cuelgue?`)) {
+                if (window.confirm(t('editar.quitarConfirma', task.name))) {
                   run(async () => { await removeNode(task.nodeId) }, true)
                 }
               }}
             >
-              Quitar del plan
+              {t('editar.quitar')}
             </button>
           </div>
         </div>
@@ -373,6 +373,7 @@ function AddChild({
   readonly busy: boolean
   readonly onAdd: (kind: 'phase' | 'task' | 'milestone', name: string) => void
 }): React.JSX.Element {
+  const { t } = useT()
   const [kind, setKind] = useState<'phase' | 'task' | 'milestone'>('task')
   const [name, setName] = useState('')
 
@@ -386,21 +387,23 @@ function AddChild({
         setName('')
       }}
     >
-      <label className="field"><span>Qué</span>
+      <label className="field"><span>{t('editar.que')}</span>
         <select
           className="input"
           value={kind}
           onChange={(event) => { setKind(event.target.value as 'phase' | 'task' | 'milestone') }}
         >
-          <option value="task">Tarea</option>
-          <option value="milestone">Hito</option>
-          <option value="phase">Fase</option>
+          <option value="task">{t('editar.clase.task')}</option>
+          <option value="milestone">{t('editar.clase.milestone')}</option>
+          <option value="phase">{t('editar.clase.phase')}</option>
         </select>
       </label>
-      <label className="field" style={{ flex: '2 1 200px' }}><span>Nombre</span>
+      <label className="field" style={{ flex: '2 1 200px' }}><span>{t('col.nombre')}</span>
         <input className="input" value={name} onChange={(event) => { setName(event.target.value) }} required />
       </label>
-      <button className="button button--primary" type="submit" disabled={busy}>Añadir</button>
+      <button className="button button--primary" type="submit" disabled={busy}>
+        {t('editar.anadir')}
+      </button>
     </form>
   )
 }
@@ -414,6 +417,7 @@ function AddAssignment({
   readonly busy: boolean
   readonly onAdd: (resourceId: string, unitsBp: number) => void
 }): React.JSX.Element {
+  const { t } = useT()
   const [resourceId, setResourceId] = useState(resources[0]?.id ?? '')
   const [units, setUnits] = useState('100')
 
@@ -433,17 +437,19 @@ function AddAssignment({
         onAdd(selected, parsed)
       }}
     >
-      <label className="field" style={{ flex: '2 1 180px' }}><span>Añadir a</span>
+      <label className="field" style={{ flex: '2 1 180px' }}><span>{t('editar.anadirA')}</span>
         <select className="input" value={selected} onChange={(event) => { setResourceId(event.target.value) }}>
           {resources.map((resource) => (
             <option key={resource.id} value={resource.id}>{resource.displayName}</option>
           ))}
         </select>
       </label>
-      <label className="field"><span>Dedicación %</span>
+      <label className="field"><span>{t('editar.dedicacionPorciento')}</span>
         <input className="input" inputMode="decimal" value={units} onChange={(event) => { setUnits(event.target.value) }} required />
       </label>
-      <button className="button button--primary" type="submit" disabled={busy}>Asignar</button>
+      <button className="button button--primary" type="submit" disabled={busy}>
+        {t('editar.asignar')}
+      </button>
     </form>
   )
 }
@@ -457,6 +463,7 @@ function AddDependency({
   readonly busy: boolean
   readonly onAdd: (predecessorId: string, kind: string, lagDays: number) => void
 }): React.JSX.Element {
+  const { t } = useT()
   const [predecessorId, setPredecessorId] = useState(options[0]?.nodeId ?? '')
   const [kind, setKind] = useState('FS')
   const [lag, setLag] = useState('0')
@@ -476,22 +483,26 @@ function AddDependency({
         onAdd(selected, kind, parsed)
       }}
     >
-      <label className="field" style={{ flex: '2 1 200px' }}><span>Predecesora</span>
+      <label className="field" style={{ flex: '2 1 200px' }}><span>{t('col.predecesora')}</span>
         <select className="input" value={selected} onChange={(event) => { setPredecessorId(event.target.value) }}>
           {options.map((option) => (
             <option key={option.nodeId} value={option.nodeId}>{option.name}</option>
           ))}
         </select>
       </label>
-      <label className="field"><span>Enlace</span>
+      <label className="field"><span>{t('col.enlace')}</span>
         <select className="input" value={kind} onChange={(event) => { setKind(event.target.value) }}>
-          {LINK_KINDS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+          {LINK_KINDS.map((item) => (
+            <option key={item} value={item}>{nombreDelEnlace(t, item)}</option>
+          ))}
         </select>
       </label>
-      <label className="field"><span>Desfase (d)</span>
+      <label className="field"><span>{t('editar.desfaseDias')}</span>
         <input className="input" inputMode="decimal" value={lag} onChange={(event) => { setLag(event.target.value) }} required />
       </label>
-      <button className="button button--primary" type="submit" disabled={busy}>Enlazar</button>
+      <button className="button button--primary" type="submit" disabled={busy}>
+        {t('editar.enlazar')}
+      </button>
     </form>
   )
 }

@@ -2,17 +2,17 @@ import { useEffect, useState } from 'react'
 import { applyRebalance, fetchRebalance, type Project, type RebalanceProposal } from '../api.js'
 import { fullDate, hours, percent } from '../format.js'
 import { errorText } from '../errors.js'
-import { useT } from '../i18n/index.js'
+import { useT, type Diccionario } from '../i18n/index.js'
 
 interface Props {
   readonly projects: readonly Project[]
   readonly onChanged: () => void
 }
 
-const UMBRALES: readonly { value: number; label: string }[] = [
-  { value: 8_000, label: 'por encima del 80 %' },
-  { value: 10_000, label: 'por encima del 100 %' },
-  { value: 12_000, label: 'por encima del 120 %' },
+const UMBRALES: readonly { value: number; label: keyof Diccionario }[] = [
+  { value: 8_000, label: 'reparto.umbral.80' },
+  { value: 10_000, label: 'reparto.umbral.100' },
+  { value: 12_000, label: 'reparto.umbral.120' },
 ]
 
 /**
@@ -61,45 +61,40 @@ export function RebalanceView({ projects, onChanged }: Props): React.JSX.Element
       {error === null ? null : <div className="error-banner" style={{ margin: 12 }}>{error}</div>}
       <div className="toolbar">
         <label className="faint">
-          Considerar sobrecargado a quien esté{' '}
+          {t('reparto.umbral')}{' '}
           <select
             className="button"
             value={threshold}
             onChange={(event) => { setThreshold(Number(event.target.value)) }}
           >
             {UMBRALES.map((item) => (
-              <option key={item.value} value={item.value}>{item.label}</option>
+              <option key={item.value} value={item.value}>{t(item.label)}</option>
             ))}
           </select>
         </label>
-        <span className="faint">
-          Son propuestas: se aplican de una en una y sólo si te convencen. Ninguna deja sobrecargado a quien
-          recoge el trabajo.
-        </span>
+        <span className="faint">{t('reparto.nota')}</span>
       </div>
 
       {proposals === null ? (
-        <div className="empty"><h3>Calculando…</h3></div>
+        <div className="empty"><h3>{t('reparto.calculando')}</h3></div>
       ) : proposals.length === 0 ? (
         <div className="empty">
-          <h3>No hay nada que mover</h3>
+          <h3>{t('reparto.vacio')}</h3>
           <p>
-            {avisos.length === 0
-              ? 'Nadie pasa del umbral elegido, o el trabajo ya está donde tiene que estar.'
-              : 'Hay gente sobrecargada, pero nadie puede recoger su trabajo. Mira los avisos de abajo.'}
+            {avisos.length === 0 ? t('reparto.vacioNadie') : t('reparto.vacioSinCandidato')}
           </p>
         </div>
       ) : (
         <table className="grid">
           <thead>
             <tr>
-              <th style={{ minWidth: 240 }}>Tarea</th>
-              <th>Trabajo</th>
-              <th>Fechas</th>
-              <th>De</th>
-              <th>A</th>
-              <th title="Saturación de quien suelta el trabajo, antes y después">Suelta 🔒</th>
-              <th title="Saturación de quien lo recoge, antes y después">Recoge 🔒</th>
+              <th style={{ minWidth: 240 }}>{t('col.tarea')}</th>
+              <th>{t('col.trabajo')}</th>
+              <th>{t('col.fechas')}</th>
+              <th>{t('col.de')}</th>
+              <th>{t('col.a')}</th>
+              <th title={t('reparto.sueltaTitulo')}>{t('reparto.suelta')}</th>
+              <th title={t('reparto.recogeTitulo')}>{t('reparto.recoge')}</th>
               <th />
             </tr>
           </thead>
@@ -131,9 +126,9 @@ export function RebalanceView({ projects, onChanged }: Props): React.JSX.Element
                     className="button button--primary"
                     disabled={busy !== null}
                     onClick={() => { aplicar(proposal) }}
-                    title="Mueve la asignación y recalcula el plan"
+                    title={t('reparto.aplicarTitulo')}
                   >
-                    Aplicar
+                    {t('reparto.aplicar')}
                   </button>
                 </td>
               </tr>
@@ -148,6 +143,7 @@ export function RebalanceView({ projects, onChanged }: Props): React.JSX.Element
             <div className="finding" key={aviso.entityId}>
               <span className="finding__dot severity-info" />
               <div>
+                {/* texto-fijo: es el código del hallazgo, el mismo en los cuatro idiomas */}
                 <div className="finding__code">REBALANCE_NO_CANDIDATE</div>
                 <p className="finding__message">{aviso.message}</p>
               </div>

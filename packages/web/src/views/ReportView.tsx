@@ -204,12 +204,12 @@ export function ReportView({ projects }: Props): React.JSX.Element {
               <table className="grid">
                 <thead>
                   <tr>
-                    <th>Mes</th>
-                    <th>Comprometido</th>
+                    <th>{t('col.mes')}</th>
+                    <th>{t('col.comprometido')}</th>
                     {informe.actualsHidden ? null : <th title={t('informe.col.fichadoTitulo')}>{t('informe.col.fichado')}</th>}
-                    <th>Capacidad</th>
-                    <th>Saturación</th>
-                    {informe.costsHidden ? null : <th>Coste</th>}
+                    <th>{t('col.capacidad')}</th>
+                    <th>{t('col.saturacion')}</th>
+                    {informe.costsHidden ? null : <th>{t('col.coste')}</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -236,16 +236,16 @@ export function ReportView({ projects }: Props): React.JSX.Element {
               <table className="grid">
                 <thead>
                   <tr>
-                    <th>Proyecto</th>
-                    <th>Comprometido</th>
+                    <th>{t('col.proyecto')}</th>
+                    <th>{t('col.comprometido')}</th>
                     {informe.actualsHidden ? null : <th title={t('informe.col.fichadoTitulo')}>{t('informe.col.fichado')}</th>}
-                    {informe.costsHidden ? null : <th>Coste</th>}
-                    <th>Tareas</th>
-                    <th>Avance</th>
-                    <th>Empieza</th>
-                    <th>Termina</th>
-                    <th>Críticas</th>
-                    <th>En riesgo</th>
+                    {informe.costsHidden ? null : <th>{t('col.coste')}</th>}
+                    <th>{t('col.tareas')}</th>
+                    <th>{t('col.avance')}</th>
+                    <th>{t('col.empieza')}</th>
+                    <th>{t('col.termina')}</th>
+                    <th>{t('col.criticas')}</th>
+                    <th>{t('col.enRiesgo')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -276,13 +276,13 @@ export function ReportView({ projects }: Props): React.JSX.Element {
               <table className="grid">
                 <thead>
                   <tr>
-                    <th>Persona</th>
-                    <th>Comprometido</th>
+                    <th>{t('col.persona')}</th>
+                    <th>{t('col.comprometido')}</th>
                     {informe.actualsHidden ? null : <th title={t('informe.col.fichadoTitulo')}>{t('informe.col.fichado')}</th>}
-                    <th>Capacidad</th>
-                    <th>Saturación</th>
-                    <th>Peor mes</th>
-                    <th>Proyectos</th>
+                    <th>{t('col.capacidad')}</th>
+                    <th>{t('col.saturacion')}</th>
+                    <th>{t('col.peorMes')}</th>
+                    <th>{t('col.proyectos')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -314,10 +314,10 @@ export function ReportView({ projects }: Props): React.JSX.Element {
               <table className="grid grid--texto">
                 <thead>
                   <tr>
-                    <th>Tarea</th>
-                    <th>Proyecto</th>
-                    <th>Qué pasa</th>
-                    <th>Avance</th>
+                    <th>{t('col.tarea')}</th>
+                    <th>{t('col.proyecto')}</th>
+                    <th>{t('col.quePasa')}</th>
+                    <th>{t('col.avance')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -336,9 +336,7 @@ export function ReportView({ projects }: Props): React.JSX.Element {
                 </tbody>
               </table>
               {informe.risks.length <= 50 ? null : (
-                <p className="faint">
-                  … y {informe.risks.length - 50} más. Lo peor va arriba.
-                </p>
+                <p className="faint">{t('informe.yMasRiesgos', informe.risks.length - 50)}</p>
               )}
             </section>
           )}

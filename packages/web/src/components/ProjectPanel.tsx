@@ -51,24 +51,26 @@ export function ProjectPanel({ project, baselines, onClose, onChanged }: Props):
 
   return (
     <>
-      <button className="backdrop" onClick={onClose} aria-label="Cerrar" />
-      <aside className="why" role="dialog" aria-label={`Proyecto: ${project.code}`}>
+      <button className="backdrop" onClick={onClose} aria-label={t('boton.cerrar')} />
+      <aside className="why" role="dialog" aria-label={t('proyecto.titulo', project.code)}>
         <div className="why__head">
           <div>
             <h2>{project.code}</h2>
-            <p className="faint" style={{ margin: '2px 0 0', fontSize: 12 }}>Datos declarados del proyecto</p>
+            <p className="faint" style={{ margin: '2px 0 0', fontSize: 12 }}>{t('proyecto.subtitulo')}</p>
           </div>
-          <button className="button" onClick={onClose} style={{ marginLeft: 'auto' }}>Cerrar</button>
+          <button className="button" onClick={onClose} style={{ marginLeft: 'auto' }}>
+            {t('boton.cerrar')}
+          </button>
         </div>
 
         <div className="why__body">
           {error === null ? null : <div className="error-banner">{error}</div>}
 
           <div className="card">
-            <h3 className="card__title">Identidad</h3>
+            <h3 className="card__title">{t('proyecto.identidad')}</h3>
             <div className="field-grid">
               <label className="field">
-                <span>Nombre</span>
+                <span>{t('col.nombre')}</span>
                 <input
                   className="input"
                   value={name}
@@ -78,7 +80,7 @@ export function ProjectPanel({ project, baselines, onClose, onChanged }: Props):
                 />
               </label>
               <label className="field">
-                <span>Código</span>
+                <span>{t('col.codigo')}</span>
                 <input
                   className="input"
                   value={code}
@@ -91,12 +93,10 @@ export function ProjectPanel({ project, baselines, onClose, onChanged }: Props):
           </div>
 
           <div className="card">
-            <h3 className="card__title">Fecha de referencia</h3>
-            <p className="card__note">
-              Ancla las tareas que no tienen predecesora ni restricción. Cambiarla mueve el proyecto entero.
-            </p>
+            <h3 className="card__title">{t('proyecto.fechaRef')}</h3>
+            <p className="card__note">{t('proyecto.fechaRefNota')}</p>
             <label className="field" style={{ marginTop: 8, maxWidth: 200 }}>
-              <span>Arranque</span>
+              <span>{t('proyecto.arranque')}</span>
               <input
                 className="input"
                 type="date"
@@ -113,66 +113,47 @@ export function ProjectPanel({ project, baselines, onClose, onChanged }: Props):
           </div>
 
           <div className="card">
-            <h3 className="card__title">Compromiso</h3>
-            <p className="card__note">
-              Cuánto de este trabajo hay que hacer <b>de verdad</b>. No es el tipo de proyecto: es la
-              confianza en que llegue. El informe separa las horas por esto, porque sumar las de una oferta
-              a las de un contrato y llamar plan al total es la forma más rápida de que el plan no sirva
-              para decidir.
-            </p>
+            <h3 className="card__title">{t('proyecto.compromiso')}</h3>
+            <p className="card__note">{t('proyecto.compromisoNota')}</p>
             <label className="field" style={{ marginTop: 8, maxWidth: 260 }}>
-              <span>Nivel</span>
+              <span>{t('proyecto.nivel')}</span>
               <select
                 className="input"
                 value={project.commitment}
                 disabled={busy}
                 onChange={(event) => { save({ commitment: event.target.value }) }}
               >
-                <option value="firme">Firme · contratado, hay que hacerlo</option>
-                <option value="probable">Probable · previsto, sin firmar</option>
-                <option value="posible">Posible · una oferta; puede no llegar</option>
+                <option value="firme">{t('proyecto.firme')}</option>
+                <option value="probable">{t('proyecto.probable')}</option>
+                <option value="posible">{t('proyecto.posible')}</option>
               </select>
             </label>
           </div>
 
           <div className="card">
-            <h3 className="card__title">Estado</h3>
-            <p className="card__note">
-              Lo que <b>no está activo no entra en el cálculo</b>: se guarda entero —su árbol, sus
-              fechas declaradas, su historia— y deja de generar carga y de ocupar a nadie. Las
-              ejecuciones ya hechas no cambian: el proyecto que archivas hoy sigue en la de ayer,
-              porque ayer estaba dentro.
-            </p>
+            <h3 className="card__title">{t('proyecto.estado')}</h3>
+            <p className="card__note">{t('proyecto.estadoNota')}</p>
             <label className="field" style={{ marginTop: 8, maxWidth: 300 }}>
-              <span>Qué se hace con él</span>
+              <span>{t('proyecto.queSeHace')}</span>
               <select
                 className="input"
                 value={project.status}
                 disabled={busy}
                 onChange={(event) => { save({ status: event.target.value }) }}
               >
-                <option value="activo">Activo · se calcula y consume capacidad</option>
-                <option value="inactivo">Inactivo · en pausa; volverá</option>
-                <option value="archivado">Archivado · terminado; se guarda por su historia</option>
+                <option value="activo">{t('proyecto.activo')}</option>
+                <option value="inactivo">{t('proyecto.inactivo')}</option>
+                <option value="archivado">{t('proyecto.archivado')}</option>
               </select>
             </label>
-            <p className="card__note" style={{ marginTop: 8 }}>
-              Si alguna tarea de otro proyecto espera a una de éste, ese enlace deja de aplicarse y
-              sale un aviso en los hallazgos. Las fechas del otro proyecto se adelantan, y eso se
-              dice en vez de pasar en silencio.
-            </p>
+            <p className="card__note" style={{ marginTop: 8 }}>{t('proyecto.estadoEnlaces')}</p>
           </div>
 
           <div className="card">
-            <h3 className="card__title">Línea base de referencia</h3>
-            <p className="card__note">
-              Contra qué foto del plan se compara este proyecto. Cada uno congela en su momento —su
-              revisión, su hito contractual—, así que la elige el proyecto y no la herramienta entera. Sin
-              una elegida, comparar obliga a decir cuál cada vez, y dos personas acaban mirando fotos
-              distintas sin enterarse.
-            </p>
+            <h3 className="card__title">{t('proyecto.lineaBase')}</h3>
+            <p className="card__note">{t('proyecto.lineaBaseNota')}</p>
             <label className="field" style={{ marginTop: 8, maxWidth: 320 }}>
-              <span>Foto</span>
+              <span>{t('proyecto.foto')}</span>
               <select
                 className="input"
                 value={project.currentBaselineId ?? ''}
@@ -181,7 +162,7 @@ export function ProjectPanel({ project, baselines, onClose, onChanged }: Props):
                   save({ currentBaselineId: event.target.value === '' ? null : event.target.value })
                 }}
               >
-                <option value="">— ninguna —</option>
+                <option value="">{t('proyecto.ninguna')}</option>
                 {baselines.map((baseline) => (
                   <option key={baseline.id} value={baseline.id}>
                     {baseline.name} · {fullDate(baseline.capturedAt.slice(0, 10))}
@@ -190,20 +171,13 @@ export function ProjectPanel({ project, baselines, onClose, onChanged }: Props):
               </select>
             </label>
             {baselines.length > 0 ? null : (
-              <p className="card__note" style={{ marginTop: 8 }}>
-                Todavía no hay ninguna línea base congelada. Se crean desde la barra de arriba, sobre la
-                ejecución que quieras guardar.
-              </p>
+              <p className="card__note" style={{ marginTop: 8 }}>{t('proyecto.sinLineasBase')}</p>
             )}
           </div>
 
           <div className="card">
-            <h3 className="card__title">Prioridad</h3>
-            <p className="card__note">
-              Sólo se usa para desempatar en la nivelación: cuando dos tareas se pelean por la misma persona el
-              mismo día, cede la del número más alto. No cambia nada más, y por defecto todos los proyectos
-              empatan en 500.
-            </p>
+            <h3 className="card__title">{t('proyecto.prioridad')}</h3>
+            <p className="card__note">{t('proyecto.prioridadNota')}</p>
             <label className="field" style={{ marginTop: 8, maxWidth: 160 }}>
               <span>0 – 10000</span>
               <input
@@ -223,21 +197,23 @@ export function ProjectPanel({ project, baselines, onClose, onChanged }: Props):
           </div>
 
           <div className="card">
-            <h3 className="card__title">Copiar</h3>
-            <p className="card__note">
-              Se copia el árbol entero con sus duraciones, dependencias y disciplinas. Lo que nunca viaja es
-              la gente: el equipo de un proyecto se decide mirando quién tiene hueco, no copiándolo del
-              anterior. Las restricciones y las fechas objetivo se desplazan con la fecha de arranque nueva.
-            </p>
+            <h3 className="card__title">{t('proyecto.copiar')}</h3>
+            <p className="card__note">{t('proyecto.copiarNota')}</p>
             <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
               <button
                 className="button"
                 disabled={busy}
-                title="Guarda este proyecto como molde para los siguientes"
+                title={t('proyecto.guardarPlantillaTitulo')}
                 onClick={() => {
-                  const nombre = window.prompt('Nombre de la plantilla', `Plantilla · ${project.name}`)
+                  const nombre = window.prompt(
+                    t('proyecto.pidePlantillaNombre'),
+                    t('proyecto.plantillaNombrePorDefecto', project.name),
+                  )
                   if (nombre === null || nombre.trim() === '') return
-                  const codigo = window.prompt('Código de la plantilla', `PLANTILLA-${project.code}`)
+                  const codigo = window.prompt(
+                    t('proyecto.pidePlantillaCodigo'),
+                    t('proyecto.plantillaCodigoPorDefecto', project.code),
+                  )
                   if (codigo === null || codigo.trim() === '') return
                   run(async () => {
                     await duplicateProject(project.id, {
@@ -249,18 +225,21 @@ export function ProjectPanel({ project, baselines, onClose, onChanged }: Props):
                   }, true)
                 }}
               >
-                Guardar como plantilla
+                {t('proyecto.guardarPlantilla')}
               </button>
               <button
                 className="button"
                 disabled={busy}
-                title="Crea otro proyecto con la misma estructura"
+                title={t('proyecto.duplicarTitulo')}
                 onClick={() => {
-                  const nombre = window.prompt('Nombre del proyecto nuevo', `${project.name} (copia)`)
+                  const nombre = window.prompt(
+                    t('proyecto.pideNombre'),
+                    t('proyecto.nombrePorDefecto', project.name),
+                  )
                   if (nombre === null || nombre.trim() === '') return
-                  const codigo = window.prompt('Código del proyecto nuevo', `${project.code}-2`)
+                  const codigo = window.prompt(t('proyecto.pideCodigo'), `${project.code}-2`)
                   if (codigo === null || codigo.trim() === '') return
-                  const inicio = window.prompt('Fecha de arranque (AAAA-MM-DD)', project.statusStart)
+                  const inicio = window.prompt(t('proyecto.pideArranque'), project.statusStart)
                   if (inicio === null || !/^\d{4}-\d{2}-\d{2}$/.test(inicio.trim())) return
                   run(async () => {
                     await duplicateProject(project.id, {
@@ -271,25 +250,23 @@ export function ProjectPanel({ project, baselines, onClose, onChanged }: Props):
                   }, true)
                 }}
               >
-                Duplicar el proyecto
+                {t('proyecto.duplicar')}
               </button>
               <button
                 className="button"
                 disabled={busy}
                 title={
-                  project.isTemplate
-                    ? 'Vuelve a ser un proyecto normal: se calculará y generará carga'
-                    : 'Conviértelo en molde: dejará de calcularse y de generar carga'
+                  project.isTemplate ? t('proyecto.aProyectoTitulo') : t('proyecto.aPlantillaTitulo')
                 }
                 onClick={() => {
                   const aPlantilla = !project.isTemplate
                   const aviso = aPlantilla
-                    ? `¿Convertir «${project.code}» en plantilla? Dejará de calcularse y sus asignaciones se perderán.`
-                    : `¿Convertir la plantilla «${project.code}» en un proyecto normal? Pasará a calcularse.`
+                    ? t('proyecto.aPlantillaConfirma', project.code)
+                    : t('proyecto.aProyectoConfirma', project.code)
                   if (window.confirm(aviso)) save({ isTemplate: aPlantilla })
                 }}
               >
-                {project.isTemplate ? 'Convertir en proyecto' : 'Convertir en plantilla'}
+                {project.isTemplate ? t('proyecto.aProyecto') : t('proyecto.aPlantilla')}
               </button>
             </div>
           </div>
@@ -297,21 +274,18 @@ export function ProjectPanel({ project, baselines, onClose, onChanged }: Props):
           <EntityHistory entityId={project.id} />
 
           <div className="card">
-            <h3 className="card__title">Quitar el proyecto</h3>
-            <p className="card__note">
-              Se da de baja el proyecto y todo su plan. No se borra nada: los cálculos ya hechos se siguen
-              explicando igual.
-            </p>
+            <h3 className="card__title">{t('proyecto.quitar')}</h3>
+            <p className="card__note">{t('proyecto.quitarNota')}</p>
             <button
               className="button"
               disabled={busy}
               onClick={() => {
-                if (window.confirm(`¿Quitar «${project.code} · ${project.name}» y todo su plan?`)) {
+                if (window.confirm(t('proyecto.quitarConfirma', project.code, project.name))) {
                   run(async () => { await removeProject(project.id) }, true)
                 }
               }}
             >
-              Quitar el proyecto
+              {t('proyecto.quitar')}
             </button>
           </div>
         </div>

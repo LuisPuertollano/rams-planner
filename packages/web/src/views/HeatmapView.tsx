@@ -1,12 +1,22 @@
 import { useMemo, useState } from 'react'
 import type { Resource, UtilizationCell } from '../api.js'
 import { hours, monthLabel, percent, utilizationColor } from '../format.js'
+import { useT, type Diccionario } from '../i18n/index.js'
 import { activePeriods } from '../periods.js'
 
 interface Props {
   readonly resources: readonly Resource[]
   readonly utilization: readonly UtilizationCell[]
 }
+
+/** Los cinco tramos de la escala, con el color y la frase que los nombra. */
+const TRAMOS: readonly (readonly [string, keyof Diccionario])[] = [
+  ['util-low', 'saturacion.holgado'],
+  ['util-ok', 'saturacion.equilibrado'],
+  ['util-full', 'saturacion.alLimite'],
+  ['util-over', 'saturacion.pasado'],
+  ['util-critical', 'saturacion.insostenible'],
+]
 
 /**
  * Mapa de calor de saturación.
@@ -16,6 +26,7 @@ interface Props {
  * importa aquí.
  */
 export function HeatmapView({ resources, utilization }: Props): React.JSX.Element {
+  const { t } = useT()
   const [selected, setSelected] = useState<UtilizationCell | null>(null)
 
   const periods = useMemo(
@@ -29,7 +40,7 @@ export function HeatmapView({ resources, utilization }: Props): React.JSX.Elemen
   }, [utilization])
 
   if (periods.length === 0) {
-    return <div className="empty"><h3>Sin capacidad que representar</h3></div>
+    return <div className="empty"><h3>{t('saturacion.vacio')}</h3></div>
   }
 
   return (
@@ -37,7 +48,7 @@ export function HeatmapView({ resources, utilization }: Props): React.JSX.Elemen
       <table className="grid">
         <thead>
           <tr>
-            <th>Recurso</th>
+            <th>{t('col.recurso')}</th>
             {periods.map((period) => (
               <th key={period}>{monthLabel(period)}</th>
             ))}
@@ -74,33 +85,29 @@ export function HeatmapView({ resources, utilization }: Props): React.JSX.Elemen
 
       <div style={{ padding: '14px 16px', borderTop: '1px solid var(--border)' }}>
         <div className="legend">
-          <span>Saturación:</span>
-          {[
-            ['util-low', 'holgado (< 60 %)'],
-            ['util-ok', 'equilibrado'],
-            ['util-full', 'al límite (~100 %)'],
-            ['util-over', 'pasado'],
-            ['util-critical', 'insostenible (> 130 %)'],
-          ].map(([token, label]) => (
+          <span>{t('saturacion.leyenda')}</span>
+          {TRAMOS.map(([token, clave]) => (
             <span key={token}>
-              <span className="legend__swatch" style={{ background: `var(--${token ?? ''})` }} />
-              {label}
+              <span className="legend__swatch" style={{ background: `var(--${token})` }} />
+              {t(clave)}
             </span>
           ))}
         </div>
         {selected === null ? (
-          <p className="faint" style={{ marginBottom: 0 }}>
-            Un recurso puede estar equilibrado al mes y saturado tres días concretos. El mes es la mentira cómoda;
-            el motor guarda el día.
-          </p>
+          <p className="faint" style={{ marginBottom: 0 }}>{t('saturacion.nota')}</p>
         ) : (
           <p style={{ marginBottom: 0 }}>
-            <b>{resources.find((r) => r.id === selected.resourceId)?.displayName}</b> en{' '}
-            {monthLabel(selected.period)}: {hours(selected.plannedMinutes, 1)} h planificadas sobre{' '}
-            {hours(selected.capacityMinutes, 1)} h de capacidad ({percent(selected.utilizationBp)}).{' '}
+            {t(
+              'saturacion.detalle',
+              resources.find((r) => r.id === selected.resourceId)?.displayName ?? '',
+              monthLabel(selected.period),
+              hours(selected.plannedMinutes, 1),
+              hours(selected.capacityMinutes, 1),
+              percent(selected.utilizationBp),
+            )}{' '}
             {selected.capacityMinutes - selected.plannedMinutes >= 0
-              ? `Le quedan ${hours(selected.capacityMinutes - selected.plannedMinutes, 1)} h libres.`
-              : `Le faltan ${hours(selected.plannedMinutes - selected.capacityMinutes, 1)} h.`}
+              ? t('saturacion.libres', hours(selected.capacityMinutes - selected.plannedMinutes, 1))
+              : t('saturacion.faltan', hours(selected.plannedMinutes - selected.capacityMinutes, 1))}
           </p>
         )}
       </div>

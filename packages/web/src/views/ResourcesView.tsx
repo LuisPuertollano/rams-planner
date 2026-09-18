@@ -19,24 +19,20 @@ import {
 } from '../api.js'
 import { euroRate, fullDate, hours, percent } from '../format.js'
 import { errorText } from '../errors.js'
-import { useT } from '../i18n/index.js'
+import { existeClave, useT, type Traductor } from '../i18n/index.js'
 
 interface Props {
   /** Se llama tras cada cambio: el servidor ya ha recalculado, la pantalla debe recargarse. */
   readonly onChanged: () => void
 }
 
-const ABSENCE_KINDS: readonly { value: string; label: string }[] = [
-  { value: 'vacation', label: 'Vacaciones' },
-  { value: 'sick', label: 'Baja' },
-  { value: 'training', label: 'Formación' },
-  { value: 'parental', label: 'Permiso parental' },
-  { value: 'public_holiday', label: 'Festivo propio' },
-  { value: 'other', label: 'Otros' },
-]
+const ABSENCE_KINDS = ['vacation', 'sick', 'training', 'parental', 'public_holiday', 'other'] as const
 
-const absenceLabel = (kind: string): string =>
-  ABSENCE_KINDS.find((item) => item.value === kind)?.label ?? kind
+/** Cómo se dice un tipo de ausencia. El valor del enum es el contrato. */
+const absenceLabel = (t: Traductor['t'], kind: string): string => {
+  const clave = kind === 'other' ? 'ausencia.otros' : `ausencia.${kind}`
+  return existeClave(clave) ? t(clave) : kind
+}
 
 const today = (): string => new Date().toISOString().slice(0, 10)
 
@@ -99,7 +95,7 @@ export function ResourcesView({ onChanged }: Props): React.JSX.Element {
   if (team === null) {
     return (
       <div className="empty">
-        <h3>{error ?? 'Cargando el equipo…'}</h3>
+        <h3>{error ?? t('equipo.cargando')}</h3>
       </div>
     )
   }
@@ -108,9 +104,9 @@ export function ResourcesView({ onChanged }: Props): React.JSX.Element {
     <div className="team">
       <aside className="team__list">
         <div className="team__list-head">
-          <span className="faint">{team.resources.length} persona(s)</span>
+          <span className="faint">{t('equipo.cuantos', team.resources.length)}</span>
           <button className="button" onClick={() => { setCreating(true) }} disabled={busy}>
-            + Añadir
+            {t('equipo.anadir')}
           </button>
         </div>
         {team.resources.map((resource) => (
@@ -122,14 +118,14 @@ export function ResourcesView({ onChanged }: Props): React.JSX.Element {
           >
             <span className="team__item-name">{resource.displayName}</span>
             <span className="team__item-meta">
-              {resource.calendarCode ?? 'sin calendario'} · {percent(resource.maxUnitsBp)}
+              {resource.calendarCode ?? t('equipo.sinCalendario')} · {percent(resource.maxUnitsBp)}
               {resource.costRates.length === 0 && team.costsHidden !== true ? (
-                <span className="warn-dot" title="Sin tarifa: el coste sale a cero"> ⚠</span>
+                <span className="warn-dot" title={t('equipo.sinTarifaAviso')}> ⚠</span>
               ) : null}
             </span>
           </button>
         ))}
-        {team.resources.length === 0 ? <p className="faint" style={{ padding: 12 }}>Aún no hay nadie.</p> : null}
+        {team.resources.length === 0 ? <p className="faint" style={{ padding: 12 }}>{t('equipo.vacio')}</p> : null}
       </aside>
 
       <section className="team__detail">
@@ -153,8 +149,8 @@ export function ResourcesView({ onChanged }: Props): React.JSX.Element {
         */}
         {creating ? null : selected === null ? (
           <div className="empty">
-            <h3>Nadie seleccionado</h3>
-            <p>Añade a alguien o importa un plan: las personas del CSV se crean solas.</p>
+            <h3>{t('equipo.nadieElegido')}</h3>
+            <p>{t('equipo.nadieElegidoDetalle')}</p>
           </div>
         ) : (
           <ResourceCard
@@ -181,15 +177,16 @@ interface CardProps {
 }
 
 function ResourceCard({ resource, calendars, costsHidden, busy, onRun }: CardProps): React.JSX.Element {
+  const { t } = useT()
   const [name, setName] = useState(resource.displayName)
 
   return (
     <>
       <div className="card">
-        <h3 className="card__title">Ficha</h3>
+        <h3 className="card__title">{t('equipo.ficha')}</h3>
         <div className="field-grid">
           <label className="field">
-            <span>Nombre</span>
+            <span>{t('col.nombre')}</span>
             <input
               className="input"
               value={name}
@@ -204,12 +201,12 @@ function ResourceCard({ resource, calendars, costsHidden, busy, onRun }: CardPro
           </label>
 
           <label className="field">
-            <span>Código</span>
+            <span>{t('col.codigo')}</span>
             <input className="input" value={resource.code} disabled readOnly />
           </label>
 
           <label className="field">
-            <span title="De él salen los días y las horas laborables de esta persona">Calendario</span>
+            <span title={t('equipo.calendarioTitulo')}>{t('registro.entidad.calendar')}</span>
             <select
               className="input"
               value={resource.calendarId ?? ''}
@@ -219,7 +216,7 @@ function ResourceCard({ resource, calendars, costsHidden, busy, onRun }: CardPro
                 onRun(async () => { await patchResource(resource.id, { calendarId: value === '' ? null : value }) })
               }}
             >
-              <option value="">— sin calendario propio —</option>
+              <option value="">{t('equipo.sinCalendarioPropio')}</option>
               {calendars.map((calendar) => (
                 <option key={calendar.id} value={calendar.id}>
                   {calendar.code} · {calendar.name}
@@ -229,9 +226,7 @@ function ResourceCard({ resource, calendars, costsHidden, busy, onRun }: CardPro
           </label>
 
           <label className="field">
-            <span title="Dedicación máxima por defecto. Los periodos de disponibilidad la pisan cuando existen">
-              Dedicación base
-            </span>
+            <span title={t('equipo.dedicacionBaseTitulo')}>{t('equipo.dedicacionBase')}</span>
             <PercentInput
               valueBp={resource.maxUnitsBp}
               busy={busy}
@@ -240,9 +235,7 @@ function ResourceCard({ resource, calendars, costsHidden, busy, onRun }: CardPro
           </label>
 
           <label className="field">
-            <span title="Reuniones, formación, revisar lo de otro, el correo. Sale del día antes de repartir trabajo">
-              Tiempo indirecto
-            </span>
+            <span title={t('equipo.indirectoTitulo')}>{t('equipo.indirecto')}</span>
             <PercentInput
               valueBp={resource.indirectBp}
               busy={busy}
@@ -251,9 +244,7 @@ function ResourceCard({ resource, calendars, costsHidden, busy, onRun }: CardPro
           </label>
 
           <label className="field">
-            <span title="Sitio que se guarda para lo que no ha pasado todavía: la baja que nadie vio venir">
-              Reserva
-            </span>
+            <span title={t('equipo.reservaTitulo')}>{t('equipo.reserva')}</span>
             <PercentInput
               valueBp={resource.reserveBp}
               busy={busy}
@@ -262,26 +253,21 @@ function ResourceCard({ resource, calendars, costsHidden, busy, onRun }: CardPro
           </label>
         </div>
         <p className="card__note">
-          Lo <b>indirecto</b> es trabajo que pasa; la <b>reserva</b>, sitio que se guarda por si acaso.
-          Los dos salen del día antes de repartir tareas.{' '}
+          {t('equipo.indirectoNota')}{' '}
           {resource.indirectBp === 0 && resource.reserveBp === 0
-            ? 'Con los dos a cero, un día de 8 h se planifica entero, que es lo de siempre.'
-            : `Con lo declarado aquí, un día de 8 h deja ${hours(planificable(480, resource), 1)} h planificables.`}{' '}
-          Planificar contra el día entero sobrecompromete siempre, y el hueco no se ve como sobrecarga:
-          se ve como retrasos, tres meses después.
+            ? t('equipo.indirectoCero')
+            : t('equipo.indirectoAlgo', hours(planificable(480, resource), 1))}{' '}
+          {t('equipo.indirectoAviso')}
         </p>
-        <p className="card__note">
-          Cambiar cualquiera de estos campos recalcula el plan entero: la capacidad de esta persona
-          cambia y con ella su saturación y el coste de sus tareas.
-        </p>
+        <p className="card__note">{t('equipo.recalculaNota')}</p>
       </div>
 
       <PeriodCard<AvailabilityPeriod>
-        title="Disponibilidad"
-        hint="Dedicación por tramos: una excedencia, una media jornada, un refuerzo temporal. Los tramos no se pueden solapar."
+        title={t('equipo.disponibilidad')}
+        hint={t('equipo.disponibilidadNota')}
         rows={resource.availability}
-        empty={`Sin tramos: se usa la dedicación base (${percent(resource.maxUnitsBp)}).`}
-        columns={['Desde', 'Hasta', 'Dedicación', 'Motivo']}
+        empty={t('equipo.disponibilidadVacia', percent(resource.maxUnitsBp))}
+        columns={[t('col.desde'), t('col.hasta'), t('col.dedicacion'), t('col.motivo')]}
         cells={(row) => [fullDate(row.from), fullDate(row.to), percent(row.unitsBp), row.reason ?? '—']}
         busy={busy}
         onDelete={(id) => { onRun(async () => { await removeAvailability(id) }) }}
@@ -297,12 +283,12 @@ function ResourceCard({ resource, calendars, costsHidden, busy, onRun }: CardPro
       />
 
       <PeriodCard<AbsencePeriod>
-        title="Ausencias"
-        hint="Vacaciones, bajas y formación. Restan capacidad sin tocar el calendario del equipo."
+        title={t('equipo.ausencias')}
+        hint={t('equipo.ausenciasNota')}
         rows={resource.absences}
-        empty="Sin ausencias registradas."
-        columns={['Desde', 'Hasta', 'Tipo', 'Nota']}
-        cells={(row) => [fullDate(row.from), fullDate(row.to), absenceLabel(row.kind), row.note ?? '—']}
+        empty={t('equipo.ausenciasVacias')}
+        columns={[t('col.desde'), t('col.hasta'), t('col.tipo'), t('col.nota')]}
+        cells={(row) => [fullDate(row.from), fullDate(row.to), absenceLabel(t, row.kind), row.note ?? '—']}
         busy={busy}
         onDelete={(id) => { onRun(async () => { await removeAbsence(id) }) }}
         form={(close) => (
@@ -317,19 +303,11 @@ function ResourceCard({ resource, calendars, costsHidden, busy, onRun }: CardPro
       />
 
       <PeriodCard<CostRatePeriod>
-        title="Tarifas"
-        hint={
-          costsHidden
-            ? 'Tu rol no incluye ver costes y tarifas, así que no llegan del servidor. No es que no las haya.'
-            : 'Coste por hora con vigencia. Sin tarifa el coste de las tareas de esta persona sale a cero, que es peor que salir mal.'
-        }
+        title={t('equipo.tarifas')}
+        hint={costsHidden ? t('equipo.tarifasOcultas') : t('equipo.tarifasNota')}
         rows={resource.costRates}
-        empty={
-          costsHidden
-            ? 'Oculto: te falta el permiso «Ver costes y tarifas».'
-            : 'Sin tarifa: el coste de sus tareas sale a cero.'
-        }
-        columns={['Desde', 'Hasta', 'Coste/hora', '']}
+        empty={costsHidden ? t('equipo.tarifasVaciasOcultas') : t('equipo.tarifasVacias')}
+        columns={[t('col.desde'), t('col.hasta'), t('equipo.costeHora'), '']}
         cells={(row) => [fullDate(row.from), fullDate(row.to), `${euroRate(row.standardCentsHour)}/h`, row.currency]}
         busy={busy}
         onDelete={(id) => { onRun(async () => { await removeCostRate(id) }) }}
@@ -345,21 +323,18 @@ function ResourceCard({ resource, calendars, costsHidden, busy, onRun }: CardPro
       />
 
       <div className="card">
-        <h3 className="card__title">Baja</h3>
-        <p className="card__note">
-          Dar de baja no borra nada: la persona deja de contar en los cálculos nuevos, pero las
-          ejecuciones ya hechas siguen explicándose exactamente igual.
-        </p>
+        <h3 className="card__title">{t('equipo.baja')}</h3>
+        <p className="card__note">{t('equipo.bajaNota')}</p>
         <button
           className="button"
           disabled={busy}
           onClick={() => {
-            if (window.confirm(`¿Dar de baja a ${resource.displayName}? Sus tareas se quedarán sin asignar.`)) {
+            if (window.confirm(t('equipo.bajaConfirma', resource.displayName))) {
               onRun(async () => { await removeResource(resource.id) })
             }
           }}
         >
-          Dar de baja
+          {t('equipo.darDeBaja')}
         </button>
       </div>
     </>
@@ -390,6 +365,7 @@ function PeriodCard<T extends { id: string }>({
   onDelete,
   form,
 }: PeriodCardProps<T>): React.JSX.Element {
+  const { t } = useT()
   const [adding, setAdding] = useState(false)
 
   return (
@@ -397,7 +373,7 @@ function PeriodCard<T extends { id: string }>({
       <div className="card__head">
         <h3 className="card__title">{title}</h3>
         <button className="button" disabled={busy} onClick={() => { setAdding((value) => !value) }}>
-          {adding ? 'Cancelar' : '+ Añadir'}
+          {adding ? t('boton.cancelar') : t('equipo.anadir')}
         </button>
       </div>
       <p className="card__note">{hint}</p>
@@ -420,7 +396,7 @@ function PeriodCard<T extends { id: string }>({
                   <button
                     className="button"
                     disabled={busy}
-                    title="Quitar este tramo"
+                    title={t('equipo.quitarTramo')}
                     onClick={() => { onDelete(row.id) }}
                   >
                     ✕
@@ -442,6 +418,7 @@ function AvailabilityForm({
   readonly busy: boolean
   readonly onSubmit: (period: { from: string; to: string; unitsBp: number; reason: string | null }) => void
 }): React.JSX.Element {
+  const { t } = useT()
   const [from, setFrom] = useState(today())
   const [to, setTo] = useState(today())
   const [percentValue, setPercentValue] = useState('50')
@@ -457,19 +434,19 @@ function AvailabilityForm({
         onSubmit({ from, to, unitsBp: units, reason: reason.trim() === '' ? null : reason.trim() })
       }}
     >
-      <label className="field"><span>Desde</span>
+      <label className="field"><span>{t('col.desde')}</span>
         <input className="input" type="date" value={from} onChange={(e) => { setFrom(e.target.value) }} required />
       </label>
-      <label className="field"><span>Hasta</span>
+      <label className="field"><span>{t('col.hasta')}</span>
         <input className="input" type="date" value={to} onChange={(e) => { setTo(e.target.value) }} required />
       </label>
-      <label className="field"><span>Dedicación %</span>
+      <label className="field"><span>{t('editar.dedicacionPorciento')}</span>
         <input className="input" inputMode="decimal" value={percentValue} onChange={(e) => { setPercentValue(e.target.value) }} required />
       </label>
-      <label className="field"><span>Motivo</span>
-        <input className="input" value={reason} onChange={(e) => { setReason(e.target.value) }} placeholder="opcional" />
+      <label className="field"><span>{t('col.motivo')}</span>
+        <input className="input" value={reason} onChange={(e) => { setReason(e.target.value) }} placeholder={t('equipo.opcional')} />
       </label>
-      <button className="button button--primary" type="submit" disabled={busy}>Guardar</button>
+      <button className="button button--primary" type="submit" disabled={busy}>{t('boton.guardar')}</button>
     </form>
   )
 }
@@ -481,6 +458,7 @@ function AbsenceForm({
   readonly busy: boolean
   readonly onSubmit: (absence: { kind: string; from: string; to: string; note: string | null }) => void
 }): React.JSX.Element {
+  const { t } = useT()
   const [kind, setKind] = useState('vacation')
   const [from, setFrom] = useState(today())
   const [to, setTo] = useState(today())
@@ -494,21 +472,23 @@ function AbsenceForm({
         onSubmit({ kind, from, to, note: note.trim() === '' ? null : note.trim() })
       }}
     >
-      <label className="field"><span>Tipo</span>
+      <label className="field"><span>{t('col.tipo')}</span>
         <select className="input" value={kind} onChange={(e) => { setKind(e.target.value) }}>
-          {ABSENCE_KINDS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+          {ABSENCE_KINDS.map((item) => (
+            <option key={item} value={item}>{absenceLabel(t, item)}</option>
+          ))}
         </select>
       </label>
-      <label className="field"><span>Desde</span>
+      <label className="field"><span>{t('col.desde')}</span>
         <input className="input" type="date" value={from} onChange={(e) => { setFrom(e.target.value) }} required />
       </label>
-      <label className="field"><span>Hasta</span>
+      <label className="field"><span>{t('col.hasta')}</span>
         <input className="input" type="date" value={to} onChange={(e) => { setTo(e.target.value) }} required />
       </label>
-      <label className="field"><span>Nota</span>
-        <input className="input" value={note} onChange={(e) => { setNote(e.target.value) }} placeholder="opcional" />
+      <label className="field"><span>{t('col.nota')}</span>
+        <input className="input" value={note} onChange={(e) => { setNote(e.target.value) }} placeholder={t('equipo.opcional')} />
       </label>
-      <button className="button button--primary" type="submit" disabled={busy}>Guardar</button>
+      <button className="button button--primary" type="submit" disabled={busy}>{t('boton.guardar')}</button>
     </form>
   )
 }
@@ -520,6 +500,7 @@ function RateForm({
   readonly busy: boolean
   readonly onSubmit: (rate: { from: string; to: string; standardCentsHour: number }) => void
 }): React.JSX.Element {
+  const { t } = useT()
   const [from, setFrom] = useState(`${String(new Date().getFullYear())}-01-01`)
   const [to, setTo] = useState(`${String(new Date().getFullYear() + 4)}-12-31`)
   const [euroPerHour, setEuroPerHour] = useState('75')
@@ -536,16 +517,16 @@ function RateForm({
         onSubmit({ from, to, standardCentsHour: cents })
       }}
     >
-      <label className="field"><span>Desde</span>
+      <label className="field"><span>{t('col.desde')}</span>
         <input className="input" type="date" value={from} onChange={(e) => { setFrom(e.target.value) }} required />
       </label>
-      <label className="field"><span>Hasta</span>
+      <label className="field"><span>{t('col.hasta')}</span>
         <input className="input" type="date" value={to} onChange={(e) => { setTo(e.target.value) }} required />
       </label>
-      <label className="field"><span>€ por hora</span>
+      <label className="field"><span>{t('col.euroHora')}</span>
         <input className="input" inputMode="decimal" value={euroPerHour} onChange={(e) => { setEuroPerHour(e.target.value) }} required />
       </label>
-      <button className="button button--primary" type="submit" disabled={busy}>Guardar</button>
+      <button className="button button--primary" type="submit" disabled={busy}>{t('boton.guardar')}</button>
     </form>
   )
 }
@@ -561,6 +542,7 @@ function NewResourceForm({
   readonly onCancel: () => void
   readonly onCreate: (input: { code: string; displayName: string; calendarId: string | null; maxUnitsBp: number }) => void
 }): React.JSX.Element {
+  const { t } = useT()
   const [displayName, setDisplayName] = useState('')
   const [code, setCode] = useState('')
   const [calendarId, setCalendarId] = useState(calendars[0]?.id ?? '')
@@ -575,7 +557,7 @@ function NewResourceForm({
 
   return (
     <div className="card">
-      <h3 className="card__title">Nueva persona</h3>
+      <h3 className="card__title">{t('equipo.nuevaPersona')}</h3>
       <form
         className="inline-form"
         onSubmit={(event) => {
@@ -590,22 +572,22 @@ function NewResourceForm({
           })
         }}
       >
-        <label className="field"><span>Nombre</span>
+        <label className="field"><span>{t('col.nombre')}</span>
           <input className="input" value={displayName} onChange={(e) => { setDisplayName(e.target.value) }} required autoFocus />
         </label>
-        <label className="field"><span>Código</span>
+        <label className="field"><span>{t('col.codigo')}</span>
           <input className="input" value={code} placeholder={suggestedCode} onChange={(e) => { setCode(e.target.value) }} />
         </label>
-        <label className="field"><span>Calendario</span>
+        <label className="field"><span>{t('registro.entidad.calendar')}</span>
           <select className="input" value={calendarId} onChange={(e) => { setCalendarId(e.target.value) }}>
-            <option value="">— sin calendario propio —</option>
+            <option value="">{t('equipo.sinCalendarioPropio')}</option>
             {calendars.map((calendar) => (
               <option key={calendar.id} value={calendar.id}>{calendar.code} · {calendar.name}</option>
             ))}
           </select>
         </label>
-        <button className="button button--primary" type="submit" disabled={busy}>Crear</button>
-        <button className="button" type="button" onClick={onCancel} disabled={busy}>Cancelar</button>
+        <button className="button button--primary" type="submit" disabled={busy}>{t('boton.crear')}</button>
+        <button className="button" type="button" onClick={onCancel} disabled={busy}>{t('boton.cancelar')}</button>
       </form>
     </div>
   )

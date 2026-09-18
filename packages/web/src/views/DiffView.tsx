@@ -57,7 +57,7 @@ export function DiffView({ baselines, currentRunId, projects }: Props): React.JS
       .map((run) => ({
         value: run.id,
         label: `${dateTime(run.startedAt)} · ${
-          run.triggerReason ?? 'cálculo'
+          run.triggerReason ?? t('comparar.calculo')
         }`,
       })),
   ]
@@ -65,11 +65,8 @@ export function DiffView({ baselines, currentRunId, projects }: Props): React.JS
   if (options.length === 0) {
     return (
       <div className="empty">
-        <h3>Todavía no hay nada con lo que comparar</h3>
-        <p>
-          Congela el plan actual con el botón «Línea base», o recalcula tras un cambio. Una línea base no es un tipo
-          de dato especial: es esta misma ejecución, marcada como inmutable y con un nombre.
-        </p>
+        <h3>{t('comparar.vacio')}</h3>
+        <p>{t('comparar.vacioDetalle')}</p>
       </div>
     )
   }
@@ -80,7 +77,7 @@ export function DiffView({ baselines, currentRunId, projects }: Props): React.JS
     <div>
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
         <label>
-          Comparar el plan actual con{' '}
+          {t('comparar.con')}{' '}
           <select className="button" value={selected} onChange={(event) => { setSelected(event.target.value) }}>
             {options.map((option) => (
               <option key={option.value} value={option.value}>
@@ -94,24 +91,24 @@ export function DiffView({ baselines, currentRunId, projects }: Props): React.JS
       {error === null ? null : <div className="error-banner" style={{ margin: 12 }}>{error}</div>}
 
       {rows === null ? (
-        <div className="empty"><h3>Cargando la comparación…</h3></div>
+        <div className="empty"><h3>{t('comparar.cargando')}</h3></div>
       ) : rows.length === 0 ? (
         <div className="empty">
-          <h3>Ni una diferencia</h3>
-          <p>El plan actual coincide con la línea base en fechas y en trabajo.</p>
+          <h3>{t('comparar.iguales')}</h3>
+          <p>{t('comparar.igualesDetalle')}</p>
         </div>
       ) : (
         <table className="grid">
           <thead>
             <tr>
-              <th style={{ minWidth: 280 }}>Tarea</th>
-              <th>Inicio base</th>
-              <th>Inicio ahora</th>
-              <th>Δ inicio</th>
-              <th>Fin base</th>
-              <th>Fin ahora</th>
-              <th>Δ fin</th>
-              <th>Δ trabajo</th>
+              <th style={{ minWidth: 280 }}>{t('col.tarea')}</th>
+              <th>{t('comparar.inicioBase')}</th>
+              <th>{t('comparar.inicioAhora')}</th>
+              <th>{t('comparar.deltaInicio')}</th>
+              <th>{t('comparar.finBase')}</th>
+              <th>{t('comparar.finAhora')}</th>
+              <th>{t('comparar.deltaFin')}</th>
+              <th>{t('comparar.deltaTrabajo')}</th>
             </tr>
           </thead>
           <tbody>

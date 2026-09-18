@@ -7,43 +7,25 @@
  */
 
 import type { ChangeEvent } from '../api.js'
-
-/** Los valores son los del enum `audit_operation`, en minúscula. */
-export const OPERACION: Readonly<Record<string, string>> = {
-  insert: 'alta',
-  update: 'cambio',
-  delete: 'baja',
-  restore: 'restauración',
-}
+import { existeClave, useT, type Traductor } from '../i18n/index.js'
 
 /**
- * Los nombres de tabla, dichos como los diría una persona. Lo que no esté aquí
- * sale con su nombre técnico, que es feo pero no miente.
+ * Cómo se dice una operación y una tabla, en el idioma de quien mira.
+ *
+ * Antes eran dos mapas en castellano aquí mismo. Mismo trato que los hallazgos
+ * y los errores: el valor del enum —`insert`, `wbs_node`— es el contrato, y la
+ * frase la escribe el diccionario. Lo que no esté traducido sale con su nombre
+ * técnico, que es feo pero no miente; y una tabla nueva aparece con el suyo en
+ * vez de desaparecer.
  */
-export const ENTIDAD: Readonly<Record<string, string>> = {
-  wbs_node: 'tarea',
-  // `wbs_node` es la rama del árbol y `task` lo que lleva dentro —duración,
-  // avance, restricciones—. Son dos filas porque son dos tablas, y decirlo
-  // distingue «se creó la tarea» de «se le puso duración».
-  task: 'datos de una tarea',
-  project: 'proyecto',
-  assignment: 'asignación',
-  dependency: 'dependencia',
-  resource: 'persona',
-  resource_availability: 'dedicación',
-  absence: 'ausencia',
-  resource_absence: 'ausencia',
-  resource_cost_rate: 'tarifa',
-  resource_skill: 'competencia de una persona',
-  node_skill_requirement: 'competencia que pide una tarea',
-  skill: 'competencia',
-  field_value: 'campo personalizado',
-  field_definition: 'campo personalizado',
-  baseline: 'línea base',
-  calendar: 'calendario',
-  calendar_exception: 'festivo o excepción del calendario',
-  calendar_week_slot: 'jornada semanal de un calendario',
-  scenario: 'escenario',
+export function operacion(t: Traductor['t'], valor: string): string {
+  const clave = `registro.operacion.${valor}`
+  return existeClave(clave) ? t(clave) : valor.toLowerCase()
+}
+
+export function entidad(t: Traductor['t'], tabla: string): string {
+  const clave = `registro.entidad.${tabla}`
+  return existeClave(clave) ? t(clave) : tabla
 }
 
 /**
@@ -63,14 +45,15 @@ export const SIN_NOMBRE = new Set([
 
 /** Sólo los campos que se movieron. Un volcado entero no lo lee nadie. */
 export function Cambios({ event }: { readonly event: ChangeEvent }): React.JSX.Element {
+  const { t } = useT()
   const antes = comoObjeto(event.before)
   const despues = comoObjeto(event.after)
 
   if (antes === null && despues !== null) {
-    return <span className="faint">creado</span>
+    return <span className="faint">{t('registro.creado')}</span>
   }
   if (despues === null) {
-    return <span className="faint">dado de baja</span>
+    return <span className="faint">{t('registro.baja')}</span>
   }
   if (antes === null) return <span className="faint">—</span>
 
@@ -79,7 +62,7 @@ export function Cambios({ event }: { readonly event: ChangeEvent }): React.JSX.E
     .filter((campo) => campo !== 'updated_at' && campo !== 'created_at')
     .filter((campo) => JSON.stringify(antes[campo]) !== JSON.stringify(despues[campo]))
 
-  if (campos.length === 0) return <span className="faint">nada visible</span>
+  if (campos.length === 0) return <span className="faint">{t('registro.nadaVisible')}</span>
 
   return (
     <>

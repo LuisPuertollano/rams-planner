@@ -134,33 +134,33 @@ export function PlanView({
     <>
       {error === null ? null : <div className="error-banner" style={{ margin: 12 }}>{error}</div>}
       <div className="toolbar">
-        <button className="button" onClick={addProject} disabled={saving !== null}>+ Proyecto</button>
+        <button className="button" onClick={addProject} disabled={saving !== null}>
+          {t('plan.nuevoProyecto')}
+        </button>
         {plantillas.map((template) => (
           <button
             key={template.id}
             className="button"
             disabled={saving !== null}
             onClick={() => { fromTemplate(template) }}
-            title={`Copia el molde completo de «${template.name}» en un proyecto nuevo`}
+            title={t('plan.desdePlantillaTitulo', template.name)}
           >
-            + Desde «{template.code}»
+            {t('plan.desdePlantilla', template.code)}
           </button>
         ))}
-        <span className="faint">
-          Todo lo que se añade aquí es dato declarado. Las fechas las sigue calculando el motor.
-        </span>
+        <span className="faint">{t('plan.nota')}</span>
       </div>
       <table className="grid">
         <thead>
           <tr>
-            <th style={{ minWidth: 300 }}>Tarea</th>
-            <th title="Dato declarado: lo escribes tú">Duración ✎</th>
-            <th title="Dato declarado: lo escribes tú">Avance ✎</th>
-            <th title="Derivado del cálculo">Inicio 🔒</th>
-            <th title="Derivado del cálculo">Fin 🔒</th>
-            <th title="Derivado del cálculo">Trabajo 🔒</th>
-            <th title="Derivado del cálculo">Holgura 🔒</th>
-            <th>Equipo</th>
+            <th style={{ minWidth: 300 }}>{t('col.tarea')}</th>
+            <th title={t('plan.declaradoTitulo')}>{t('col.duracion')}</th>
+            <th title={t('plan.declaradoTitulo')}>{t('col.avance')} ✎</th>
+            <th title={t('plan.derivadoTitulo')}>{t('col.inicio')}</th>
+            <th title={t('plan.derivadoTitulo')}>{t('col.fin')}</th>
+            <th title={t('plan.derivadoTitulo')}>{t('col.trabajoDerivado')}</th>
+            <th title={t('plan.derivadoTitulo')}>{t('col.holgura')}</th>
+            <th>{t('col.equipo')}</th>
             <th />
           </tr>
         </thead>
@@ -214,6 +214,7 @@ function ProjectRows({
   saving,
   tagOf,
 }: ProjectRowsProps): React.JSX.Element {
+  const { t } = useT()
   return (
     <>
       <tr
@@ -224,8 +225,8 @@ function ProjectRows({
         <td colSpan={8}>
           {project.code} · {project.name}
           {project.isTemplate ? (
-            <span className="wbs__kind" style={{ marginLeft: 10 }} title="Un molde: no se calcula ni genera carga">
-              plantilla
+            <span className="wbs__kind" style={{ marginLeft: 10 }} title={t('plan.plantillaTitulo')}>
+              {t('plan.plantilla')}
             </span>
           ) : null}
           {/* Sin esto, un proyecto fuera del cálculo se ve como un proyecto
@@ -235,9 +236,7 @@ function ProjectRows({
               className="wbs__kind"
               style={{ marginLeft: 10 }}
               title={
-                project.status === 'archivado'
-                  ? 'Archivado: se guarda por su historia y no entra en el cálculo'
-                  : 'En pausa: se guarda entero y no entra en el cálculo'
+                project.status === 'archivado' ? t('plan.archivadoTitulo') : t('plan.pausaTitulo')
               }
             >
               {project.status}
@@ -248,14 +247,14 @@ function ProjectRows({
           <button
             className="button"
             onClick={() => { onAddPhase(project) }}
-            title="Añadir una fase a este proyecto"
+            title={t('plan.nuevaFaseTitulo')}
           >
-            + Fase
+            {t('plan.nuevaFase')}
           </button>{' '}
           <button
             className="button"
             onClick={() => { onEditProject(project) }}
-            title="Fecha de referencia, prioridad, nombre y baja"
+            title={t('plan.editarProyectoTitulo')}
           >
             ✎
           </button>
@@ -273,21 +272,21 @@ function ProjectRows({
                     className="disclosure"
                     onClick={() => { onToggle(task.nodeId) }}
                     aria-expanded={!collapsed.has(task.nodeId)}
-                    aria-label="Plegar"
+                    aria-label={t('plan.plegar')}
                   >
                     {collapsed.has(task.nodeId) ? '▸' : '▾'}
                   </button>
                 ) : null}
                 <span className={task.isCritical === true && !isContainer ? 'critical' : ''}>{task.name}</span>
-                {task.kind === 'milestone' ? <span className="wbs__kind">hito</span> : null}
+                {task.kind === 'milestone' ? <span className="wbs__kind">{t('plan.hito')}</span> : null}
                 {tagOf.get(task.nodeId) === undefined ? null : <span className="tag">{tagOf.get(task.nodeId)}</span>}
                 {task.deadline === null ? null : (
-                  <span className="wbs__kind" title="Fecha objetivo: no mueve la tarea, sólo avisa">
+                  <span className="wbs__kind" title={t('plan.deadlineTitulo')}>
                     ⚑ {fullDate(task.deadline)}
                   </span>
                 )}
                 {task.constraintKind !== null && task.constraintKind !== 'asap' ? (
-                  <span className="wbs__kind" title="Restricción declarada">
+                  <span className="wbs__kind" title={t('plan.restriccionTitulo')}>
                     {task.constraintKind.replaceAll('_', ' ')}
                   </span>
                 ) : null}
@@ -338,13 +337,13 @@ function ProjectRows({
             <td style={{ whiteSpace: 'nowrap' }}>
               {isContainer ? null : (
                 <button className="button" onClick={() => { onExplain(task) }}>
-                  ¿por qué?
+                  {t('plan.porQue')}
                 </button>
               )}{' '}
               <button
                 className="button"
                 onClick={() => { onEdit(task) }}
-                title="Equipo, dependencias, nombre y baja"
+                title={t('plan.editarTareaTitulo')}
               >
                 ✎
               </button>

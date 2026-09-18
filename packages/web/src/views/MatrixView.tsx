@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { LoadCell, Project, Resource, UtilizationCell } from '../api.js'
 import { euros, hours, monthLabel, percent, utilizationColor } from '../format.js'
+import { useT } from '../i18n/index.js'
 import { activePeriods } from '../periods.js'
 
 interface Props {
@@ -36,6 +37,7 @@ export function MatrixView({
   runId,
   costsHidden,
 }: Props): React.JSX.Element {
+  const { t } = useT()
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
   const [unidad, setUnidad] = useState<Unidad>('horas')
   const enEuros = unidad === 'euros' && !costsHidden
@@ -84,8 +86,8 @@ export function MatrixView({
   if (periods.length === 0) {
     return (
       <div className="empty">
-        <h3>Todavía no hay carga que mostrar</h3>
-        <p>Carga datos y pulsa «Recalcular» para que el motor reparta el trabajo.</p>
+        <h3>{t('carga.vacio')}</h3>
+        <p>{t('carga.vacioDetalle')}</p>
       </div>
     )
   }
@@ -106,44 +108,40 @@ export function MatrixView({
   return (
     <>
       <div className="toolbar">
-        <span className="faint">Medir en</span>
+        <span className="faint">{t('carga.medirEn')}</span>
         <button
           className="tab"
           aria-selected={!enEuros}
           onClick={() => { setUnidad('horas') }}
         >
-          Horas
+          {t('carga.horas')}
         </button>
         <button
           className="tab"
           aria-selected={enEuros}
           disabled={costsHidden}
-          title={
-            costsHidden
-              ? 'Te falta el permiso «Ver costes y tarifas»'
-              : 'Las mismas celdas, en euros: horas por la tarifa vigente de cada día'
-          }
+          title={costsHidden ? t('carga.sinCostesTitulo') : t('carga.eurosTitulo')}
           onClick={() => { setUnidad('euros') }}
         >
-          Euros
+          {t('carga.euros')}
         </button>
         <span className="faint">
           {costsHidden
-            ? 'Los importes no llegan: te falta el permiso «Ver costes y tarifas».'
+            ? t('carga.sinCostesNota')
             : enEuros
-              ? 'La capacidad no aparece aquí: se mide en tiempo, no en dinero.'
-              : 'Cada celda es trabajo comprometido, no dedicación.'}
+              ? t('carga.notaEuros')
+              : t('carga.notaHoras')}
         </span>
       </div>
 
     <table className="grid">
       <thead>
         <tr>
-          <th>Recurso</th>
+          <th>{t('col.recurso')}</th>
           {periods.map((period) => (
             <th key={period}>{monthLabel(period)}</th>
           ))}
-          <th>Total</th>
+          <th>{t('col.total')}</th>
         </tr>
       </thead>
       <tbody>
@@ -176,7 +174,7 @@ export function MatrixView({
           )
         })}
         <tr className="row--total">
-          <td>Equipo</td>
+          <td>{t('carga.equipo')}</td>
           {totalsByPeriod.map((valor, index) => (
             <td key={periods[index]}>{formatea(valor)}</td>
           ))}
@@ -220,11 +218,12 @@ function ResourceRows({
   formatea,
   projects,
 }: ResourceRowsProps): React.JSX.Element {
+  const { t } = useT()
   return (
     <>
       <tr className="row--resource">
         <td>
-          <button className="disclosure" onClick={onToggle} aria-expanded={isOpen} aria-label="Desplegar proyectos">
+          <button className="disclosure" onClick={onToggle} aria-expanded={isOpen} aria-label={t('carga.desplegar')}>
             {isOpen ? '▾' : '▸'}
           </button>
           {resource.displayName}{' '}
@@ -236,7 +235,7 @@ function ResourceRows({
             <td
               key={period}
               className={valor === 0 ? 'cell--derived cell--zero' : 'cell--derived'}
-              title={`Derivado de la ejecución ${runId.slice(0, 8)} · no editable`}
+              title={t('carga.derivadoDe', runId.slice(0, 8))}
             >
               {formatea(valor)}
             </td>
@@ -252,7 +251,7 @@ function ResourceRows({
           poner horas en una tabla de importes sólo confunde. */}
       {!hasCapacity || enEuros ? null : (
       <tr className="row--capacity">
-        <td>capacidad · saturación</td>
+        <td>{t('carga.capacidadSaturacion')}</td>
         {periods.map((period) => {
           const util = utilOf(period)
           const bp = util?.utilizationBp ?? null

@@ -1,25 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchCapacity, fetchTeam, type DailyCapacity, type ResourceDetail } from '../api.js'
-import { hours } from '../format.js'
+import { hours, monthLabel } from '../format.js'
 import { errorText } from '../errors.js'
-import { useT } from '../i18n/index.js'
+import { existeClave, useT, type Traductor } from '../i18n/index.js'
 
 interface Props {
   readonly runId: string
 }
 
-const MESES = [
-  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
-]
-
-const TIPOS: Readonly<Record<string, string>> = {
-  vacation: 'Vacaciones',
-  sick: 'Baja',
-  training: 'Formación',
-  parental: 'Permiso parental',
-  public_holiday: 'Festivo propio',
-  other: 'Ausencia',
+/**
+ * Cómo se dice un tipo de ausencia, en el idioma de quien mira.
+ *
+ * Antes era un mapa en castellano aquí mismo. El valor del enum es el
+ * contrato; la frase la escribe el diccionario, y un tipo nuevo sale con su
+ * nombre técnico en vez de desaparecer.
+ */
+function tipoDeAusencia(t: Traductor['t'], tipo: string): string {
+  const clave = `ausencia.${tipo}`
+  return existeClave(clave) ? t(clave) : tipo
 }
 
 /** Días de un mes, como fechas ISO. Sin `Date`: el mes es un dato, no un instante. */
@@ -82,7 +80,7 @@ export function CalendarView({ runId }: Props): React.JSX.Element {
    *  vacaciones de que sea sábado: en capacidad los dos son cero. */
   const ausenciaDe = (resource: ResourceDetail, fecha: string): string | null => {
     const encontrada = resource.absences.find((item) => item.from <= fecha && fecha <= item.to)
-    return encontrada === undefined ? null : (TIPOS[encontrada.kind] ?? 'Ausencia')
+    return encontrada === undefined ? null : tipoDeAusencia(t, encontrada.kind)
   }
 
   const mover = (delta: number): void => {
@@ -92,10 +90,15 @@ export function CalendarView({ runId }: Props): React.JSX.Element {
   }
 
   if (runId === '') {
-    return <div className="empty"><h3>Todavía no hay ningún cálculo</h3><p>La capacidad sale del plan calculado.</p></div>
+    return (
+      <div className="empty">
+        <h3>{t('calendario.sinCalculo')}</h3>
+        <p>{t('calendario.sinCalculoDetalle')}</p>
+      </div>
+    )
   }
   if (team === null || days === null) {
-    return <div className="empty"><h3>{error ?? 'Cargando el calendario…'}</h3></div>
+    return <div className="empty"><h3>{error ?? t('calendario.cargando')}</h3></div>
   }
 
   const capacidadDelMes = (days).reduce((sum, row) => sum + row.capacityMinutes, 0)
@@ -109,27 +112,31 @@ export function CalendarView({ runId }: Props): React.JSX.Element {
       {error === null ? null : <div className="error-banner" style={{ margin: 12 }}>{error}</div>}
       <div className="toolbar">
         <button className="button" onClick={() => { mover(-1) }}>‹</button>
-        <b style={{ minWidth: 150, textAlign: 'center' }}>{MESES[month]} {year}</b>
+        <b style={{ minWidth: 150, textAlign: 'center' }}>
+          {monthLabel(`${String(year)}-${String(month + 1).padStart(2, '0')}`)}
+        </b>
         <button className="button" onClick={() => { mover(1) }}>›</button>
         <span className="faint">
-          Capacidad del equipo este mes: <b>{hours(capacidadDelMes)} h</b>, ya con las ausencias y los
-          festivos descontados
-          {reservadoDelMes === 0 ? null : (
-            <> · de las <b>{hours(brutoDelMes)} h</b> del calendario se reservan <b>{hours(reservadoDelMes)} h</b> para
-            tiempo indirecto y para lo que no ha pasado todavía</>
-          )}
-          {' · '}{cargaDelMes === 0 ? 'sin trabajo comprometido' : <>comprometidas <b>{hours(cargaDelMes)} h</b></>}
+          {t('calendario.capacidadDelMes')} <b>{hours(capacidadDelMes)} h</b>
+          {t('calendario.capacidadDelMesDetalle')}
+          {reservadoDelMes === 0
+            ? null
+            : ` ${t('calendario.reservado', hours(brutoDelMes), hours(reservadoDelMes))}`}
+          {' · '}
+          {cargaDelMes === 0
+            ? t('calendario.sinComprometer')
+            : t('calendario.comprometidas', hours(cargaDelMes))}
         </span>
       </div>
 
       <table className="grid grid--calendar">
         <thead>
           <tr>
-            <th style={{ minWidth: 160 }}>Persona</th>
+            <th style={{ minWidth: 160 }}>{t('col.persona')}</th>
             {fechas.map((fecha) => (
               <th key={fecha}>{fecha.slice(8)}</th>
             ))}
-            <th>Horas</th>
+            <th>{t('col.horas')}</th>
           </tr>
         </thead>
         <tbody>
@@ -145,10 +152,10 @@ export function CalendarView({ runId }: Props): React.JSX.Element {
                     ausencia !== null ? 'dia--ausente' : capacidad === 0 ? 'dia--cerrado' : 'dia--abierto'
                   const titulo =
                     ausencia !== null
-                      ? `${resource.displayName} · ${fecha}: ${ausencia}`
+                      ? t('calendario.diaAusente', resource.displayName, fecha, ausencia)
                       : capacidad === 0
-                        ? `${resource.displayName} · ${fecha}: no laborable`
-                        : `${resource.displayName} · ${fecha}: ${hours(capacidad, 1)} h disponibles`
+                        ? t('calendario.diaCerrado', resource.displayName, fecha)
+                        : t('calendario.diaAbierto', resource.displayName, fecha, hours(capacidad, 1))
                   return <td key={fecha} className={clase} title={titulo} />
                 })}
                 <td className="cell--derived">{hours(total)}</td>
@@ -156,14 +163,14 @@ export function CalendarView({ runId }: Props): React.JSX.Element {
             )
           })}
           <tr className="row--total">
-            <td>Capacidad del equipo</td>
+            <td>{t('calendario.totalEquipo')}</td>
             {fechas.map((fecha) => {
               const total = team.reduce(
                 (sum, resource) => sum + (capacidadDe.get(`${resource.id}|${fecha}`) ?? 0),
                 0,
               )
               return (
-                <td key={fecha} className="dia--total" title={`${fecha}: ${hours(total, 1)} h de equipo`}>
+                <td key={fecha} className="dia--total" title={t('calendario.diaTotal', fecha, hours(total, 1))}>
                   {total === 0 ? '' : Math.round(total / 60)}
                 </td>
               )
@@ -174,9 +181,9 @@ export function CalendarView({ runId }: Props): React.JSX.Element {
       </table>
 
       <div className="legend" style={{ padding: '12px 16px' }}>
-        <span><span className="legend__swatch dia--ausente" /> Ausencia declarada</span>
-        <span><span className="legend__swatch dia--cerrado" /> No laborable (fin de semana o festivo)</span>
-        <span><span className="legend__swatch dia--abierto" /> Disponible</span>
+        <span><span className="legend__swatch dia--ausente" /> {t('calendario.leyenda.ausente')}</span>
+        <span><span className="legend__swatch dia--cerrado" /> {t('calendario.leyenda.cerrado')}</span>
+        <span><span className="legend__swatch dia--abierto" /> {t('calendario.leyenda.abierto')}</span>
       </div>
     </>
   )

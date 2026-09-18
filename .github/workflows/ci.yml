@@ -47,6 +47,9 @@ jobs:
       - name: El Dockerfile no se olvida un paquete del workspace
         run: pnpm check:docker
 
+      - name: Ninguna frase de la interfaz escrita a mano
+        run: pnpm check:literales
+
       - name: Tests y cobertura
         run: pnpm test:coverage
 
