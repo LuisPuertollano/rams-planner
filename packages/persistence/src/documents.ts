@@ -12,7 +12,12 @@
  * entrega qué documento. De ahí salen las dependencias sin teclearlas.
  */
 
-import type { Signature, SignatureStep } from '@planner/domain'
+import type {
+  ActivityStep,
+  DocumentActivity,
+  Signature,
+  SignatureStep,
+} from '@planner/domain'
 import type { Queryable } from './db.js'
 
 /**
@@ -384,6 +389,13 @@ export async function readSignatures(db: Queryable): Promise<readonly DocumentSi
  *
  * Los roles en blanco se descartan aquí y no en la base: una casilla vacía del
  * CSV no es un error del fichero, es una casilla vacía.
+ *
+ * **Se borra lo que sobra, no todo.** Antes esto era un `DELETE` entero seguido
+ * de un `INSERT`, que daba el mismo resultado y era más corto. Dejó de valer
+ * cuando `document_activity` empezó a apuntar a estas filas: borrar una firma
+ * que va a volver a existir un milisegundo después deja a la subactividad que
+ * la descargaba apuntando a nada, en silencio. Guardar el ciclo sin tocarlo no
+ * puede desenganchar nada.
  */
 export async function setSignatures(
   db: Queryable,
@@ -391,7 +403,14 @@ export async function setSignatures(
   firmas: readonly Signature[],
 ): Promise<void> {
   const limpias = firmas.filter((firma) => firma.role.trim() !== '')
-  await db.query('DELETE FROM document_signature WHERE document_type_id = $1', [documentTypeId])
+  await db.query(
+    `DELETE FROM document_signature s
+      WHERE s.document_type_id = $1
+        AND NOT EXISTS (
+              SELECT 1 FROM unnest($2::text[], $3::smallint[]) AS q(step, position)
+               WHERE q.step::signature_step = s.step AND q.position = s.position)`,
+    [documentTypeId, limpias.map((firma) => firma.step), limpias.map((firma) => firma.position)],
+  )
   if (limpias.length === 0) return
   await db.query(
     `INSERT INTO document_signature (document_type_id, step, position, role, standard_minutes)
@@ -406,6 +425,103 @@ export async function setSignatures(
       limpias.map((firma) => firma.position),
       limpias.map((firma) => firma.role.trim()),
       limpias.map((firma) => firma.standardMinutes),
+    ],
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Las subactividades
+// ---------------------------------------------------------------------------
+
+/**
+ * Una subactividad declarada de un entregable: crear, revisar en tres niveles,
+ * soportar. **Por rol, nunca por persona**, igual que la firma y por lo mismo.
+ */
+export interface DocumentActivityRow extends DocumentActivity {
+  readonly documentTypeId: string
+}
+
+/**
+ * Todas las subactividades del catálogo, de una vez. Misma razón que
+ * `readSignatures`: la pantalla las quiere todas.
+ *
+ * El orden es estable (P2): por entregable, por paso en el orden de la cadena
+ * —crear, tres niveles de revisión, soporte— y por posición.
+ */
+export async function readActivities(db: Queryable): Promise<readonly DocumentActivityRow[]> {
+  const { rows } = await db.query<{
+    document_type_id: string
+    step: ActivityStep
+    position: number
+    role: string
+    standard_minutes: number | null
+    signature_step: SignatureStep | null
+    signature_position: number | null
+  }>(
+    `SELECT a.document_type_id, a.step, a.position, a.role, a.standard_minutes,
+            a.signature_step, a.signature_position
+     FROM document_activity a
+     JOIN document_type d ON d.id = a.document_type_id AND d.deleted_at IS NULL
+     ORDER BY a.document_type_id,
+              array_position(
+                ARRAY['create','review_1','review_2','review_3','support']::activity_step[], a.step),
+              a.position`,
+  )
+  return rows.map((row) => ({
+    documentTypeId: row.document_type_id,
+    step: row.step,
+    position: row.position,
+    role: row.role,
+    standardMinutes: row.standard_minutes,
+    signature:
+      row.signature_step === null || row.signature_position === null
+        ? null
+        : { step: row.signature_step, position: row.signature_position },
+  }))
+}
+
+/**
+ * Las subactividades de un entregable, de golpe. Sustituye la lista entera:
+ * misma decisión que `setSignatures`, y por lo mismo.
+ *
+ * Una subactividad que dice descargar una firma que no existe se guarda **sin
+ * la firma**, no se rechaza. El catálogo se llena en dos pantallas y en
+ * cualquier orden; negarse a guardar el trabajo porque la firma todavía no está
+ * declarada obligaría a rellenarlas en un orden concreto que nadie ha pedido.
+ * La regla de dominio lo dirá cuando toque mirarlo.
+ */
+export async function setActivities(
+  db: Queryable,
+  documentTypeId: string,
+  actividades: readonly DocumentActivity[],
+): Promise<void> {
+  const limpias = actividades.filter((actividad) => actividad.role.trim() !== '')
+  await db.query('DELETE FROM document_activity WHERE document_type_id = $1', [documentTypeId])
+  if (limpias.length === 0) return
+  await db.query(
+    `INSERT INTO document_activity
+        (document_type_id, step, position, role, standard_minutes, signature_step, signature_position)
+     SELECT $1, t.step::activity_step, t.position, t.role, t.standard_minutes,
+            f.step, f.position
+     FROM unnest($2::text[], $3::smallint[], $4::text[], $5::integer[], $6::text[], $7::smallint[])
+          AS t(step, position, role, standard_minutes, signature_step, signature_position)
+     LEFT JOIN document_signature f
+            ON f.document_type_id = $1
+           AND f.step = t.signature_step::signature_step
+           AND f.position = t.signature_position
+     ON CONFLICT (document_type_id, step, position) DO UPDATE
+       SET role = EXCLUDED.role,
+           standard_minutes = EXCLUDED.standard_minutes,
+           signature_step = EXCLUDED.signature_step,
+           signature_position = EXCLUDED.signature_position`,
+    [
+      documentTypeId,
+      limpias.map((actividad) => actividad.step),
+      limpias.map((actividad) => actividad.position),
+      limpias.map((actividad) => actividad.role.trim()),
+      limpias.map((actividad) => actividad.standardMinutes),
+      limpias.map((actividad) => actividad.signature?.step ?? null),
+      limpias.map((actividad) => actividad.signature?.position ?? null),
     ],
   )
 }

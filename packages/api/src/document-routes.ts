@@ -8,12 +8,23 @@
 
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import { z } from 'zod'
-import { checkSignatureCycle, type Signature, type SignatureProblem } from '@planner/domain'
+import {
+  activityMinutes,
+  checkActivities,
+  checkSignatureCycle,
+  lastGate,
+  type ActivityProblem,
+  type DocumentActivity,
+  type Signature,
+  type SignatureProblem,
+} from '@planner/domain'
 import {
   createDocumentType,
+  readActivities,
   readDocumentTypes,
   readPrecedences,
   readSignatures,
+  setActivities,
   setNodeDocument,
   setPrecedence,
   setPredecessors,
@@ -22,6 +33,7 @@ import {
   updateDocumentType,
   withTransaction,
   DOCUMENT_KINDS,
+  type DocumentActivityRow,
   type DocumentKind,
   type DocumentSignature,
   type Pool,
@@ -55,6 +67,25 @@ const firmaSchema = z.object({
   position: z.number().int().min(1).max(20),
   role: z.string().trim().min(1).max(80),
   standardMinutes: z.number().int().min(0).max(10_000_000).nullable(),
+})
+
+/**
+ * Una subactividad que llega del cliente. Rol y nunca persona, igual que la
+ * firma. `signature` es la firma que esta subactividad descarga, si descarga
+ * alguna: es lo que saca los minutos de firma de estar sueltos.
+ */
+const subactividadSchema = z.object({
+  step: z.enum(['create', 'review_1', 'review_2', 'review_3', 'support']),
+  position: z.number().int().min(1).max(20),
+  role: z.string().trim().min(1).max(80),
+  standardMinutes: z.number().int().min(0).max(10_000_000).nullable(),
+  signature: z
+    .object({
+      step: z.enum(['author', 'verifier', 'approver', 'reviewer']),
+      position: z.number().int().min(1).max(20),
+    })
+    .nullable()
+    .default(null),
 })
 
 /**
@@ -120,6 +151,77 @@ function casillasDeFirma(firmas: readonly DocumentSignature[]): Readonly<Record<
   }
 }
 
+/** Un problema de las subactividades, con el entregable al que pertenece. */
+interface ProblemaDeActividad extends ActivityProblem {
+  readonly documentTypeId: string
+}
+
+/** Agrupa por entregable conservando el orden de lectura (P2). */
+function porEntregable<T extends { readonly documentTypeId: string }>(
+  filas: readonly T[],
+): ReadonlyMap<string, T[]> {
+  const mapa = new Map<string, T[]>()
+  for (const fila of filas) {
+    const lista = mapa.get(fila.documentTypeId) ?? []
+    lista.push(fila)
+    mapa.set(fila.documentTypeId, lista)
+  }
+  return mapa
+}
+
+/**
+ * Los problemas de las subactividades de todo el catálogo, en una pasada.
+ *
+ * Se le pasan también las firmas porque la comprobación que más importa —una
+ * firma que cuesta minutos y que ninguna subactividad hace— necesita las dos
+ * listas. Es el hueco que ADR-0032 dejó escrito.
+ */
+function problemasDeActividad(
+  types: readonly { readonly id: string; readonly kind: DocumentKind }[],
+  activities: readonly DocumentActivityRow[],
+  signatures: readonly DocumentSignature[],
+): readonly ProblemaDeActividad[] {
+  const actividadesDe = porEntregable(activities)
+  const firmasDe = porEntregable(signatures)
+  return types.flatMap((tipo) =>
+    checkActivities(tipo.kind, actividadesDe.get(tipo.id) ?? [], firmasDe.get(tipo.id) ?? []).map(
+      (problema) => ({ ...problema, documentTypeId: tipo.id }),
+    ),
+  )
+}
+
+/**
+ * Lo que cuesta cada entregable según sus subactividades, y por dónde cierra.
+ *
+ * Se manda calculado y no se deja para la pantalla por lo mismo de siempre: la
+ * regla —qué subactividad cierra el entregable de cara a los demás— vive en
+ * `domain` y escribirla otra vez en la web sería escribirla dos veces.
+ *
+ * `gate` es la subactividad que cierra: la revisión de nivel más alto, o la
+ * creación si no hay ninguna. Es lo que el plan usará para atar el siguiente
+ * documento, y enseñarlo ahora deja ver la decisión antes de que cambie nada.
+ */
+interface EsfuerzoDelEntregable {
+  readonly documentTypeId: string
+  readonly minutes: number
+  readonly gateStep: DocumentActivity['step'] | null
+  readonly gateRole: string | null
+}
+
+function esfuerzoPorEntregable(
+  activities: readonly DocumentActivityRow[],
+): readonly EsfuerzoDelEntregable[] {
+  return [...porEntregable(activities)].map(([documentTypeId, actividades]) => {
+    const cierra = lastGate(actividades)
+    return {
+      documentTypeId,
+      minutes: activityMinutes(actividades),
+      gateStep: cierra?.step ?? null,
+      gateRole: cierra?.role ?? null,
+    }
+  })
+}
+
 export function registerDocumentRoutes(app: FastifyInstance, pool: Pool): void {
   const escribir = async (
     reply: FastifyReply,
@@ -141,16 +243,20 @@ export function registerDocumentRoutes(app: FastifyInstance, pool: Pool): void {
     withTransaction(pool, async (db) => {
       const types = await readDocumentTypes(db)
       const signatures = await readSignatures(db)
+      const activities = await readActivities(db)
       return {
         types,
         precedences: await readPrecedences(db),
         signatures,
+        activities,
+        activityEffort: esfuerzoPorEntregable(activities),
         // Los problemas del ciclo se calculan AQUÍ y no en la pantalla, por lo
         // mismo que los hallazgos, los permisos y los errores: el código es el
         // contrato y la frase la escribe el diccionario. La alternativa era que
         // la web se trajera el paquete `domain` para repetir la comprobación, y
         // una regla escrita dos veces es una regla que se separa.
         signatureProblems: problemasDeFirma(types, signatures),
+        activityProblems: problemasDeActividad(types, activities, signatures),
       }
     }),
   )
@@ -263,6 +369,36 @@ export function registerDocumentRoutes(app: FastifyInstance, pool: Pool): void {
     }
     return escribir(reply, 'ciclo de firma de un documento', async (db) => {
       await setSignatures(db, documentId, body.signatures satisfies readonly Signature[])
+    })
+  })
+
+  /**
+   * Las subactividades de un entregable, de golpe.
+   *
+   * Misma forma que el ciclo de firma y por las mismas razones: sustituye la
+   * lista entera, guarda lo que esté a medias y sólo rechaza la casilla
+   * repetida, que no es un catálogo incompleto sino un cuerpo que se
+   * contradice.
+   *
+   * Lo que **no** se rechaza, y conviene saberlo: una subactividad que dice
+   * descargar una firma que todavía no existe se guarda sin la firma. El
+   * catálogo se llena en dos pantallas y en cualquier orden.
+   */
+  app.put('/api/documents/:documentId/activities', { config: { permission: 'documentos.gestionar' } }, async (request, reply) => {
+    const { documentId } = z.object({ documentId: z.string().uuid() }).parse(request.params)
+    const body = z.object({ activities: z.array(subactividadSchema).max(40) }).parse(request.body)
+
+    const casillas = body.activities.map((actividad) => `${actividad.step}:${String(actividad.position)}`)
+    if (new Set(casillas).size !== casillas.length) {
+      return fallar(
+        reply,
+        422,
+        'SUBACTIVIDAD_CASILLA_REPETIDA',
+        'Dos subactividades ocupan el mismo paso y la misma posición.',
+      )
+    }
+    return escribir(reply, 'subactividades de un documento', async (db) => {
+      await setActivities(db, documentId, body.activities satisfies readonly DocumentActivity[])
     })
   })
 

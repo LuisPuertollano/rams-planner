@@ -42,6 +42,7 @@ export const ERROR_CODES = [
   'DOCUMENTO_YA_EXISTE',
   'DOCUMENTO_NO_SE_ESPERA_A_SI_MISMO',
   'FIRMA_CASILLA_REPETIDA',
+  'SUBACTIVIDAD_CASILLA_REPETIDA',
   'COMPETENCIA_YA_EXISTE',
   // --- Peticiones -----------------------------------------------------------
   'DATOS_INVALIDOS',

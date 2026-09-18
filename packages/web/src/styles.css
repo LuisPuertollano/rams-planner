@@ -420,12 +420,27 @@ select.button { padding: 6px 10px; }
 }
 .ficha__firmas label { display: contents; }
 .ficha__firmas label > span:first-child { color: var(--text-muted); white-space: nowrap; }
-/* La nota de los revisores ocupa las tres columnas de su propia fila. */
-.ficha__firmas label > span:last-child:not(:first-child) {
+/* La nota de los revisores ocupa todas las columnas de su propia fila.
+   Por clase y no por `:last-child`: un selector posicional hacía trabajo
+   semántico, y en cuanto una fila creció una casilla —la de «qué firma
+   descarga» de las subactividades— se llevó por delante a la casilla nueva. */
+.ficha__firmas label > span.firma__nota {
   grid-column: 1 / -1;
   font-size: 12px;
   margin: -2px 0 4px;
 }
+
+/* Las subactividades llevan una casilla más —qué firma descarga— y por eso no
+   pueden compartir la rejilla de tres columnas del ciclo de firma: una cuarta
+   celda en una rejilla de tres reparte cada fila por donde le toca y deja las
+   etiquetas en medio de la fila anterior. */
+.ficha__subactividades {
+  grid-template-columns: max-content minmax(160px, 1fr) max-content minmax(140px, max-content);
+  max-width: 860px;
+}
+/* La casilla de «qué firma descarga» va siempre, aunque vaya vacía: el soporte
+   no firma. */
+.ficha__subactividades label > span.sub__firma > select { width: 100%; }
 
 .firma__problemas {
   margin: 0 0 10px;

@@ -274,6 +274,41 @@ const DEMO_SIGNATURES: readonly {
   { code: 'SC', step: 'reviewer', position: 1, role: 'Calidad', minutes: null },
 ]
 
+/**
+ * Las subactividades de unos cuantos entregables, para que la cadena se vea
+ * llena la primera vez que se abre la pantalla.
+ *
+ * Las proporciones son las del libro con el que el equipo planifica de verdad:
+ * unas 40 h de quien escribe contra unas 10 h de quien revisa. Y hay a
+ * propósito los tres casos que importan: el normal, el que sólo se revisa
+ * porque lo escribe otro, y una firma que cuesta minutos y que no hace nadie.
+ */
+const DEMO_ACTIVITIES: readonly {
+  code: string
+  step: 'create' | 'review_1' | 'review_2' | 'review_3' | 'support'
+  role: string
+  minutes: number | null
+  signature: { step: 'author' | 'verifier' | 'approver' | 'reviewer'; position: number } | null
+}[] = [
+  { code: 'PHA', step: 'create', role: 'Ing. de seguridad', minutes: 480, signature: { step: 'author', position: 1 } },
+  { code: 'PHA', step: 'review_1', role: 'Ing. de sistemas', minutes: 120, signature: { step: 'verifier', position: 1 } },
+  { code: 'HL', step: 'create', role: 'Ing. de seguridad', minutes: 240, signature: { step: 'author', position: 1 } },
+  { code: 'HL', step: 'review_1', role: 'Jefe de seguridad', minutes: 90, signature: { step: 'verifier', position: 1 } },
+  // El aprobador del Hazard Log cuesta 45 min y ninguna subactividad lo hace:
+  // esos minutos no llegan a la carga de nadie, y la pantalla lo dice.
+  { code: 'FMECA', step: 'create', role: 'Ing. de seguridad 1', minutes: 1800, signature: { step: 'author', position: 1 } },
+  { code: 'FMECA', step: 'review_1', role: 'Ing. de seguridad 2', minutes: 240, signature: { step: 'verifier', position: 1 } },
+  { code: 'FMECA', step: 'review_2', role: 'Ing. de sistemas', minutes: 180, signature: { step: 'verifier', position: 2 } },
+  { code: 'FMECA', step: 'support', role: 'Jefe de seguridad', minutes: 600, signature: null },
+  { code: 'SC', step: 'create', role: 'Jefe de seguridad', minutes: 2400, signature: { step: 'author', position: 1 } },
+  { code: 'SC', step: 'review_1', role: 'Ing. de seguridad 1', minutes: 480, signature: { step: 'verifier', position: 1 } },
+  { code: 'SC', step: 'review_2', role: 'Ing. de sistemas', minutes: 300, signature: { step: 'verifier', position: 2 } },
+  { code: 'SC', step: 'review_3', role: 'Jefe de ingeniería', minutes: 120, signature: { step: 'approver', position: 1 } },
+  // Lo escribe otro departamento: aquí sólo se revisa. No falta nada.
+  { code: 'SRS', step: 'review_2', role: 'Ing. de seguridad', minutes: 180, signature: null },
+  { code: 'SRS', step: 'support', role: 'Ing. de sistemas', minutes: 360, signature: null },
+]
+
 async function seedDocuments(db: Queryable): Promise<void> {
   for (const [index, doc] of DEMO_DOCUMENTS.entries()) {
     await db.query(
@@ -298,6 +333,24 @@ async function seedDocuments(db: Queryable): Promise<void> {
        SELECT d.id, $2::signature_step, $3, $4, $5 FROM document_type d WHERE d.code = $1
        ON CONFLICT DO NOTHING`,
       [firma.code, firma.step, firma.position, firma.role, firma.minutes],
+    )
+  }
+
+  for (const actividad of DEMO_ACTIVITIES) {
+    await db.query(
+      `INSERT INTO document_activity
+          (document_type_id, step, position, role, standard_minutes, signature_step, signature_position)
+       SELECT d.id, $2::activity_step, 1, $3, $4, $5::signature_step, $6
+       FROM document_type d WHERE d.code = $1
+       ON CONFLICT DO NOTHING`,
+      [
+        actividad.code,
+        actividad.step,
+        actividad.role,
+        actividad.minutes,
+        actividad.signature?.step ?? null,
+        actividad.signature?.position ?? null,
+      ],
     )
   }
 

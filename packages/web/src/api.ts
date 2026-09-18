@@ -1045,11 +1045,62 @@ export interface SignatureProblem {
   readonly payload: Readonly<Record<string, string | number>>
 }
 
+/**
+ * Los cinco papeles del libro con el que el equipo planifica: se crea, se
+ * revisa en tres niveles y se soporta.
+ *
+ * `review_1/2/3` son **niveles, no rondas**: hay entregables con `review_2` y
+ * sin `review_1` —los que escribe otro departamento y aquí sólo se revisan— y
+ * los hay con `review_3` y sin `review_2`.
+ */
+export const ACTIVITY_STEPS = ['create', 'review_1', 'review_2', 'review_3', 'support'] as const
+export type ActivityStep = (typeof ACTIVITY_STEPS)[number]
+
+/**
+ * Una subactividad de un entregable. Rol y nunca persona, igual que la firma.
+ *
+ * `signature` es la firma que esta subactividad descarga, si descarga alguna:
+ * es lo que saca de estar sueltos los minutos que ADR-0032 dejó declarados sin
+ * que entraran en la carga de nadie. Nula en la mayoría de los casos.
+ */
+export interface DocumentActivity {
+  readonly documentTypeId: string
+  readonly step: ActivityStep
+  readonly position: number
+  readonly role: string
+  readonly standardMinutes: number | null
+  readonly signature: { readonly step: SignatureStep; readonly position: number } | null
+}
+
+/** Lo que está mal en las subactividades. Mismo contrato que `SignatureProblem`. */
+export interface ActivityProblem {
+  readonly documentTypeId: string
+  readonly code: string
+  readonly payload: Readonly<Record<string, string | number>>
+}
+
+/**
+ * Lo que cuesta un entregable según sus subactividades, y por dónde cierra.
+ *
+ * `gateStep` es la subactividad que cierra de cara a los demás: la revisión de
+ * nivel más alto, o la creación si no hay ninguna. Lo calcula el servidor
+ * porque la regla vive en `domain` y escribirla aquí sería escribirla dos veces.
+ */
+export interface ActivityEffort {
+  readonly documentTypeId: string
+  readonly minutes: number
+  readonly gateStep: ActivityStep | null
+  readonly gateRole: string | null
+}
+
 export interface DocumentCatalogue {
   readonly types: readonly DocumentType[]
   readonly precedences: readonly DocumentPrecedence[]
   readonly signatures: readonly DocumentSignature[]
   readonly signatureProblems: readonly SignatureProblem[]
+  readonly activities: readonly DocumentActivity[]
+  readonly activityProblems: readonly ActivityProblem[]
+  readonly activityEffort: readonly ActivityEffort[]
 }
 
 export async function fetchDocuments(): Promise<DocumentCatalogue> {
@@ -1117,6 +1168,17 @@ export async function setSignatures(
   signatures: readonly Signature[],
 ): Promise<void> {
   return send(`/api/documents/${documentId}/signatures`, 'PUT', { signatures })
+}
+
+/**
+ * Las subactividades de un entregable, de golpe. Sustituye la lista entera,
+ * igual que el ciclo de firma y por lo mismo.
+ */
+export async function setActivities(
+  documentId: string,
+  activities: readonly Omit<DocumentActivity, 'documentTypeId'>[],
+): Promise<void> {
+  return send(`/api/documents/${documentId}/activities`, 'PUT', { activities })
 }
 
 export async function removeDocumentType(documentId: string): Promise<void> {
