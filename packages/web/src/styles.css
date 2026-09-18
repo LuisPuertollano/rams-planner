@@ -308,6 +308,29 @@ select.button { padding: 6px 10px; }
 .import-result p { margin: 6px 0 0; font-size: 13px; }
 .import-result .button { margin-top: 10px; }
 
+/* La ficha de un entregable. En el flujo y no flotando: tiene nueve campos y
+   una lista de casillas, así que tapar la tabla mientras se edita sería tapar
+   justo lo que se está comparando. */
+.ficha {
+  margin: 0 12px 12px;
+  padding: 12px 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+.ficha h4 { margin: 12px 0 4px; }
+.ficha label { display: inline-flex; align-items: center; gap: 6px; }
+/* La lista de predecesores: alta pero acotada, para que el botón de guardar no
+   se vaya a la otra punta de la página con ochenta entregables. */
+.ficha__candidatos {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+}
+.ficha__candidatos label { display: block; padding: 2px 0; }
+
 a.button { text-decoration: none; display: inline-block; }
 
 /* ------------------------------------------------------------------ why --- */
