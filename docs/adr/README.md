@@ -39,6 +39,7 @@ parece una mala idea, aquí está el razonamiento que había detrás.
 | [0032](0032-el-ciclo-de-firma-por-rol.md) | Quién escribe, verifica y aprueba cada entregable: por rol, nunca por persona | P1, P2, P5, P6 |
 | [0033](0033-las-pruebas-recogen-lo-suyo.md) | Cada fichero de integración borra las ejecuciones que creó; una línea base no se toca | P2, P7 |
 | [0034](0034-el-grano-de-la-tarea.md) | El informe baja al grano de la tarea, sin derivar el avance de las horas | P1, P2, P5 |
+| [0035](0035-la-capacidad-no-se-repite.md) | Se guarda todo el historial, pero la capacidad se escribe una vez y se comparte | P2, P3, P5 |
 
 ## Decisiones tomadas por defecto
 

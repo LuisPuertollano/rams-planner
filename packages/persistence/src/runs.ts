@@ -145,19 +145,85 @@ async function insertTimephased(db: Queryable, runId: string, workload: Workload
   )
 }
 
+/**
+ * La huella de un bloque de capacidad, calculada **en la base**.
+ *
+ * En SQL y no en TypeScript a propósito: la migración que mudó los bloques
+ * viejos usa esta misma expresión, y dos definiciones de «la misma capacidad»
+ * es la forma segura de que una ejecución vieja y una nueva idénticas acaben
+ * con dos bloques en vez de compartir uno.
+ */
+const HUELLA = `md5(string_agg(
+       resource_id::text || '|' || work_date::text || '|' ||
+       capacity_minutes::text || '|' || COALESCE(gross_minutes::text, ''),
+       E'\n' ORDER BY resource_id, work_date))`
+
+/**
+ * Guarda la capacidad de una ejecución **sin repetirla**.
+ *
+ * La capacidad no depende del plan: sale del calendario de la persona, de sus
+ * ausencias y de sus factores. Recalcular sin tocar un calendario producía
+ * hasta ahora una copia byte a byte de lo que ya estaba guardado —medido: tres
+ * cálculos seguidos, tres veces la misma huella y 3 MB—.
+ *
+ * Así que el bloque se guarda por su contenido. Si ya existe uno con esa
+ * huella, la ejecución apunta al que hay y no se escribe ni una celda; si no,
+ * nace uno. Se sigue guardando todo y se sigue pudiendo reproducir cualquier
+ * ejecución entera: lo que desaparece es la copia, no el dato.
+ */
 async function insertCapacity(db: Queryable, runId: string, workload: WorkloadOutput): Promise<void> {
-  await bulkInsert(
-    db,
-    'resource_capacity_timephased',
-    ['run_id', 'resource_id', 'work_date', 'capacity_minutes', 'gross_minutes'],
-    workload.capacity.cells.map((cell) => [
-      runId,
-      cell.resourceId,
-      cell.date,
-      cell.capacityMinutes,
-      cell.grossMinutes,
-    ]),
+  const cells = workload.capacity.cells
+  // Sin celdas no hay bloque, y la ejecución se queda con el `capacity_set_id`
+  // nulo. Un bloque vacío compartido por todas las ejecuciones sin capacidad
+  // sería más «uniforme» y diría que tienen capacidad: no la tienen.
+  if (cells.length === 0) return
+
+  const resourceIds = cells.map((cell) => cell.resourceId)
+  const dates = cells.map((cell) => cell.date)
+  const capacities = cells.map((cell) => cell.capacityMinutes)
+  const gross = cells.map((cell) => cell.grossMinutes)
+
+  // La huella sale de las mismas matrices que se van a insertar, así que no
+  // puede describir algo distinto de lo que se guarda.
+  const huella = await db.query<{ content_hash: string }>(
+    `SELECT ${HUELLA} AS content_hash
+     FROM unnest($1::uuid[], $2::date[], $3::int[], $4::int[])
+          AS t(resource_id, work_date, capacity_minutes, gross_minutes)`,
+    [resourceIds, dates, capacities, gross],
   )
+  const contentHash = huella.rows[0]?.content_hash
+  if (contentHash === undefined) throw new Error('No se pudo calcular la huella de la capacidad')
+
+  // `DO NOTHING` + `SELECT` y no `DO UPDATE`: si el bloque ya existe no hay
+  // nada que actualizar, y tocarlo movería el `created_at` de algo que no ha
+  // cambiado.
+  const creado = await db.query<{ id: string }>(
+    `INSERT INTO capacity_set (content_hash, cell_count) VALUES ($1, $2)
+     ON CONFLICT (content_hash) DO NOTHING RETURNING id`,
+    [contentHash, cells.length],
+  )
+  const nuevo = creado.rows[0]?.id
+  const setId =
+    nuevo ??
+    (
+      await db.query<{ id: string }>('SELECT id FROM capacity_set WHERE content_hash = $1', [
+        contentHash,
+      ])
+    ).rows[0]?.id
+  if (setId === undefined) throw new Error('No se pudo resolver el bloque de capacidad')
+
+  // Sólo se escriben las celdas del bloque que acaba de nacer. Si el bloque ya
+  // estaba, esta ejecución no cuesta ni una fila.
+  if (nuevo !== undefined) {
+    await bulkInsert(
+      db,
+      'capacity_cell',
+      ['capacity_set_id', 'resource_id', 'work_date', 'capacity_minutes', 'gross_minutes'],
+      cells.map((cell) => [setId, cell.resourceId, cell.date, cell.capacityMinutes, cell.grossMinutes]),
+    )
+  }
+
+  await db.query('UPDATE calculation_run SET capacity_set_id = $2 WHERE id = $1', [runId, setId])
 }
 
 async function insertFindings(db: Queryable, runId: string, findings: readonly Finding[]): Promise<void> {
@@ -249,6 +315,23 @@ export async function deleteRunsSince(db: Queryable, since: Date): Promise<numbe
       WHERE r.started_at >= $1
         AND NOT EXISTS (SELECT 1 FROM baseline b WHERE b.calculation_run_id = r.id)`,
     [since],
+  )
+  await deleteOrphanCapacitySets(db)
+  return rowCount ?? 0
+}
+
+/**
+ * Los bloques de capacidad que ya no usa ninguna ejecución.
+ *
+ * Hace falta porque el bloque es **compartido**: no puede colgar de una
+ * ejecución con borrado en cascada, o borrar una se llevaría por delante la
+ * capacidad de las otras cinco que la comparten. Así que se recogen después,
+ * y sólo los que no mira nadie.
+ */
+export async function deleteOrphanCapacitySets(db: Queryable): Promise<number> {
+  const { rowCount } = await db.query(
+    `DELETE FROM capacity_set s
+      WHERE NOT EXISTS (SELECT 1 FROM calculation_run r WHERE r.capacity_set_id = s.id)`,
   )
   return rowCount ?? 0
 }
