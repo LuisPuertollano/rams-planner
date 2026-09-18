@@ -13,29 +13,24 @@
  * `tools/` y lee el catálogo del disco.
  */
 
-import { es } from './i18n/es.js'
-import type { Diccionario } from './i18n/index.js'
+import { existeClave, type Diccionario } from './i18n/index.js'
 
 type Traductor = (clave: keyof Diccionario, ...valores: readonly (string | number)[]) => string
-
-function hay(clave: string): clave is keyof Diccionario {
-  return clave in es
-}
 
 /** Qué se puede hacer, en la frase que leería quien reparte los permisos. */
 export function permissionLabel(t: Traductor, code: string, respaldo: string): string {
   const clave = `permiso.${code}`
-  return hay(clave) ? t(clave) : respaldo
+  return existeClave(clave) ? t(clave) : respaldo
 }
 
 /** Por qué importa. Sin esto, marcar la casilla no es una decisión informada. */
 export function permissionDetail(t: Traductor, code: string, respaldo: string): string {
   const clave = `permiso.${code}.detalle`
-  return hay(clave) ? t(clave) : respaldo
+  return existeClave(clave) ? t(clave) : respaldo
 }
 
 /** El nombre de la pantalla en la que se agrupa una función. */
 export function screenName(t: Traductor, screen: string): string {
   const clave = `pantalla.${screen}`
-  return hay(clave) ? t(clave) : screen
+  return existeClave(clave) ? t(clave) : screen
 }

@@ -568,7 +568,7 @@ function Planner({
                     </button>
                   )}
                   {!puede('importar') ? null : (
-                    <a className="button" href="/api/import/plantilla.csv">
+                    <a className="button" href="/api/import/plan/plantilla.csv">
                       {t('vacio.nada.plantilla')}
                     </a>
                   )}

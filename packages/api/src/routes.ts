@@ -35,6 +35,7 @@ import { EN_TODA_LA_HERRAMIENTA, PERMISSION_BY_CODE, RECORTADO, desde, porNodo }
 import { onlyVisible, visibleProjects } from './visibility.js'
 import { toCsv } from './csv.js'
 import { calculate, defaultScenarioId } from './engine.js'
+import { ACTUALS_SPEC, PLAN_SPEC, plantillaCsv, type ImportSpec } from './import-specs.js'
 import { ImportError, importPlanCsv } from './import-plan.js'
 import { importActualsCsv } from './import-actuals.js'
 
@@ -298,53 +299,26 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
     }
   })
 
-  /** Plantilla del parte de horas, con las columnas que de verdad se leen. */
-  app.get('/api/import/plantilla-horas.csv', { config: { permission: 'reales.registrar' } }, async (_request, reply) => {
-    const columns = ['proyecto', 'tarea', 'persona', 'fecha', 'horas', 'origen', 'referencia']
-    const example = [
-      {
-        proyecto: 'EJEMPLO-1', tarea: 'Plan RAMS', persona: 'Ana Müller',
-        fecha: '2026-03-02', horas: '7,5', origen: 'parte', referencia: 'TS-1024',
-      },
-      {
-        proyecto: 'EJEMPLO-1', tarea: 'Hazard Log', persona: 'Marc Iglesias',
-        fecha: '2026-03-02', horas: '4', origen: '', referencia: '',
-      },
-    ]
-    return reply
-      .header('content-type', 'text/csv; charset=utf-8')
-      .header('content-disposition', 'attachment; filename="plantilla-horas.csv"')
-      .send(toCsv(example, columns))
-  })
 
-  /** Plantilla del CSV de importación, para no tener que adivinar las columnas. */
-  app.get('/api/import/plantilla.csv', { config: { permission: 'importar' } }, async (_request, reply) => {
-    const columns = [
-      'proyecto', 'nombre_proyecto', 'fase', 'tarea', 'dias',
-      'predecesoras', 'recurso', 'dedicacion', 'disciplina', 'deadline', 'no_antes_de',
-    ]
-    const example = [
-      {
-        proyecto: 'EJEMPLO-1', nombre_proyecto: 'Proyecto de ejemplo', fase: 'Análisis',
-        tarea: 'Plan RAMS', dias: '5', predecesoras: '', recurso: 'Ana Müller',
-        dedicacion: '100', disciplina: 'Plan', deadline: '', no_antes_de: '2026-03-02',
-      },
-      {
-        proyecto: 'EJEMPLO-1', nombre_proyecto: 'Proyecto de ejemplo', fase: 'Análisis',
-        tarea: 'Hazard Log', dias: '10', predecesoras: 'Plan RAMS', recurso: 'Ana Müller;Marc Iglesias',
-        dedicacion: '50', disciplina: 'Hazard Log', deadline: '2026-05-29', no_antes_de: '',
-      },
-      {
-        proyecto: 'EJEMPLO-1', nombre_proyecto: 'Proyecto de ejemplo', fase: 'Análisis',
-        tarea: 'Revisión de concepto', dias: '0', predecesoras: 'Hazard Log', recurso: '',
-        dedicacion: '', disciplina: '', deadline: '', no_antes_de: '',
-      },
-    ]
-    return reply
-      .header('content-type', 'text/csv; charset=utf-8')
-      .header('content-disposition', 'attachment; filename="plantilla-plan.csv"')
-      .send(toCsv(example, columns))
-  })
+  /**
+   * Qué fichero espera cada importación: la plantilla y, aparte, el contrato
+   * en JSON para que la pantalla pueda enseñarlo sin llevar su propia copia.
+   *
+   * Dos rutas por importación y no una, porque son dos preguntas distintas:
+   * «dame el fichero para rellenar» y «dime qué esperas». La segunda es la que
+   * hace que la tabla de columnas de la pantalla no pueda quedarse vieja.
+   */
+  const servirFormato = (spec: ImportSpec, permiso: string): void => {
+    app.get(`/api/import/${spec.tipo}/formato`, { config: { permission: permiso } }, () => spec)
+    app.get(`/api/import/${spec.tipo}/plantilla.csv`, { config: { permission: permiso } }, async (_request, reply) =>
+      reply
+        .header('content-type', 'text/csv; charset=utf-8')
+        .header('content-disposition', `attachment; filename="plantilla-${spec.tipo}.csv"`)
+        .send(plantillaCsv(spec)),
+    )
+  }
+  servirFormato(PLAN_SPEC, 'importar')
+  servirFormato(ACTUALS_SPEC, 'reales.registrar')
 
   /** Exportación de la carga. El fichero lleva el runId: sigue siendo auditable fuera. */
   app.get('/api/runs/:runId/export.csv', { config: { permission: 'exportar' } }, async (request, reply) => {

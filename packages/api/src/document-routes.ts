@@ -25,6 +25,7 @@ import { toCsv } from './csv.js'
 import { fallar } from './errors.js'
 import { ImportError } from './import-plan.js'
 import { importDocumentsCsv } from './import-documents.js'
+import { DOCUMENTS_SPEC, plantillaCsv } from './import-specs.js'
 import { desde, porNodo } from './permissions.js'
 
 /** Los campos de la ficha, en un sitio: los comparten el alta y la edición. */
@@ -39,11 +40,14 @@ const ficha = {
   sortKey: z.number().int().min(0).max(100_000).optional(),
 }
 
-/** Las columnas del CSV del catálogo. Una sola lista para leer y para escribir. */
-const COLUMNAS_CSV = [
-  'codigo', 'nombre', 'tipo', 'disciplina', 'puerta',
-  'semanas_antes', 'horas', 'codigo_tarea', 'descripcion', 'espera_a',
-] as const
+/**
+ * Las columnas de la exportación, tomadas del contrato de la importación.
+ *
+ * De ahí y no de una lista propia: exportar, corregir en la hoja de cálculo y
+ * volver a importar sólo funciona si el fichero que sale es el que entra, y
+ * dos listas paralelas se separan el día que alguien añade una columna.
+ */
+const COLUMNAS_CSV = DOCUMENTS_SPEC.columnas.map((columna) => columna.nombre)
 
 export function registerDocumentRoutes(app: FastifyInstance, pool: Pool): void {
   const escribir = async (
@@ -215,30 +219,18 @@ export function registerDocumentRoutes(app: FastifyInstance, pool: Pool): void {
       .send(toCsv(rows, COLUMNAS_CSV))
   })
 
-  /** Plantilla del CSV, con tres filas que enseñan las tres formas de fila. */
-  app.get('/api/documents/plantilla.csv', { config: { permission: 'documentos.gestionar' } }, async (_request, reply) => {
-    const example = [
-      {
-        codigo: 'S-HAZLOG', nombre: 'Hazard Log preliminar', tipo: 'documento', disciplina: 'Safety',
-        puerta: 'IGR', semanas_antes: '48', horas: '120', codigo_tarea: 'PWTDF-D800',
-        descripcion: 'Registro de peligros de la primera vuelta', espera_a: '',
-      },
-      {
-        codigo: 'S-FMECA', nombre: 'FMECA', tipo: 'documento', disciplina: 'Safety',
-        puerta: 'CGR', semanas_antes: '28', horas: '450', codigo_tarea: 'PWTDF-D800',
-        descripcion: '', espera_a: 'S-HAZLOG',
-      },
-      {
-        codigo: 'MST-IQA', nombre: 'Puerta IQA', tipo: 'hito', disciplina: '',
-        puerta: 'IQA', semanas_antes: '', horas: '', codigo_tarea: '',
-        descripcion: 'Un hito no lleva horas', espera_a: 'S-FMECA',
-      },
-    ]
-    return reply
+  /**
+   * Qué fichero espera esta importación: la plantilla con su manual dentro, y
+   * el contrato en JSON para que la pantalla lo enseñe sin llevar su copia.
+   */
+  app.get('/api/import/documents/formato', { config: { permission: 'documentos.gestionar' } }, () => DOCUMENTS_SPEC)
+
+  app.get('/api/import/documents/plantilla.csv', { config: { permission: 'documentos.gestionar' } }, async (_request, reply) =>
+    reply
       .header('content-type', 'text/csv; charset=utf-8')
-      .header('content-disposition', 'attachment; filename="plantilla-documentos.csv"')
-      .send(toCsv(example, COLUMNAS_CSV))
-  })
+      .header('content-disposition', 'attachment; filename="plantilla-documents.csv"')
+      .send(plantillaCsv(DOCUMENTS_SPEC)),
+  )
 
   /** Qué entrega una tarea. Es lo que ata la matriz a un plan de verdad. */
   app.put(

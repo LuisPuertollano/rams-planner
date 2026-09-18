@@ -117,3 +117,15 @@ export function recordarIdioma(idioma: Idioma): void {
 function esIdioma(valor: string | null): valor is Idioma {
   return valor !== null && (IDIOMAS as readonly string[]).includes(valor)
 }
+
+/**
+ * ¿Existe esta clave en el diccionario?
+ *
+ * Es lo que permite el patrón «traducido si lo está, y si no, el texto que
+ * manda el servidor»: el catálogo de permisos, los hallazgos y el contrato de
+ * las importaciones lo usan igual. Mira el castellano porque es la fuente: las
+ * claves que existen son las que existen ahí.
+ */
+export function existeClave(clave: string): clave is keyof Diccionario {
+  return clave in es
+}

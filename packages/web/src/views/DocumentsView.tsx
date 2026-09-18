@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   createDocumentType,
   fetchDocuments,
@@ -12,7 +12,9 @@ import {
   type DocumentFields,
   type DocumentKind,
   type DocumentType,
+  type DocumentsImported,
 } from '../api.js'
+import { ImportPanel } from '../components/ImportPanel.js'
 import { errorRows, errorText } from '../errors.js'
 import { hours } from '../format.js'
 import { useT, type Diccionario } from '../i18n/index.js'
@@ -66,7 +68,7 @@ export function DocumentsView({ canEdit }: Props): React.JSX.Element {
   const [puerta, setPuerta] = useState('')
   const [tipo, setTipo] = useState<'' | DocumentKind>('')
   const [abierto, setAbierto] = useState<string | null>(null)
-  const ficheroRef = useRef<HTMLInputElement>(null)
+  const [importando, setImportando] = useState(false)
 
   const recargar = async (): Promise<void> => { setCatalogo(await fetchDocuments()) }
 
@@ -151,64 +153,39 @@ export function DocumentsView({ canEdit }: Props): React.JSX.Element {
 
   const codigoDe = useMemo(() => new Map(tipos.map((x) => [x.id, x.code])), [tipos])
 
-  const cargarFichero = (file: File | undefined): void => {
-    if (file === undefined) return
-    setBusy(true)
-    setError(null)
-    setAviso(null)
-    file
-      .text()
-      .then(async (contenido) => {
-        const resultado = await importDocumentsCsv(contenido)
-        await recargar()
-        setAviso({
-          texto: t(
-            'documentos.importado',
-            resultado.rows,
-            resultado.created,
-            resultado.updated,
-            resultado.links,
-          ),
-          filas: resultado.warnings,
-        })
-      })
-      .catch((cause: unknown) => {
-        setError(errorText(t, cause, 'error.local.fichero'))
-        setAviso({ texto: '', filas: errorRows(cause) })
-      })
-      .finally(() => {
-        setBusy(false)
-        if (ficheroRef.current !== null) ficheroRef.current.value = ''
-      })
-  }
-
   if (error !== null && catalogo === null) return <div className="empty"><h3>{error}</h3></div>
   if (catalogo === null) return <div className="empty"><h3>{t('app.cargando')}</h3></div>
 
+  // Un solo botón, y lo que abre explica el fichero antes de pedirlo. El de la
+  // plantilla vivía aquí al lado sin decir que fuera la respuesta a «¿qué
+  // formato?»; ahora está dentro, junto a la tabla de columnas.
   const barraDeCarga = !canEdit ? null : (
-    <>
-      <input
-        ref={ficheroRef}
-        type="file"
-        accept=".csv,text/csv"
-        hidden
-        onChange={(event) => { cargarFichero(event.target.files?.[0]) }}
-      />
-      <button
-        className="button"
-        disabled={busy}
-        title={t('documentos.importarTitulo')}
-        onClick={() => { ficheroRef.current?.click() }}
-      >
-        {busy ? t('documentos.importando') : t('documentos.importar')}
-      </button>
-      <a className="button" href="/api/documents/plantilla.csv">{t('documentos.plantilla')}</a>
-    </>
+    <button
+      className="button"
+      disabled={busy}
+      title={t('documentos.importarTitulo')}
+      onClick={() => { setImportando(true) }}
+    >
+      {t('documentos.importar')}
+    </button>
+  )
+
+  const panelDeImportacion = !importando ? null : (
+    <ImportPanel<DocumentsImported>
+      tipo="documents"
+      onClose={() => { setImportando(false) }}
+      importar={importDocumentsCsv}
+      onImported={() => { void recargar() }}
+      exportarUrl={tipos.length === 0 ? undefined : '/api/documents/export.csv'}
+      resumen={(r) => t('documentos.importado', r.rows, r.created, r.updated, r.links)}
+      avisos={(r) => r.warnings}
+    />
   )
 
   if (tipos.length === 0) {
     return (
       <div className="empty">
+        {panelDeImportacion}
         <h3>{t('documentos.vacio.titulo')}</h3>
         <p style={{ maxWidth: '58ch', margin: '0 auto' }}>{t('documentos.vacio.texto')}</p>
         <p className="faint" style={{ maxWidth: '58ch', margin: '12px auto 0' }}>
@@ -228,6 +205,7 @@ export function DocumentsView({ canEdit }: Props): React.JSX.Element {
 
   return (
     <>
+      {panelDeImportacion}
       {error === null ? null : <div className="error-banner" style={{ margin: 12 }}>{error}</div>}
       {aviso === null ? null : (
         <div className={aviso.texto === '' ? 'error-banner' : 'notice'} style={{ margin: 12 }}>
