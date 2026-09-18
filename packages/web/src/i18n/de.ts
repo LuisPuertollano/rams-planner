@@ -91,7 +91,7 @@ export const de: Diccionario = {
   'documentos.plantilla': 'Vorlage',
   'equipo.importado': 'Team geladen: %s Zeile(n) in der Datei, %s angelegt, %s aktualisiert, %s Fähigkeit(en) gesetzt und %s Satz/Sätze.',
   'equipo.competenciasNuevas': '%s Fähigkeit(en), die es nicht gab, wurden angelegt.',
-  'documentos.importado': 'Katalog geladen: %s Zeile(n) aus der Datei, %s neu, %s aktualisiert und %s Abhängigkeit(en).',
+  'documentos.importado': 'Katalog geladen: %s Zeile(n) aus der Datei, %s neu, %s aktualisiert, %s Abhängigkeit(en) und %s Teilaktivität(en).',
   'documentos.yMas': '…und %s weitere.',
   'documentos.nuevo': '+ Dokument',
   'documentos.nuevo.nombre': 'Name des Dokuments (zum Beispiel „Vorläufiges Hazard Log“)',
@@ -285,6 +285,8 @@ export const de: Diccionario = {
   'importar.yMas': '…und %s weitere.',
   'importar.plan.titulo': 'Einen ganzen Plan aus einer CSV importieren: Projekte, Phasen, Vorgänge, Verknüpfungen und Zuordnungen',
   'importar.plan.hecho': 'Importiert: %s Projekt(e), %s Phase(n), %s Vorgang/Vorgänge, %s Verknüpfung(en) und %s Zuordnung(en). Der Plan wurde neu berechnet.',
+  'importar.plan.entregables': 'Und %s Vorgang/Vorgänge sind jetzt mit ihrem Lieferobjekt aus dem Katalog verknüpft.',
+  'importar.plan.plantilla': 'Es kam als VORLAGE herein: wird nicht gerechnet und trägt keine Personen. Es ist eine Form, aus der Projekte entstehen.',
   'importar.plan.personasNuevas': 'Angelegte Personen: %s. Sie wurden mit Standardarbeitstag und ohne Satz angelegt: prüf sie.',
 
   'tab.informes': 'Berichte',

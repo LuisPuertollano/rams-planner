@@ -92,7 +92,7 @@ export const es = {
   'documentos.plantilla': 'Plantilla',
   'equipo.importado': 'Equipo cargado: %s fila(s) del fichero, %s alta(s), %s actualizada(s), %s competencia(s) puesta(s) y %s tarifa(s).',
   'equipo.competenciasNuevas': 'Se han creado %s competencia(s) que no existían.',
-  'documentos.importado': 'Catálogo cargado: %s fila(s) del fichero, %s nuevo(s), %s actualizado(s) y %s dependencia(s).',
+  'documentos.importado': 'Catálogo cargado: %s fila(s) del fichero, %s nuevo(s), %s actualizado(s), %s dependencia(s) y %s subactividad(es).',
   'documentos.yMas': '…y %s más.',
   'documentos.nuevo': '+ Documento',
   'documentos.nuevo.nombre': 'Nombre del documento (por ejemplo, «Hazard Log preliminar»)',
@@ -286,6 +286,8 @@ export const es = {
   'importar.yMas': '…y %s más.',
   'importar.plan.titulo': 'Importar un plan entero desde un CSV: proyectos, fases, tareas, enlaces y asignaciones',
   'importar.plan.hecho': 'Importado: %s proyecto(s), %s fase(s), %s tarea(s), %s enlace(s) y %s asignación(es). El plan se ha recalculado.',
+  'importar.plan.entregables': 'Y %s tarea(s) han quedado enlazadas con su entregable del catálogo.',
+  'importar.plan.plantilla': 'Ha entrado como PLANTILLA: no se calcula y no lleva personas. Sirve de molde para crear proyectos.',
   'importar.plan.personasNuevas': 'Personas creadas: %s. Se han creado con jornada estándar y sin tarifa: revísalas.',
 
   'tab.informes': 'Informes',

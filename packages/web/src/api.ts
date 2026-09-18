@@ -924,6 +924,8 @@ export interface PlanImported {
   readonly tasks: number
   readonly dependencies: number
   readonly assignments: number
+  /** Tareas enlazadas con su entregable del catálogo. */
+  readonly deliverables: number
   readonly resourcesCreated: readonly string[]
   readonly warnings: readonly string[]
 }
@@ -1142,6 +1144,8 @@ export interface DocumentsImported {
   readonly updated: number
   readonly links: number
   readonly signatures: number
+  /** Subactividades escritas. Cero también cuando el fichero no habla de la cadena. */
+  readonly activities: number
   readonly warnings: readonly string[]
 }
 

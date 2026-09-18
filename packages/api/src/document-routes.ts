@@ -14,6 +14,7 @@ import {
   checkSignatureCycle,
   lastGate,
   type ActivityProblem,
+  type ActivityStep,
   type DocumentActivity,
   type Signature,
   type SignatureProblem,
@@ -148,6 +149,46 @@ function casillasDeFirma(firmas: readonly DocumentSignature[]): Readonly<Record<
       .filter((firma) => firma.step === 'reviewer')
       .map((firma) => firma.role)
       .join('|'),
+  }
+}
+
+/**
+ * Las cinco casillas de la cadena para el CSV, en la forma que el importador
+ * vuelve a leer: `rol:horas` y, si descarga una firma, `rol:horas:firma`.
+ *
+ * Que la exportación escriba exactamente lo que la importación lee no es un
+ * detalle: el fichero exportado es la mejor plantilla que existe, porque ya
+ * lleva dentro el catálogo de quien lo descarga.
+ */
+function casillasDeSubactividad(
+  actividades: readonly DocumentActivityRow[],
+): Readonly<Record<string, string>> {
+  const NOMBRE_DE_FIRMA: Readonly<Record<string, string>> = {
+    'author:1': 'autor',
+    'verifier:1': 'verificador_1',
+    'verifier:2': 'verificador_2',
+    'approver:1': 'aprobador',
+    'reviewer:1': 'revisores',
+  }
+  const casilla = (step: ActivityStep): string => {
+    const actividad = actividades.find((a) => a.step === step)
+    if (actividad === undefined) return ''
+    const horas =
+      actividad.standardMinutes === null
+        ? ''
+        : `:${(actividad.standardMinutes / 60).toFixed(2).replace(/\.?0+$/, '').replace('.', ',')}`
+    const firma =
+      actividad.signature === null
+        ? ''
+        : `:${NOMBRE_DE_FIRMA[`${actividad.signature.step}:${String(actividad.signature.position)}`] ?? ''}`
+    return `${actividad.role}${horas}${firma}`
+  }
+  return {
+    crear: casilla('create'),
+    revisar_1: casilla('review_1'),
+    revisar_2: casilla('review_2'),
+    revisar_3: casilla('review_3'),
+    soportar: casilla('support'),
   }
 }
 
@@ -436,10 +477,11 @@ export function registerDocumentRoutes(app: FastifyInstance, pool: Pool): void {
    * filas, y sólo funciona si el fichero que sale es el que entra.
    */
   app.get('/api/documents/export.csv', { config: { permission: 'documentos.ver' } }, async (_request, reply) => {
-    const { types, precedences, signatures } = await withTransaction(pool, async (db) => ({
+    const { types, precedences, signatures, activities } = await withTransaction(pool, async (db) => ({
       types: await readDocumentTypes(db),
       precedences: await readPrecedences(db),
       signatures: await readSignatures(db),
+      activities: await readActivities(db),
     }))
     const codigoDe = new Map(types.map((tipo) => [tipo.id, tipo.code]))
     const esperaA = new Map<string, string[]>()
@@ -448,6 +490,12 @@ export function registerDocumentRoutes(app: FastifyInstance, pool: Pool): void {
       const codigo = codigoDe.get(p.predecessorId)
       if (codigo !== undefined) lista.push(codigo)
       esperaA.set(p.successorId, lista)
+    }
+    const cadenaDe = new Map<string, DocumentActivityRow[]>()
+    for (const actividad of activities) {
+      const lista = cadenaDe.get(actividad.documentTypeId) ?? []
+      lista.push(actividad)
+      cadenaDe.set(actividad.documentTypeId, lista)
     }
     const firmasDe = new Map<string, DocumentSignature[]>()
     for (const firma of signatures) {
@@ -471,6 +519,7 @@ export function registerDocumentRoutes(app: FastifyInstance, pool: Pool): void {
       descripcion: tipo.description ?? '',
       espera_a: (esperaA.get(tipo.id) ?? []).join('|'),
       ...casillasDeFirma(firmasDe.get(tipo.id) ?? []),
+      ...casillasDeSubactividad(cadenaDe.get(tipo.id) ?? []),
     }))
     return reply
       .header('content-type', 'text/csv; charset=utf-8')

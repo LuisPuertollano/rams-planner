@@ -91,7 +91,7 @@ export const fr: Diccionario = {
   'documentos.plantilla': 'Modèle',
   'equipo.importado': 'Équipe chargée : %s ligne(s) dans le fichier, %s créée(s), %s mise(s) à jour, %s compétence(s) posée(s) et %s tarif(s).',
   'equipo.competenciasNuevas': '%s compétence(s) qui n’existaient pas ont été créées.',
-  'documentos.importado': 'Catalogue chargé : %s ligne(s) du fichier, %s nouveau(x), %s mis à jour et %s dépendance(s).',
+  'documentos.importado': 'Catalogue chargé : %s ligne(s) du fichier, %s nouveau(x), %s mis à jour, %s dépendance(s) et %s sous-activité(s).',
   'documentos.yMas': '…et %s de plus.',
   'documentos.nuevo': '+ Document',
   'documentos.nuevo.nombre': 'Nom du document (par exemple, « Hazard Log préliminaire »)',
@@ -285,6 +285,8 @@ export const fr: Diccionario = {
   'importar.yMas': '…et %s de plus.',
   'importar.plan.titulo': 'Importer un plan entier depuis un CSV : projets, phases, tâches, liens et affectations',
   'importar.plan.hecho': 'Importé : %s projet(s), %s phase(s), %s tâche(s), %s lien(s) et %s affectation(s). Le plan a été recalculé.',
+  'importar.plan.entregables': 'Et %s tâche(s) sont désormais liées à leur livrable du catalogue.',
+  'importar.plan.plantilla': 'Il est entré comme MODÈLE : il n’est pas calculé et ne porte aucune personne. C’est un moule pour créer des projets.',
   'importar.plan.personasNuevas': 'Personnes créées : %s. Elles ont été créées avec une journée standard et sans tarif : vérifie-les.',
 
   'tab.informes': 'Rapports',

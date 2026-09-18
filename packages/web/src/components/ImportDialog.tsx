@@ -56,6 +56,9 @@ export function ImportDialog({ tipo, onClose, onImported, exportarUrl }: Props):
           t('importar.plan.hecho', r.projects, r.phases, r.tasks, r.dependencies, r.assignments)
         }
         avisos={(r) => [
+          // El enlace con el catálogo va arriba porque es lo que decide si al
+          // plan importado le llegan las subactividades y las fechas de puerta.
+          ...(r.deliverables === 0 ? [] : [t('importar.plan.entregables', r.deliverables)]),
           ...(r.resourcesCreated.length === 0
             ? []
             : [t('importar.plan.personasNuevas', r.resourcesCreated.join(', '))]),
@@ -120,7 +123,7 @@ export function ImportDialog({ tipo, onClose, onImported, exportarUrl }: Props):
       importar={importDocumentsCsv}
       onImported={onImported}
       exportarUrl={exportarUrl}
-      resumen={(r) => t('documentos.importado', r.rows, r.created, r.updated, r.links)}
+      resumen={(r) => t('documentos.importado', r.rows, r.created, r.updated, r.links, r.activities)}
       avisos={(r) => r.warnings}
     />
   )
