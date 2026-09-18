@@ -341,6 +341,49 @@ export function ReportView({ projects }: Props): React.JSX.Element {
             </section>
           )}
 
+          {informe.taskGaps.length === 0 ? null : (
+            <section>
+              <h3>{t('informe.seccion.huecos')}</h3>
+              <p className="faint" style={{ maxWidth: '90ch', margin: '0 0 8px' }}>
+                {t('informe.huecos.explica')}
+              </p>
+              <table className="grid grid--texto">
+                <thead>
+                  <tr>
+                    <th>{t('col.tarea')}</th>
+                    <th>{t('informe.huecos.col.planificado')}</th>
+                    <th>{t('informe.huecos.col.fichado')}</th>
+                    <th title={t('informe.huecos.col.gastadoTitulo')}>
+                      {t('informe.huecos.col.gastado')}
+                    </th>
+                    <th>{t('col.avance')}</th>
+                    <th title={t('informe.huecos.col.huecoTitulo')}>
+                      {t('informe.huecos.col.hueco')}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {informe.taskGaps.map((hueco) => (
+                    <tr key={hueco.nodeId}>
+                      <td>
+                        {hueco.path} {hueco.name}
+                      </td>
+                      <td>{hueco.plannedMinutes === 0 ? t('informe.huecos.sinPlan') : horas(hueco.plannedMinutes)}</td>
+                      <td>{horas(hueco.actualMinutes)}</td>
+                      <td>{hueco.spentBp === null ? '—' : percent(hueco.spentBp)}</td>
+                      <td>{percent(hueco.percentCompleteBp)}</td>
+                      {/* Sin proporción que medir, el aviso es la fila entera:
+                          son horas contra un plan que nadie declaró. */}
+                      <td className={hueco.gapBp === null || hueco.gapBp > 0 ? 'warn-dot' : undefined}>
+                        {hueco.gapBp === null ? t('informe.huecos.sinMedida') : percent(hueco.gapBp)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          )}
+
           {informe.findings.length === 0 ? null : (
             <section>
               <h3>{t('informe.seccion.hallazgos')}</h3>

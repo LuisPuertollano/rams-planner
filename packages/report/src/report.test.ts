@@ -49,13 +49,20 @@ const capacidad = (
   grossMinutes = capacityMinutes,
 ): ReportCapacityCell => ({ resourceId, period, capacityMinutes, grossMinutes })
 
-/** Una hora fichada, con el mismo corte que una celda de carga. */
+/**
+ * Una hora fichada, con el mismo corte que una celda de carga.
+ *
+ * La tarea es opcional y por defecto no es ninguna del plan: las pruebas del
+ * grano de proyecto y mes no hablan de tareas, y hacerlas declarar una las
+ * ataría a algo que no comprueban.
+ */
 const real = (
   resourceId: string,
   projectId: string,
   period: string,
   actualMinutes: number,
-): ReportActualCell => ({ resourceId, projectId, period, actualMinutes })
+  nodeId = 'sin-tarea',
+): ReportActualCell => ({ resourceId, projectId, nodeId, period, actualMinutes })
 
 const entrada = (parcial: Partial<ReportInput>): ReportInput => ({
   runId: 'run-1',
@@ -719,5 +726,182 @@ describe('los casos que no se ven hasta que pasan', () => {
     )
     expect(informe.totals.actualMinutes).toBe(600)
     expect(informe.totals.unplannedActualMinutes).toBe(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// El grano de la tarea: lo gastado frente a lo avanzado
+// ---------------------------------------------------------------------------
+
+describe('las tareas donde lo gastado y lo avanzado no se parecen', () => {
+  it('sin horas fichadas no hay tabla: no hay nada con qué comparar', () => {
+    const informe = buildReport(
+      entrada({
+        tasks: [tarea({ nodeId: 't1', workMinutes: 480, percentCompleteBp: 5_000 })],
+        actuals: [],
+      }),
+    )
+    expect(informe.taskGaps).toEqual([])
+  })
+
+  it('calcula lo gastado sobre el trabajo declarado, y el hueco contra el avance', () => {
+    const informe = buildReport(
+      entrada({
+        // 480 min declarados, 432 fichados (90 %), pero dice ir al 30 %.
+        tasks: [tarea({ nodeId: 't1', workMinutes: 480, percentCompleteBp: 3_000 })],
+        actuals: [real('r1', 'p1', '2026-02', 432, 't1')],
+      }),
+    )
+    expect(informe.taskGaps).toHaveLength(1)
+    expect(informe.taskGaps[0]).toMatchObject({
+      nodeId: 't1',
+      plannedMinutes: 480,
+      actualMinutes: 432,
+      percentCompleteBp: 3_000,
+      spentBp: 9_000,
+      gapBp: 6_000,
+    })
+  })
+
+  it('el avance NO se deriva de las horas: los dos números llegan enteros', () => {
+    const informe = buildReport(
+      entrada({
+        tasks: [tarea({ nodeId: 't1', workMinutes: 480, percentCompleteBp: 10_000 })],
+        actuals: [real('r1', 'p1', '2026-02', 60, 't1')],
+      }),
+    )
+    // Terminada con una octava parte de las horas: el hueco es negativo y la
+    // tarea sigue diciendo que está al 100 %. Nadie corrige a nadie.
+    expect(informe.taskGaps[0]?.percentCompleteBp).toBe(10_000)
+    expect(informe.taskGaps[0]?.spentBp).toBe(1_250)
+    expect(informe.taskGaps[0]?.gapBp).toBe(-8_750)
+  })
+
+  it('una tarea sin trabajo declarado no tiene proporción, y va la primera', () => {
+    const informe = buildReport(
+      entrada({
+        tasks: [
+          tarea({ nodeId: 'sin-plan', workMinutes: null, percentCompleteBp: 0 }),
+          tarea({ nodeId: 'pasada', workMinutes: 480, percentCompleteBp: 1_000 }),
+        ],
+        actuals: [
+          real('r1', 'p1', '2026-02', 60, 'sin-plan'),
+          real('r1', 'p1', '2026-02', 960, 'pasada'),
+        ],
+      }),
+    )
+    // La de sin plan va primera aunque su hueco no se pueda medir y la otra se
+    // haya pasado al doble: horas contra un plan que no existe es el caso que
+    // más merece mirarse.
+    expect(informe.taskGaps.map((linea) => linea.nodeId)).toEqual(['sin-plan', 'pasada'])
+    expect(informe.taskGaps[0]?.spentBp).toBeNull()
+    expect(informe.taskGaps[0]?.gapBp).toBeNull()
+    expect(informe.taskGaps[0]?.plannedMinutes).toBe(0)
+  })
+
+  it('las fases y los paquetes no entran: su trabajo es el de sus hijas', () => {
+    const informe = buildReport(
+      entrada({
+        tasks: [
+          tarea({ nodeId: 'fase', kind: 'phase', workMinutes: 4_800, percentCompleteBp: 2_000 }),
+          tarea({ nodeId: 'paquete', kind: 'work_package', workMinutes: 2_400, percentCompleteBp: 2_000 }),
+          tarea({ nodeId: 'hoja', workMinutes: 480, percentCompleteBp: 2_000 }),
+        ],
+        actuals: [
+          real('r1', 'p1', '2026-02', 4_800, 'fase'),
+          real('r1', 'p1', '2026-02', 2_400, 'paquete'),
+          real('r1', 'p1', '2026-02', 480, 'hoja'),
+        ],
+      }),
+    )
+    expect(informe.taskGaps.map((linea) => linea.nodeId)).toEqual(['hoja'])
+  })
+
+  it('un hito sí entra: se ficha contra él y puede costar horas', () => {
+    const informe = buildReport(
+      entrada({
+        tasks: [tarea({ nodeId: 'hito', kind: 'milestone', workMinutes: 960, percentCompleteBp: 0 })],
+        actuals: [real('r1', 'p1', '2026-02', 480, 'hito')],
+      }),
+    )
+    expect(informe.taskGaps.map((linea) => linea.nodeId)).toEqual(['hito'])
+  })
+
+  it('suma las horas de varias personas y varios meses contra la misma tarea', () => {
+    const informe = buildReport(
+      entrada({
+        tasks: [tarea({ nodeId: 't1', workMinutes: 480, percentCompleteBp: 0 })],
+        actuals: [
+          real('r1', 'p1', '2026-02', 120, 't1'),
+          real('r2', 'p1', '2026-02', 120, 't1'),
+          real('r1', 'p1', '2026-03', 240, 't1'),
+        ],
+      }),
+    )
+    expect(informe.taskGaps[0]?.actualMinutes).toBe(480)
+    expect(informe.taskGaps[0]?.spentBp).toBe(10_000)
+  })
+
+  it('ordena por hueco y, a igualdad, por horas: salida estable', () => {
+    const informe = buildReport(
+      entrada({
+        tasks: [
+          tarea({ nodeId: 'poco', workMinutes: 480, percentCompleteBp: 8_000 }),
+          tarea({ nodeId: 'mucho', workMinutes: 480, percentCompleteBp: 1_000 }),
+          tarea({ nodeId: 'empata-a', workMinutes: 480, percentCompleteBp: 5_000 }),
+          tarea({ nodeId: 'empata-b', workMinutes: 960, percentCompleteBp: 5_000 }),
+        ],
+        actuals: [
+          real('r1', 'p1', '2026-02', 480, 'poco'), // 100 % gastado, hueco 2.000
+          real('r1', 'p1', '2026-02', 480, 'mucho'), // 100 % gastado, hueco 9.000
+          real('r1', 'p1', '2026-02', 480, 'empata-a'), // 100 %, hueco 5.000
+          real('r1', 'p1', '2026-02', 960, 'empata-b'), // 100 %, hueco 5.000
+        ],
+      }),
+    )
+    expect(informe.taskGaps.map((linea) => linea.nodeId)).toEqual([
+      'mucho',
+      'empata-b',
+      'empata-a',
+      'poco',
+    ])
+  })
+
+  it('se recorta a quince: una lista de ochenta no se mira', () => {
+    const tareas = Array.from({ length: 30 }, (_, i) =>
+      tarea({ nodeId: `t${String(i)}`, workMinutes: 480, percentCompleteBp: 0 }),
+    )
+    const horas = tareas.map((t, i) => real('r1', 'p1', '2026-02', 60 + i, t.nodeId))
+    const informe = buildReport(entrada({ tasks: tareas, actuals: horas }))
+    expect(informe.taskGaps).toHaveLength(15)
+  })
+
+  it('una tarea de un proyecto fuera del alcance no entra', () => {
+    const informe = buildReport(
+      entrada({
+        projects: [proyecto('p1', 'UNO', 'Proyecto uno')],
+        tasks: [
+          tarea({ nodeId: 'mia', workMinutes: 480, percentCompleteBp: 0 }),
+          tarea({ nodeId: 'ajena', projectId: 'p9', workMinutes: 480, percentCompleteBp: 0 }),
+        ],
+        actuals: [
+          real('r1', 'p1', '2026-02', 480, 'mia'),
+          real('r1', 'p9', '2026-02', 960, 'ajena'),
+        ],
+      }),
+    )
+    expect(informe.taskGaps.map((linea) => linea.nodeId)).toEqual(['mia'])
+  })
+
+  it('sin permiso para ver las horas, la tabla llega vacía y no a cero', () => {
+    const informe = buildReport(
+      entrada({
+        tasks: [tarea({ nodeId: 't1', workMinutes: 480, percentCompleteBp: 0 })],
+        actuals: [],
+        actualsHidden: true,
+      }),
+    )
+    expect(informe.taskGaps).toEqual([])
+    expect(informe.actualsHidden).toBe(true)
   })
 })

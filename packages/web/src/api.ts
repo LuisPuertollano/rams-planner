@@ -1276,6 +1276,27 @@ export interface ReportRisk {
   readonly amount: number
 }
 
+/**
+ * Una tarea donde lo gastado y lo avanzado no se parecen.
+ *
+ * Los dos números llegan enteros y ninguno se deriva del otro: alguien dijo
+ * «va por la mitad» y alguien fichó siete horas y media. La pantalla los pone
+ * uno al lado del otro; qué significa que no cuadren lo decide quien mira.
+ */
+export interface ReportTaskGap {
+  readonly nodeId: string
+  readonly projectId: string
+  readonly name: string
+  readonly path: string
+  readonly plannedMinutes: number
+  readonly actualMinutes: number
+  readonly percentCompleteBp: number
+  /** Qué parte del trabajo declarado se ha fichado. `null` sin trabajo declarado. */
+  readonly spentBp: number | null
+  /** `spentBp − percentCompleteBp`. Positivo: se gasta más deprisa de lo que se avanza. */
+  readonly gapBp: number | null
+}
+
 export interface ReportFinding {
   readonly severity: string
   readonly code: string
@@ -1331,6 +1352,8 @@ export interface Report {
   readonly projects: readonly ReportProjectLine[]
   readonly people: readonly ReportPersonLine[]
   readonly risks: readonly ReportRisk[]
+  /** Las tareas donde más se separan lo gastado y lo avanzado, peor primero. */
+  readonly taskGaps: readonly ReportTaskGap[]
   readonly findings: readonly ReportFinding[]
 }
 

@@ -72,6 +72,16 @@ export interface ReportCapacityCell {
 export interface ReportActualCell {
   readonly resourceId: string
   readonly projectId: string
+  /**
+   * La tarea contra la que se fichó.
+   *
+   * El parte de horas siempre lo trajo —la clave de `actual_entry` es (tarea,
+   * persona, día, origen)— y el informe lo tiraba al agregar por proyecto y
+   * mes. Es lo que permite la única comparación que el proyecto y el mes no
+   * pueden hacer: lo gastado en una tarea frente a lo que esa tarea dice que
+   * lleva avanzado.
+   */
+  readonly nodeId: string
   readonly period: string
   readonly actualMinutes: number
 }
@@ -217,6 +227,41 @@ export interface PersonLine {
  */
 export type RiskKind = 'fecha-limite' | 'holgura-negativa' | 'retraso'
 
+/**
+ * Una tarea donde lo gastado y lo avanzado no se parecen.
+ *
+ * Es la comparación que ADR-0026 dejó fuera y la única que el grano de
+ * proyecto y mes no puede hacer. Y no rompe lo que aquel ADR protegía: **el
+ * avance no se deriva de las horas**. Son dos datos declarados por personas
+ * distintas —alguien dijo «va por la mitad», alguien fichó siete horas y
+ * media— y esto los pone uno al lado del otro sin convertir ninguno en el
+ * otro. Quien mira decide qué significa que no cuadren.
+ */
+export interface TaskGapLine {
+  readonly nodeId: string
+  readonly projectId: string
+  readonly name: string
+  readonly path: string
+  /** El trabajo declarado de la tarea. Cero cuando no lo declara nadie. */
+  readonly plannedMinutes: number
+  /** Lo fichado contra ella dentro del periodo. */
+  readonly actualMinutes: number
+  /** El avance declarado, en puntos básicos. */
+  readonly percentCompleteBp: number
+  /**
+   * Qué parte del trabajo declarado se ha fichado ya, en puntos básicos.
+   *
+   * `null` cuando la tarea no declara trabajo: ahí no hay proporción que
+   * calcular, y un cero diría «no se ha gastado nada», que es falso.
+   */
+  readonly spentBp: number | null
+  /**
+   * `spentBp − percentCompleteBp`. Positivo: se gastan horas más deprisa de lo
+   * que se avanza. `null` cuando no hay `spentBp`.
+   */
+  readonly gapBp: number | null
+}
+
 export interface RiskLine {
   readonly nodeId: string
   readonly projectId: string
@@ -314,6 +359,13 @@ export interface Report {
   readonly projects: readonly ProjectLine[]
   readonly people: readonly PersonLine[]
   readonly risks: readonly RiskLine[]
+  /**
+   * Las tareas donde lo gastado y lo avanzado más se separan, peor primero.
+   *
+   * Recortada: una lista de ochenta no se mira. Vacía cuando no hay horas —o
+   * cuando no se pueden ver, que es otra cosa y lo dice `actualsHidden`—.
+   */
+  readonly taskGaps: readonly TaskGapLine[]
   readonly findings: readonly ReportFinding[]
 }
 
@@ -389,6 +441,8 @@ export function buildReport(input: ReportInput): Report {
     null,
   )
 
+  const huecosDeTarea = huecosPorTarea(tareas, reales)
+
   const riesgos = riesgosDe(enPeriodo, proyectos, input.asOf)
   const hallazgos = input.findings.filter((f) => f.projectId === null || enAlcance.has(f.projectId))
   const cuenta = (severidad: string): number => hallazgos.filter((f) => f.severity === severidad).length
@@ -436,8 +490,72 @@ export function buildReport(input: ReportInput): Report {
     projects: lineasDeProyecto(proyectos, tareas, enPeriodo, carga, reales, riesgos, hallazgos),
     people: personas,
     risks: riesgos,
+    taskGaps: huecosDeTarea,
     findings: hallazgos,
   }
+}
+
+/** Cuántas tareas caben en la tabla antes de dejar de mirarse. */
+const HUECOS_QUE_CABEN = 15
+
+/**
+ * Las tareas donde lo gastado y lo avanzado más se separan.
+ *
+ * Tres decisiones que la aritmética obliga a tomar, y conviene que estén
+ * escritas aquí y no adivinadas leyendo el `sort`:
+ *
+ *   - **Sólo las tareas con horas fichadas.** Una tarea sin horas no tiene
+ *     hueco: tiene un plan y nada con qué compararlo, que es otra pantalla.
+ *   - **Sólo las hojas.** Una fase o un paquete agregan el trabajo de sus
+ *     hijas, así que su `workMinutes` no es trabajo suyo y la proporción
+ *     saldría deformada. El parte ficha contra tareas, no contra fases.
+ *   - **El orden es por hueco, y las tareas sin trabajo declarado van
+ *     primero.** No tienen proporción que calcular, y una tarea con horas
+ *     fichadas contra un trabajo que nadie declaró es exactamente el caso que
+ *     merece mirarse antes: son horas contra un plan que no existe.
+ */
+function huecosPorTarea(
+  tareas: readonly ReportTask[],
+  reales: readonly ReportActualCell[],
+): readonly TaskGapLine[] {
+  const porTarea = agrupa(reales, (celda) => celda.nodeId, (celda) => celda.actualMinutes)
+  if (porTarea.size === 0) return []
+
+  const lineas: TaskGapLine[] = []
+  for (const tarea of tareas) {
+    if (tarea.kind === 'phase' || tarea.kind === 'work_package') continue
+    const real = porTarea.get(tarea.nodeId) ?? 0
+    if (real === 0) continue
+    const planificado = tarea.workMinutes ?? 0
+    const gastado = planificado === 0 ? null : ratioBp(real, planificado)
+    lineas.push({
+      nodeId: tarea.nodeId,
+      projectId: tarea.projectId,
+      name: tarea.name,
+      path: tarea.path,
+      plannedMinutes: planificado,
+      actualMinutes: real,
+      percentCompleteBp: tarea.percentCompleteBp,
+      spentBp: gastado,
+      gapBp: gastado === null ? null : gastado - tarea.percentCompleteBp,
+    })
+  }
+
+  return lineas
+    .toSorted((a, b) => {
+      // Sin trabajo declarado no hay hueco que medir, y es el caso que más
+      // merece mirarse: va primero, y entre ellas manda lo fichado.
+      if (a.gapBp === null || b.gapBp === null) {
+        if (a.gapBp === b.gapBp) return b.actualMinutes - a.actualMinutes
+        return a.gapBp === null ? -1 : 1
+      }
+      if (a.gapBp !== b.gapBp) return b.gapBp - a.gapBp
+      // A igualdad de hueco, la que más horas se ha llevado. Y a igualdad de
+      // todo, el camino: orden estable (P2), no el de la base.
+      if (a.actualMinutes !== b.actualMinutes) return b.actualMinutes - a.actualMinutes
+      return a.path.localeCompare(b.path)
+    })
+    .slice(0, HUECOS_QUE_CABEN)
 }
 
 /**
