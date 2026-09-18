@@ -65,14 +65,62 @@ export function computeWorkload(
   for (const assignment of snapshot.assignments) {
     const result = resultByNode.get(assignment.nodeId)
     const resource = resourcesById.get(assignment.resourceId)
-    if (result === undefined || resource === undefined || result.isContainer) continue
-    if (resource.kind === 'cost' || resource.kind === 'material') continue
+    const reparto = cellsForAssignment(snapshot, compiled, assignment, result, resource, sink)
+    cells.push(...reparto.cells)
+    findings.push(...reparto.findings)
+  }
+
+  findings.push(...detectOverallocation(cells, capacity, resourcesById, options.overallocationThresholdBp ?? 10_000))
+
+  return {
+    timephased: cells.sort(
+      (left, right) =>
+        left.date.localeCompare(right.date) ||
+        left.resourceId.localeCompare(right.resourceId) ||
+        left.assignmentId.localeCompare(right.assignmentId),
+    ),
+    capacity,
+    findings: sortFindings(findings),
+  }
+}
+
+/** Lo que el reparto de UNA asignación produce: sus celdas y lo que haya que avisar. */
+export interface AssignmentCells {
+  readonly cells: readonly TimephasedCell[]
+  readonly findings: readonly Finding[]
+}
+
+/**
+ * El reparto de una sola asignación en días.
+ *
+ * Vive aparte porque la nivelación lo llama de una en una: retrasar una tarea
+ * mueve tres de mil ochocientas —medido—, y rehacer el reparto entero para eso
+ * era el 93 % del coste de nivelar. Que sea **esta misma función** la que usan
+ * las dos rutas no es comodidad: es lo que garantiza que el camino incremental
+ * y el completo den la misma celda, hasta el minuto.
+ */
+export function cellsForAssignment(
+  snapshot: PlanSnapshot,
+  // Mutable a propósito: `calendarFor` memoiza dentro. Con un ReadonlyMap se
+  // recompilaría el calendario en cada llamada, que es justo lo que se evita.
+  compiled: Map<string, CompiledCalendar>,
+  assignment: PlanSnapshot['assignments'][number],
+  result: TaskResult | undefined,
+  resource: PlanSnapshot['resources'][number] | undefined,
+  sink: DerivationSink = NOOP_SINK,
+): AssignmentCells {
+  const cells: TimephasedCell[] = []
+  const findings: Finding[] = []
+  const vacio = { cells, findings }
+  {
+    if (result === undefined || resource === undefined || result.isContainer) return vacio
+    if (resource.kind === 'cost' || resource.kind === 'material') return vacio
 
     const calendar = calendarFor(snapshot, compiled, resource.calendarId ?? snapshot.defaultCalendarId)
     const workMinutes =
       assignment.workDeclaredMinutes ??
       applyBasisPoints(result.durationMinutes, basisPoints(assignment.unitsBp))
-    if (workMinutes === 0) continue
+    if (workMinutes === 0) return vacio
 
     if (assignment.contour === 'manual' && assignment.manualContour !== undefined) {
       const declared = assignment.manualContour.reduce((sum, entry) => sum + entry.minutes, 0)
@@ -91,7 +139,7 @@ export function computeWorkload(
       for (const entry of assignment.manualContour) {
         cells.push(cellFor(assignment.id, resource.id, result, entry.date, entry.minutes, rateOn(resource, entry.date)))
       }
-      continue
+      return { cells, findings }
     }
 
     const days = workingDaysWithin(calendar, snapshot.horizon.from, result, assignment.windowFrom, assignment.windowTo)
@@ -106,7 +154,7 @@ export function computeWorkload(
           'trabajo no se puede repartir. Revisa su calendario o las fechas de la tarea.',
         payload: { resource: resource.displayName },
       })
-      continue
+      return { cells, findings }
     }
 
     const profile = contourWeights(assignment.contour, days.length)
@@ -133,19 +181,7 @@ export function computeWorkload(
       output: workMinutes,
     })
   }
-
-  findings.push(...detectOverallocation(cells, capacity, resourcesById, options.overallocationThresholdBp ?? 10_000))
-
-  return {
-    timephased: cells.sort(
-      (left, right) =>
-        left.date.localeCompare(right.date) ||
-        left.resourceId.localeCompare(right.resourceId) ||
-        left.assignmentId.localeCompare(right.assignmentId),
-    ),
-    capacity,
-    findings: sortFindings(findings),
-  }
+  return { cells, findings }
 }
 
 interface AvailableDay {

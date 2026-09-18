@@ -1,4 +1,5 @@
 import { schedulePlan } from '@planner/scheduler'
+import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import { PlanBuilder } from '../../scheduler/src/__fixtures__/plan.js'
 import { levelPlan } from './leveling.js'
@@ -125,5 +126,90 @@ describe('nivelación', () => {
     const leveled = levelPlan(snapshot, { maxIterations: 1 })
     expect(leveled.converged).toBe(false)
     expect(leveled.findings.some((finding) => finding.message.includes('iteraciones'))).toBe(true)
+  })
+})
+
+describe('nivelar sin rehacer el reparto entero', () => {
+  /**
+   * La invariante de la optimización, y la única que la sostiene: parchear el
+   * índice de carga tiene que dar **exactamente** lo mismo que rehacer el
+   * reparto completo. Si esto se rompe, la nivelación elige otra tarea y el
+   * plan nivelado deja de ser el que era, sin que nada más avise.
+   */
+  it('el reparto que devuelve es el del cálculo completo, celda a celda', () => {
+    const snapshot = new PlanBuilder()
+      .resource('ana')
+      .resource('marc')
+      .task('a', { durationMinutes: 2400 })
+      .task('b', { durationMinutes: 2400 })
+      .task('c', { durationMinutes: 1200 })
+      .task('d', { durationMinutes: 1200 })
+      .link('a', 'd')
+      .assign('a', 'ana')
+      .assign('b', 'ana')
+      .assign('c', 'marc')
+      .assign('d', 'marc')
+      .build()
+
+    const nivelado = levelPlan(snapshot)
+    // El mismo plan, repartido desde cero con los retrasos que eligió nivelar.
+    const completo = computeWorkload(
+      snapshot,
+      schedulePlan(snapshot, { levelingDelays: nivelado.delays }),
+    )
+    expect(nivelado.workload.timephased).toEqual(completo.timephased)
+    expect(nivelado.workload.findings).toEqual(completo.findings)
+  })
+
+  it('da el mismo plan nivelado sea cual sea el tamaño del lío', () => {
+    // Lo mismo, con planes generados: lo que se comprueba no es una escena
+    // concreta sino que las dos rutas no se separan nunca.
+    fc.assert(
+      fc.property(
+        fc.array(
+          fc.record({
+            dias: fc.integer({ min: 1, max: 6 }),
+            quien: fc.constantFrom('ana', 'marc'),
+            ata: fc.boolean(),
+          }),
+          { minLength: 2, maxLength: 9 },
+        ),
+        (tareas) => {
+          const plan = new PlanBuilder().resource('ana').resource('marc')
+          for (const [i, t] of tareas.entries()) {
+            plan.task(`t${String(i)}`, { durationMinutes: t.dias * 480 })
+          }
+          for (const [i, t] of tareas.entries()) {
+            plan.assign(`t${String(i)}`, t.quien)
+            if (t.ata && i > 0) plan.link(`t${String(i - 1)}`, `t${String(i)}`)
+          }
+          const snapshot = plan.build()
+          const nivelado = levelPlan(snapshot)
+          const completo = computeWorkload(
+            snapshot,
+            schedulePlan(snapshot, { levelingDelays: nivelado.delays }),
+          )
+          return (
+            JSON.stringify(nivelado.workload.timephased) === JSON.stringify(completo.timephased)
+          )
+        },
+      ),
+      { numRuns: 120 },
+    )
+  })
+
+  it('un día que se queda sin carga deja de existir, no se queda a cero', () => {
+    // Si al mover una tarea el día quedara con cero minutos en vez de borrarse,
+    // el bucle lo recorrería para siempre buscando un conflicto que ya no está.
+    const snapshot = new PlanBuilder()
+      .resource('ana')
+      .task('una', { durationMinutes: 2400 })
+      .task('otra', { durationMinutes: 2400 })
+      .assign('una', 'ana')
+      .assign('otra', 'ana')
+      .build()
+    const nivelado = levelPlan(snapshot)
+    expect(nivelado.converged).toBe(true)
+    expect(nivelado.workload.timephased.every((celda) => celda.plannedMinutes > 0)).toBe(true)
   })
 })

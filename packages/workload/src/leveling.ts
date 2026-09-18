@@ -17,7 +17,9 @@
 import { addDays, calendarDate, sortFindings, type Finding, type FindingPayload } from '@planner/domain'
 import { planInstant, workingMinutesBetween } from '@planner/calendar'
 import { schedulePlan, type PlanSnapshot, type ScheduleOutput, type TaskResult } from '@planner/scheduler'
-import { computeWorkload, type WorkloadOutput } from './timephase.js'
+import { computeCapacity, type CapacityIndex } from './capacity.js'
+import { cellsForAssignment, computeWorkload, type TimephasedCell, type WorkloadOutput } from './timephase.js'
+import type { CompiledCalendar } from '@planner/calendar'
 
 export interface LevelingOptions {
   /** Tope de iteraciones. Cada una retrasa una tarea un día laborable. */
@@ -38,6 +40,110 @@ export interface LevelingResult {
 }
 
 const WORKING_DAY = 480
+
+/**
+ * La carga del plan en la forma que la nivelación necesita: agregada por
+ * (recurso, día), y **parcheable**.
+ *
+ * Existe por una medición. El bucle de nivelar repetía el reparto completo en
+ * cada vuelta —1 683 asignaciones, 168 616 celdas— para mover, de mediana,
+ * **tres tareas de mil ochocientas**. Eran 703 ms de los 844 ms de cada
+ * iteración, y con el tope en 400 vueltas, seis minutos que además terminaban
+ * sin converger.
+ *
+ * Aquí se reparte una vez y después se parchea: se restan las celdas de los
+ * nodos que se han movido, se vuelven a repartir **esos** y se suman. Las
+ * celdas las produce `cellsForAssignment`, la misma función que usa el reparto
+ * completo, así que el agregado es el mismo que saldría de rehacerlo entero.
+ */
+interface CargaPorDia {
+  minutos: number
+  /** Minutos de cada asignación ese día: la nivelación mira la más grande. */
+  readonly porAsignacion: Map<string, number>
+}
+
+class IndiceDeCarga {
+  private readonly celdasPorNodo = new Map<string, readonly TimephasedCell[]>()
+  private readonly porRecursoYDia = new Map<string, CargaPorDia>()
+
+  constructor(
+    private readonly snapshot: PlanSnapshot,
+    private readonly compiled: Map<string, CompiledCalendar>,
+    private readonly asignacionesPorNodo: ReadonlyMap<string, readonly PlanSnapshot['assignments'][number][]>,
+    private readonly recursos: ReadonlyMap<string, PlanSnapshot['resources'][number]>,
+  ) {}
+
+  /** Reparte de cero. Una vez por nivelación. */
+  build(schedule: ScheduleOutput): void {
+    this.celdasPorNodo.clear()
+    this.porRecursoYDia.clear()
+    const resultado = new Map(schedule.taskResults.map((r) => [r.nodeId, r]))
+    for (const nodeId of this.asignacionesPorNodo.keys()) this.rehacer(nodeId, resultado.get(nodeId))
+  }
+
+  /** Rehace sólo los nodos cuyo tramo ha cambiado. */
+  patch(schedule: ScheduleOutput, movidos: Iterable<string>): void {
+    const resultado = new Map(schedule.taskResults.map((r) => [r.nodeId, r]))
+    for (const nodeId of movidos) {
+      if (!this.asignacionesPorNodo.has(nodeId)) continue
+      this.quitar(nodeId)
+      this.rehacer(nodeId, resultado.get(nodeId))
+    }
+  }
+
+  private quitar(nodeId: string): void {
+    for (const celda of this.celdasPorNodo.get(nodeId) ?? []) {
+      const clave = `${celda.resourceId}|${celda.date}`
+      const dia = this.porRecursoYDia.get(clave)
+      if (dia === undefined) continue
+      dia.minutos -= celda.plannedMinutes
+      const resto = (dia.porAsignacion.get(celda.assignmentId) ?? 0) - celda.plannedMinutes
+      if (resto <= 0) dia.porAsignacion.delete(celda.assignmentId)
+      else dia.porAsignacion.set(celda.assignmentId, resto)
+      // Un día sin nada ya no es un día: si se quedara con cero, `firstConflict`
+      // lo recorrería para siempre sin que nunca sea un conflicto.
+      if (dia.porAsignacion.size === 0) this.porRecursoYDia.delete(clave)
+    }
+    this.celdasPorNodo.delete(nodeId)
+  }
+
+  private rehacer(nodeId: string, result: TaskResult | undefined): void {
+    const celdas: TimephasedCell[] = []
+    for (const assignment of this.asignacionesPorNodo.get(nodeId) ?? []) {
+      const reparto = cellsForAssignment(
+        this.snapshot,
+        this.compiled,
+        assignment,
+        result,
+        this.recursos.get(assignment.resourceId),
+      )
+      celdas.push(...reparto.cells)
+    }
+    this.celdasPorNodo.set(nodeId, celdas)
+    for (const celda of celdas) {
+      const clave = `${celda.resourceId}|${celda.date}`
+      let dia = this.porRecursoYDia.get(clave)
+      if (dia === undefined) {
+        dia = { minutos: 0, porAsignacion: new Map<string, number>() }
+        this.porRecursoYDia.set(clave, dia)
+      }
+      dia.minutos += celda.plannedMinutes
+      dia.porAsignacion.set(
+        celda.assignmentId,
+        (dia.porAsignacion.get(celda.assignmentId) ?? 0) + celda.plannedMinutes,
+      )
+    }
+  }
+
+  get dias(): ReadonlyMap<string, CargaPorDia> {
+    return this.porRecursoYDia
+  }
+
+  /** Todas las celdas, para poder compararlas con las del reparto completo. */
+  get celdas(): readonly TimephasedCell[] {
+    return [...this.celdasPorNodo.values()].flat()
+  }
+}
 
 export function levelPlan(snapshot: PlanSnapshot, options: LevelingOptions = {}): LevelingResult {
   const maxIterations = options.maxIterations ?? 400
@@ -67,7 +173,22 @@ export function levelPlan(snapshot: PlanSnapshot, options: LevelingOptions = {})
   )
 
   let schedule = schedulePlan(snapshot, { levelingDelays: delays })
-  let workload = computeWorkload(snapshot, schedule)
+  // La capacidad NO depende del plan: sale del calendario y de la jornada de
+  // cada persona. Rehacerla en cada vuelta costaba 105 ms para dar siempre lo
+  // mismo, así que se calcula una vez y se reutiliza.
+  const compiled = new Map(schedule.compiledCalendars)
+  const capacity = computeCapacity(snapshot, compiled)
+  const asignacionesPorNodo = new Map<string, PlanSnapshot['assignments'][number][]>()
+  for (const assignment of snapshot.assignments) {
+    const bucket = asignacionesPorNodo.get(assignment.nodeId) ?? []
+    bucket.push(assignment)
+    asignacionesPorNodo.set(assignment.nodeId, bucket)
+  }
+  const recursosPorId = new Map(snapshot.resources.map((resource) => [resource.id, resource]))
+  const carga = new IndiceDeCarga(snapshot, compiled, asignacionesPorNodo, recursosPorId)
+  carga.build(schedule)
+  /** Dónde está cada tarea ahora, para saber cuáles se mueven al retrasar una. */
+  let tramos = tramosDe(schedule)
   const findings: Finding[] = []
   let iterations = 0
 
@@ -86,7 +207,7 @@ export function levelPlan(snapshot: PlanSnapshot, options: LevelingOptions = {})
   const tooBig = new Map<string, { first: string; last: string; days: number; worst: Conflict }>()
 
   while (iterations < maxIterations) {
-    const conflict = firstConflict(workload, unresolvable)
+    const conflict = firstConflict(carga.dias, capacity, unresolvable)
     if (conflict === undefined) break
 
     // Si una sola asignación ya no cabe en la jornada de la persona, moverla de
@@ -161,11 +282,15 @@ export function levelPlan(snapshot: PlanSnapshot, options: LevelingOptions = {})
     // y se dice, en vez de reventar con un error de calendario.
     try {
       schedule = schedulePlan(snapshot, { levelingDelays: delays })
-      workload = computeWorkload(snapshot, schedule)
+      const siguientes = tramosDe(schedule)
+      carga.patch(schedule, movidos(tramos, siguientes))
+      tramos = siguientes
     } catch {
       delays.set(chosen.nodeId, current)
       schedule = schedulePlan(snapshot, { levelingDelays: delays })
-      workload = computeWorkload(snapshot, schedule)
+      const siguientes = tramosDe(schedule)
+      carga.patch(schedule, movidos(tramos, siguientes))
+      tramos = siguientes
       findings.push(
         impossible(conflict, nombreRecurso(conflict.resourceId), 'fuera-del-horizonte', {
           reason: 'el retraso necesario se sale del horizonte del cálculo',
@@ -176,7 +301,7 @@ export function levelPlan(snapshot: PlanSnapshot, options: LevelingOptions = {})
     iterations += 1
   }
 
-  const remaining = firstConflict(workload, unresolvable)
+  const remaining = firstConflict(carga.dias, capacity, unresolvable)
   if (remaining !== undefined) {
     findings.push(
       impossible(remaining, nombreRecurso(remaining.resourceId), 'iteraciones-agotadas', {
@@ -206,13 +331,47 @@ export function levelPlan(snapshot: PlanSnapshot, options: LevelingOptions = {})
     }
     return {
       schedule,
-      workload,
+      // El reparto que SE DEVUELVE lo hace la función completa, una sola vez y
+      // al final. El índice de arriba sólo sirve para decidir qué tarea cede;
+      // así, lo que sale de nivelar es lo mismo que salía antes, producido por
+      // el mismo código, y esta optimización no puede desviar el resultado.
+      workload: computeWorkload(snapshot, schedule),
       delays,
       findings: sortFindings(findings),
       iterations,
       converged,
     }
   }
+}
+
+/**
+ * Dónde cae cada tarea, en una cadena comparable.
+ *
+ * Es lo único que hace falta para saber si su reparto cambia: si una tarea
+ * empieza y acaba donde estaba, sus celdas son las mismas.
+ */
+function tramosDe(schedule: ScheduleOutput): ReadonlyMap<string, string> {
+  const tramos = new Map<string, string>()
+  for (const result of schedule.taskResults) {
+    tramos.set(
+      result.nodeId,
+      `${result.scheduledStart.date}|${String(result.scheduledStart.minuteOfDay)}|` +
+        `${result.scheduledFinish.date}|${String(result.scheduledFinish.minuteOfDay)}|` +
+        String(result.durationMinutes),
+    )
+  }
+  return tramos
+}
+
+/** Las tareas cuyo tramo ha cambiado, y las que han aparecido o desaparecido. */
+function movidos(
+  antes: ReadonlyMap<string, string>,
+  despues: ReadonlyMap<string, string>,
+): readonly string[] {
+  const lista: string[] = []
+  for (const [nodeId, tramo] of despues) if (antes.get(nodeId) !== tramo) lista.push(nodeId)
+  for (const nodeId of antes.keys()) if (!despues.has(nodeId)) lista.push(nodeId)
+  return lista
 }
 
 function daysApart(from: string, to: string): number {
@@ -247,29 +406,24 @@ interface Conflict {
 }
 
 /** El primer día sobreasignado en orden cronológico: se resuelve de izquierda a derecha. */
-function firstConflict(workload: WorkloadOutput, skip: ReadonlySet<string>): Conflict | undefined {
-  const perDay = new Map<string, { planned: number; byAssignment: Map<string, number> }>()
-  for (const cell of workload.timephased) {
-    const key = `${cell.resourceId}|${cell.date}`
-    const bucket = perDay.get(key) ?? { planned: 0, byAssignment: new Map<string, number>() }
-    bucket.planned += cell.plannedMinutes
-    bucket.byAssignment.set(cell.assignmentId, (bucket.byAssignment.get(cell.assignmentId) ?? 0) + cell.plannedMinutes)
-    perDay.set(key, bucket)
-  }
-
+function firstConflict(
+  dias: ReadonlyMap<string, CargaPorDia>,
+  capacidad: CapacityIndex,
+  skip: ReadonlySet<string>,
+): Conflict | undefined {
   const conflicts: Omit<Conflict, 'blockEnd'>[] = []
-  for (const [key, bucket] of perDay) {
+  for (const [key, bucket] of dias) {
     if (skip.has(key)) continue
     const [resourceId, date] = key.split('|') as [string, string]
-    const capacity = workload.capacity.capacityOf(resourceId, date as never)
-    if (bucket.planned <= capacity) continue
+    const capacity = capacidad.capacityOf(resourceId, date as never)
+    if (bucket.minutos <= capacity) continue
     conflicts.push({
       resourceId,
       date,
-      plannedMinutes: bucket.planned,
+      plannedMinutes: bucket.minutos,
       capacityMinutes: capacity,
-      largestSingleMinutes: Math.max(...bucket.byAssignment.values()),
-      assignmentIds: [...bucket.byAssignment.keys()].sort(),
+      largestSingleMinutes: Math.max(...bucket.porAsignacion.values()),
+      assignmentIds: [...bucket.porAsignacion.keys()].sort(),
     })
   }
 
