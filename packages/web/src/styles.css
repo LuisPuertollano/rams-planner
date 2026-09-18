@@ -24,13 +24,29 @@
   --accent-soft: #0f766e1a;
   --accent-text: #0b5f58;
 
-  /* Escala divergente de saturación, centrada en el 100 %. */
-  --util-idle: #dbe4f0;
-  --util-low: #9ec3e6;
-  --util-ok: #7fc4a8;
-  --util-full: #e8c98a;
-  --util-over: #e59a72;
-  --util-critical: #cf6b5a;
+  /* Escala divergente de saturación, centrada en el 100 %.
+
+     Divergente de verdad desde ADR-0036: azul por debajo, NEUTRO en la raya,
+     rojo por encima. Tres cosas que la anterior no cumplía:
+
+       - El centro es neutro (croma 0,012). Antes era ámbar, y un tono en el
+         centro de una divergente compite con los dos polos por la atención.
+       - La luminosidad es monótona hacia el centro (0,62 · 0,75 · 0,89 · 0,74
+         · 0,59): el centro es el más claro y se funde con el papel, que es lo
+         que hace que el ojo se vaya a los extremos, que es donde está el
+         problema. Antes «en la raya» era más claro que «por debajo» y la
+         escala daba un paso atrás a la mitad.
+       - Azul contra rojo, no verde contra ámbar contra naranja. El primero es
+         el par que el daltonismo respeta; el segundo, el que no.
+
+     Los polos se separan por ΔE 26,3. Medido con scripts/oklch.mjs del kit de
+     visualización; si se tocan estos valores, hay que volver a medir. */
+  --util-idle: #e9e9ea;
+  --util-low: #418ad1;
+  --util-ok: #88b1db;
+  --util-full: #d3dae1;
+  --util-over: #de9480;
+  --util-critical: #d35e52;
 
   --severity-blocking: #b4342a;
   --severity-error: #c2543c;
@@ -59,12 +75,12 @@
     --accent-soft: #2dd4bf1f;
     --accent-text: #5eead4;
 
-    --util-idle: #232b38;
-    --util-low: #2d4c6b;
-    --util-ok: #2f6b55;
-    --util-full: #7a6127;
-    --util-over: #8d5133;
-    --util-critical: #a2412f;
+    --util-idle: #232529;
+    --util-low: #2d6ca8;
+    --util-ok: #2f4e6e;
+    --util-full: #2e3237;
+    --util-over: #7b3d2e;
+    --util-critical: #b44238;
 
     --severity-blocking: #ef6a5c;
     --severity-error: #e2795f;
@@ -87,12 +103,12 @@
   --accent: #2dd4bf;
   --accent-soft: #2dd4bf1f;
   --accent-text: #5eead4;
-  --util-idle: #232b38;
-  --util-low: #2d4c6b;
-  --util-ok: #2f6b55;
-  --util-full: #7a6127;
-  --util-over: #8d5133;
-  --util-critical: #a2412f;
+  --util-idle: #232529;
+  --util-low: #2d6ca8;
+  --util-ok: #2f4e6e;
+  --util-full: #2e3237;
+  --util-over: #7b3d2e;
+  --util-critical: #b44238;
   --severity-blocking: #ef6a5c;
   --severity-error: #e2795f;
   --severity-warning: #d8a94b;
@@ -534,7 +550,19 @@ a.button { text-decoration: none; display: inline-block; }
 /* ----------------------------------------------------------------- misc --- */
 
 .legend { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--text-muted); }
-.legend__swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: -2px; margin-right: 5px; }
+/* El anillo no es adorno: el centro de la rampa —«al límite»— es un neutro que
+   se hunde a propósito en el fondo, que es justo lo que se quiere DENTRO de la
+   tabla (el ojo se va a los extremos) y justo lo que no se quiere aquí, donde
+   ese escalón tiene que leerse como una casilla y no como un hueco. */
+.legend__swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  vertical-align: -2px;
+  margin-right: 5px;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
 
 .empty { padding: 48px 16px; text-align: center; color: var(--text-muted); }
 .empty h3 { margin: 0 0 6px; color: var(--text); font-size: 15px; }

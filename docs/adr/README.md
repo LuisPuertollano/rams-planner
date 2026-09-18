@@ -40,6 +40,7 @@ parece una mala idea, aquí está el razonamiento que había detrás.
 | [0033](0033-las-pruebas-recogen-lo-suyo.md) | Cada fichero de integración borra las ejecuciones que creó; una línea base no se toca | P2, P7 |
 | [0034](0034-el-grano-de-la-tarea.md) | El informe baja al grano de la tarea, sin derivar el avance de las horas | P1, P2, P5 |
 | [0035](0035-la-capacidad-no-se-repite.md) | Se guarda todo el historial, pero la capacidad se escribe una vez y se comparte | P2, P3, P5 |
+| [0036](0036-la-rampa-de-saturacion.md) | La rampa de saturación es divergente, se mide en CI y el número de dentro se lee | P1, P4, P6 |
 
 ## Decisiones tomadas por defecto
 

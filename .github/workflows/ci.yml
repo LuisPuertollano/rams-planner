@@ -50,6 +50,9 @@ jobs:
       - name: Ninguna frase de la interfaz escrita a mano
         run: pnpm check:literales
 
+      - name: La rampa de saturación sigue siendo divergente
+        run: pnpm check:rampa
+
       - name: Tests y cobertura
         run: pnpm test:coverage
 
