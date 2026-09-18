@@ -30,6 +30,12 @@ const FICHAS: readonly Ficha[] = [
     que: (t) => t('importaciones.horas.que'),
   },
   {
+    tipo: 'team',
+    permiso: 'equipo.editar',
+    titulo: (t) => t('importaciones.equipo.titulo'),
+    que: (t) => t('importaciones.equipo.que'),
+  },
+  {
     tipo: 'documents',
     permiso: 'documentos.gestionar',
     titulo: (t) => t('importaciones.documentos.titulo'),

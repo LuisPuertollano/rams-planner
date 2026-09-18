@@ -26,6 +26,9 @@ import {
 import { puedeEnTodaLaHerramienta } from './auth-routes.js'
 import { describeDbError, fallar } from './errors.js'
 import { calculate, defaultScenarioId } from './engine.js'
+import { importTeamCsv, traeTarifas } from './import-team.js'
+import { ImportError } from './import-plan.js'
+import { TEAM_SPEC, plantillaCsv } from './import-specs.js'
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe ser AAAA-MM-DD')
 
@@ -192,4 +195,57 @@ export function registerResourceRoutes(app: FastifyInstance, pool: Pool): void {
       await deleteCostRate(db, id)
     })
   })
+
+  /**
+   * El equipo entero desde un CSV.
+   *
+   * La herramienta sabía dar de alta a una persona, de una en una, en un
+   * formulario. Un departamento de veintisiete con su jornada, su calendario,
+   * sus competencias y su tarifa son ciento y pico formularios, y esa es la
+   * razón por la que esto existe.
+   *
+   * **El fichero decide el permiso.** La ruta pide `equipo.editar`, que es lo
+   * que hace falta para dar de alta a alguien; si además trae tarifas, se exige
+   * `tarifas.editar` aquí dentro. Lo que cobra una persona no es lo mismo que
+   * su jornada, y dejar que entrara por la puerta del equipo sería colar el
+   * dato más sensible de la herramienta por el permiso más repartido.
+   */
+  app.post('/api/team/import', { config: { permission: 'equipo.editar' } }, async (request, reply) => {
+    const text = typeof request.body === 'string' ? request.body : ''
+    if (text.trim() === '') return fallar(reply, 400, 'CSV_VACIO', 'El cuerpo debe ser el CSV en texto plano.')
+    if (traeTarifas(text) && !puedeEnTodaLaHerramienta(request, 'tarifas.editar')) {
+      return fallar(
+        reply,
+        403,
+        'TARIFAS_SIN_PERMISO',
+        'El fichero trae tarifas y no tienes permiso para cambiarlas. Quita esa columna o pide el permiso.',
+      )
+    }
+    let resumen
+    try {
+      resumen = await withTransaction(pool, (db) => importTeamCsv(db, text), {
+        comment: 'importación del equipo desde CSV',
+      })
+    } catch (error) {
+      if (error instanceof ImportError) {
+        return fallar(reply, 422, 'CSV_INVALIDO', error.message, { detalle: error.message, rows: error.rows })
+      }
+      const fallo = describeDbError(error, 'equipo')
+      if (fallo === null) throw error
+      return fallar(reply, 422, fallo.code, fallo.mensaje)
+    }
+    // Cambiar una jornada o una tarifa cambia la capacidad y el coste: dejar en
+    // pantalla el plan anterior sería mentir. Igual que el resto de esta ficha.
+    const scenarioId = await withTransaction(pool, (db) => defaultScenarioId(db))
+    return { ...resumen, run: await calculate(pool, scenarioId, 'importación del equipo') }
+  })
+
+  app.get('/api/import/team/formato', { config: { permission: 'equipo.editar' } }, () => TEAM_SPEC)
+
+  app.get('/api/import/team/plantilla.csv', { config: { permission: 'equipo.editar' } }, async (_request, reply) =>
+    reply
+      .header('content-type', 'text/csv; charset=utf-8')
+      .header('content-disposition', 'attachment; filename="plantilla-team.csv"')
+      .send(plantillaCsv(TEAM_SPEC)),
+  )
 }

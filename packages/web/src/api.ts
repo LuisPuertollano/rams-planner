@@ -914,7 +914,7 @@ export interface ImportSpec {
   readonly ejemplos: readonly (readonly string[])[]
 }
 
-export async function fetchImportSpec(tipo: 'plan' | 'actuals' | 'documents'): Promise<ImportSpec> {
+export async function fetchImportSpec(tipo: 'plan' | 'actuals' | 'documents' | 'team'): Promise<ImportSpec> {
   return get<ImportSpec>(`/api/import/${tipo}/formato`)
 }
 
@@ -1154,6 +1154,28 @@ export async function importDocumentsCsv(text: string): Promise<DocumentsImporte
   })
   if (!response.ok) throw await comoError(response, 'No se pudo importar el catálogo')
   return (await response.json()) as DocumentsImported
+}
+
+export interface TeamImported {
+  readonly rows: number
+  readonly created: number
+  readonly updated: number
+  readonly skillsCreated: number
+  readonly skillsSet: number
+  readonly rates: number
+  readonly warnings: readonly string[]
+  readonly run: CalculationSummary
+}
+
+/** El equipo entero desde un CSV. El código manda: recargar no duplica. */
+export async function importTeamCsv(text: string): Promise<TeamImported> {
+  const response = await fetch('/api/team/import', {
+    method: 'POST',
+    headers: { 'content-type': 'text/csv' },
+    body: text,
+  })
+  if (!response.ok) throw await comoError(response, 'No se pudo importar el equipo')
+  return (await response.json()) as TeamImported
 }
 
 /**

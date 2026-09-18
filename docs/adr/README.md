@@ -47,6 +47,7 @@ parece una mala idea, aquí está el razonamiento que había detrás.
 | [0040](0040-el-gantt-del-libro-como-csv-de-plan.md) | El Gantt del libro entra por el CSV de plan, y el conversor dice lo que pierde | P1, P2, P4 |
 | [0041](0041-el-horizonte-sale-de-los-datos.md) | El horizonte se calcula del dato, con suelo y techo, y crea sus particiones | P2, P3, P5 |
 | [0042](0042-la-puerta-del-entregable-da-la-fecha.md) | La puerta del entregable le pone fecha objetivo a la tarea que lo entrega | P1, P2, P4 |
+| [0043](0043-el-equipo-entra-por-csv.md) | El equipo entra por CSV, y el fichero decide qué permiso hace falta | P1, P2, P6 |
 
 ## Decisiones tomadas por defecto
 

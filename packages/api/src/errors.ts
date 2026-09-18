@@ -50,6 +50,7 @@ export const ERROR_CODES = [
   'ENDPOINT_DESCONOCIDO',
   'CSV_VACIO',
   'CSV_INVALIDO',
+  'TARIFAS_SIN_PERMISO',
   // --- Informes -------------------------------------------------------------
   'SIN_EJECUCION',
   'SIN_PERIODO',
