@@ -3,6 +3,10 @@
 Para quien planifica, no para quien programa. Aquí no hay nada de arquitectura:
 sólo qué hacer, en qué orden, y cómo leer lo que sale.
 
+Si eres nuevo, **empieza por [`uso-por-rol.md`](uso-por-rol.md)**: dice qué hace
+tu rol y por dónde empezar, en cuarenta líneas, y te trae aquí sólo cuando una
+pantalla concreta te deje una duda.
+
 Si lo que buscas es levantar la herramienta, hacer copias de seguridad o
 actualizarla, eso está en [`operacion.md`](operacion.md).
 
@@ -342,6 +346,59 @@ no cuánto se espera— y el plan se recalcula.
 Se puede aplicar las veces que haga falta: lo que ya está no se duplica, aparece
 como «ya está en el plan». Y una dependencia creada así es una dependencia
 normal: se quita desde **Plan** como cualquier otra.
+
+#### La ficha de un entregable: el ciclo de firma y las subactividades
+
+Pulsando el **código** de un entregable se abre su ficha, y debajo de los campos
+de siempre hay dos bloques que declaran **cómo se hace**, no sólo en qué orden.
+
+**El ciclo de firma.** Quién escribe, quién verifica y quién aprueba — **por
+rol, nunca por persona**. «Jefe RAMS», no el nombre de quien lo es esta semana:
+quién ocupa el puesto cambia, y el catálogo describe cómo trabaja el equipo.
+
+La pantalla avisa cuando el reparto no se sostiene: que no hay aprobador, que el
+autor se verifica a sí mismo, que el mismo rol aparece dos veces. **Avisa, no
+impide.** Un catálogo a medio rellenar es el estado normal de un catálogo el
+primer día, y una herramienta que se niega a guardarlo es una herramienta que no
+se usa.
+
+Un detalle que parece un fallo y no lo es: «RAMS Engineer 1» y «RAMS Engineer 2»
+**sí** son independientes. Es como los procedimientos escriben «tiene que
+verificarlo otra persona del mismo puesto».
+
+**Las subactividades.** Un entregable no es una tarea: son las 40 h de quien lo
+escribe y las 10 h de quien lo revisa, que son dos personas en dos momentos
+distintos. Cinco casillas:
+
+| | Qué es |
+|---|---|
+| **Crear (C)** | Quien lo escribe |
+| **Revisar 1, 2, 3 (R1/R2/R3)** | Los **niveles** de revisión |
+| **Soportar (S)** | Acompañar: reuniones, dudas, el ISA |
+
+Tres cosas que evitan preguntas:
+
+- **Los niveles no son rondas.** Un entregable puede tener revisión 2 y no tener
+  revisión 1, y está bien: es lo que pasa con lo que escribe otro departamento y
+  aquí sólo se revisa. La herramienta no avisa de ello porque no falta nada.
+- **Que el creador y el revisor tengan el mismo rol tampoco es un error.** Un
+  rol lo ocupan varias personas. Lo que sí se mira en ese sentido es el ciclo de
+  firma, que es donde la independencia significa algo.
+- **El soporte no encadena con nadie.** No entrega nada y no bloquea a nadie.
+
+El desplegable de la derecha dice **qué firma descarga** cada subactividad.
+Marcarlo sirve para algo concreto: la herramienta puede entonces avisarte de
+*una firma que cuesta minutos y que ninguna subactividad hace*, que si no se
+quedaría fuera del plan sin que nadie lo notara.
+
+En la lista, la columna **Subactividades** resume la cadena —«S-Eng › TL RAMS»—
+y lo que suma. La ⚠ delante significa que hay algo que mirar; pasa el ratón por
+encima y lo dice.
+
+> **Esto es declaración, todavía no cálculo.** El catálogo guarda las
+> subactividades y sus minutos; el motor **no** parte aún las tareas del plan en
+> su cadena ni mueve fechas por ellas. Cuando lo haga cambiarán cifras, y por
+> eso va en un paso aparte.
 
 ### Informes
 
