@@ -1239,6 +1239,104 @@ export interface MatrixApplied {
   readonly run: CalculationSummary
 }
 
+// ---------------------------------------------------------------------------
+// Partir las tareas en su cadena de subactividades
+// ---------------------------------------------------------------------------
+
+/** Por qué una tarea no se parte. El código manda; la frase la escribe el diccionario. */
+export type SplitSkipReason =
+  | 'no-es-tarea'
+  | 'sin-entregable'
+  | 'varios-entregables'
+  | 'sin-subactividades'
+  | 'catalogo-sin-minutos'
+  | 'sin-tamano'
+  | 'con-horas-reales'
+  | 'ya-partida'
+  | 'es-subactividad'
+
+export interface ProposedChild {
+  readonly step: ActivityStep
+  readonly position: number
+  readonly role: string
+  readonly minutes: number
+  readonly order: number
+  readonly isEntry: boolean
+  readonly isGate: boolean
+  readonly takesAssignments: boolean
+}
+
+export interface ProposedSplit {
+  readonly nodeId: string
+  readonly name: string
+  readonly path: string
+  readonly documentTypeId: string
+  /** Qué se reparte: el trabajo declarado, o la duración si no hay trabajo. */
+  readonly magnitude: 'trabajo' | 'duracion'
+  readonly children: readonly ProposedChild[]
+  readonly chain: readonly (readonly [number, number])[]
+  readonly relinked: readonly { readonly dependencyId: string; readonly side: string; readonly toOrder: number }[]
+  readonly movedResourceIds: readonly string[]
+}
+
+export interface SkippedSplit {
+  readonly nodeId: string
+  readonly name: string
+  readonly path: string
+  readonly reason: SplitSkipReason
+  readonly count?: number
+}
+
+/**
+ * Las cuentas de antes y después. `minutesAfter` tiene que ser igual a
+ * `minutesBefore`: partir reparte, no re-estima, y la pantalla lo enseña para
+ * que no haya que fiarse de que así sea.
+ */
+export interface SplitTotals {
+  readonly tasksBefore: number
+  readonly tasksAfter: number
+  readonly minutesBefore: number
+  readonly minutesAfter: number
+}
+
+export interface SubactivityPlan {
+  readonly split: readonly ProposedSplit[]
+  readonly skipped: readonly SkippedSplit[]
+  readonly totals: SplitTotals
+  readonly documents: readonly DocumentType[]
+}
+
+export interface SplitApplied {
+  readonly result: {
+    readonly tasksSplit: number
+    readonly childrenCreated: number
+    readonly chainLinks: number
+    readonly relinked: number
+    readonly assignmentsMoved: number
+    readonly skipped: readonly SkippedSplit[]
+    readonly totals: SplitTotals
+  }
+  readonly run: CalculationSummary
+}
+
+export async function fetchSubactivityPlan(projectId: string): Promise<SubactivityPlan> {
+  return get<SubactivityPlan>(`/api/projects/${projectId}/subactivities/plan`)
+}
+
+/** Parte las tareas que no estén excluidas, y recalcula. */
+export async function applySubactivities(
+  projectId: string,
+  exclude: readonly string[],
+): Promise<SplitApplied> {
+  const response = await fetch(`/api/projects/${projectId}/subactivities/apply`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ exclude }),
+  })
+  if (!response.ok) throw await comoError(response, 'No se pudieron partir las tareas')
+  return (await response.json()) as SplitApplied
+}
+
 export async function fetchMatrixPlan(projectId: string): Promise<MatrixPlan> {
   return get<MatrixPlan>(`/api/projects/${projectId}/documents/plan`)
 }
