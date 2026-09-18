@@ -1,117 +1,50 @@
-import { useRef, useState } from 'react'
-import { errorRows, errorText } from '../errors.js'
+import { useState } from 'react'
+import { importPlanCsv, type PlanImported } from '../api.js'
 import { useT } from '../i18n/index.js'
-
-interface ImportResult {
-  readonly projects: number
-  readonly tasks: number
-  readonly dependencies: number
-  readonly assignments: number
-  readonly resourcesCreated: readonly string[]
-  readonly warnings: readonly string[]
-}
+import { ImportPanel } from './ImportPanel.js'
 
 interface Props {
   readonly onImported: () => void
 }
 
 /**
- * Importación de un plan desde el CSV que cualquiera ya tiene en Excel.
+ * Importar un plan entero desde el CSV que cualquiera ya tiene en Excel.
  *
- * Los errores se enseñan con el número de fila: «falta el nombre de la tarea en
- * la fila 12» es accionable; «error al importar» no lo es.
+ * El botón ya no abre el selector de ficheros: abre el panel que explica qué
+ * fichero hace falta. Pedir un fichero sin decir qué forma tiene que tener era
+ * pedirle a alguien que adivine, y la plantilla estaba escondida detrás de otro
+ * botón que no decía para qué servía.
  */
 export function ImportButton({ onImported }: Props): React.JSX.Element {
   const { t } = useT()
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [busy, setBusy] = useState(false)
-  const [result, setResult] = useState<ImportResult | null>(null)
-  const [problems, setProblems] = useState<{ message: string; rows: readonly string[] } | null>(null)
-
-  const onFile = (file: File | undefined): void => {
-    if (file === undefined) return
-    setBusy(true)
-    setResult(null)
-    setProblems(null)
-
-    file
-      .text()
-      .then(async (text) => {
-        const response = await fetch('/api/import/plan', {
-          method: 'POST',
-          headers: { 'content-type': 'text/csv' },
-          body: text,
-        })
-        const body = (await response.json()) as ImportResult & { error?: string; rows?: readonly string[] }
-        if (!response.ok) {
-          setProblems({ message: body.error ?? 'No se pudo importar', rows: body.rows ?? [] })
-          return
-        }
-        setResult(body)
-        onImported()
-      })
-      .catch((cause: unknown) => {
-        setProblems({ message: errorText(t, cause, 'error.local.fichero'), rows: errorRows(cause) })
-      })
-      .finally(() => {
-        setBusy(false)
-        if (inputRef.current !== null) inputRef.current.value = ''
-      })
-  }
+  const [abierto, setAbierto] = useState(false)
 
   return (
     <>
-      <input
-        ref={inputRef}
-        type="file"
-        accept=".csv,text/csv"
-        hidden
-        onChange={(event) => { onFile(event.target.files?.[0]) }}
-      />
       <button
         className="button"
-        disabled={busy}
-        onClick={() => { inputRef.current?.click() }}
-        title="Importar un plan desde un CSV"
+        title={t('importar.plan.titulo')}
+        onClick={() => { setAbierto(true) }}
       >
-        {busy ? 'Importando…' : 'Importar CSV'}
+        {t('boton.importar')}
       </button>
 
-      {result === null && problems === null ? null : (
-        <div className="import-result" role="status">
-          {problems !== null ? (
-            <>
-              <b>{problems.message}</b>
-              <ul>
-                {problems.rows.slice(0, 8).map((row) => (
-                  <li key={row}>{row}</li>
-                ))}
-              </ul>
-              {problems.rows.length > 8 ? <p className="faint">…y {problems.rows.length - 8} más.</p> : null}
-            </>
-          ) : result === null ? null : (
-            <>
-              <b>
-                Importado: {result.projects} proyecto(s), {result.tasks} tareas, {result.dependencies} enlaces y{' '}
-                {result.assignments} asignaciones.
-              </b>
-              {result.resourcesCreated.length === 0 ? null : (
-                <p>
-                  Personas nuevas: {result.resourcesCreated.join(', ')}. Se han creado con jornada estándar y sin
-                  tarifa: revísalas.
-                </p>
-              )}
-              {result.warnings.slice(0, 5).map((warning) => (
-                <p className="faint" key={warning}>
-                  {warning}
-                </p>
-              ))}
-            </>
-          )}
-          <button className="button" onClick={() => { setResult(null); setProblems(null) }}>
-            Cerrar
-          </button>
-        </div>
+      {!abierto ? null : (
+        <ImportPanel<PlanImported>
+          tipo="plan"
+          onClose={() => { setAbierto(false) }}
+          importar={importPlanCsv}
+          onImported={onImported}
+          resumen={(r) =>
+            t('importar.plan.hecho', r.projects, r.phases, r.tasks, r.dependencies, r.assignments)
+          }
+          avisos={(r) => [
+            ...(r.resourcesCreated.length === 0
+              ? []
+              : [t('importar.plan.personasNuevas', r.resourcesCreated.join(', '))]),
+            ...r.warnings,
+          ]}
+        />
       )}
     </>
   )

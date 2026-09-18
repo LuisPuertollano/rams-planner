@@ -886,6 +886,80 @@ export async function fetchEntityHistory(entityId: string): Promise<readonly Cha
 }
 
 // ---------------------------------------------------------------------------
+// Qué fichero espera cada importación
+// ---------------------------------------------------------------------------
+
+export interface ImportColumn {
+  readonly nombre: string
+  /** Sin ella el fichero se rechaza. Las demás pueden faltar o venir vacías. */
+  readonly obligatoria: boolean
+  readonly que: string
+  /** Un valor de verdad, no un marcador: se copia y funciona. */
+  readonly ejemplo: string
+}
+
+/**
+ * El contrato de una importación, tal y como lo cumple el parser.
+ *
+ * Viene de la API a propósito: una copia en la interfaz se queda vieja el día
+ * que alguien añade una columna, y entonces la pantalla miente sobre lo que
+ * hace falta.
+ */
+export interface ImportSpec {
+  readonly tipo: string
+  readonly titulo: string
+  readonly resumen: string
+  readonly reglas: readonly string[]
+  readonly columnas: readonly ImportColumn[]
+  readonly ejemplos: readonly (readonly string[])[]
+}
+
+export async function fetchImportSpec(tipo: 'plan' | 'actuals' | 'documents'): Promise<ImportSpec> {
+  return get<ImportSpec>(`/api/import/${tipo}/formato`)
+}
+
+export interface PlanImported {
+  readonly projects: number
+  readonly phases: number
+  readonly tasks: number
+  readonly dependencies: number
+  readonly assignments: number
+  readonly resourcesCreated: readonly string[]
+  readonly warnings: readonly string[]
+}
+
+export async function importPlanCsv(text: string): Promise<PlanImported> {
+  const response = await fetch('/api/import/plan', {
+    method: 'POST',
+    headers: { 'content-type': 'text/csv' },
+    body: text,
+  })
+  if (!response.ok) throw await comoError(response, 'No se pudo importar el plan')
+  return (await response.json()) as PlanImported
+}
+
+export interface ActualsImported {
+  readonly rows: number
+  readonly saved: number
+  readonly minutes: number
+  readonly projects: number
+  readonly people: number
+  readonly from: string
+  readonly to: string
+  readonly warnings: readonly string[]
+}
+
+export async function importActualsCsv(text: string): Promise<ActualsImported> {
+  const response = await fetch('/api/import/actuals', {
+    method: 'POST',
+    headers: { 'content-type': 'text/csv' },
+    body: text,
+  })
+  if (!response.ok) throw await comoError(response, 'No se pudieron cargar las horas')
+  return (await response.json()) as ActualsImported
+}
+
+// ---------------------------------------------------------------------------
 // Documentos y la matriz de precedencias
 // ---------------------------------------------------------------------------
 

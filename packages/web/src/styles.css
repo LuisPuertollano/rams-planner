@@ -335,6 +335,11 @@ a.button { text-decoration: none; display: inline-block; }
 
 /* ------------------------------------------------------------------ why --- */
 
+/* El panel de importación necesita más ancho: lleva una tabla de cuatro
+   columnas con una frase en cada fila, y a 520 px cada celda sale en cuatro
+   líneas y la tabla deja de leerse de un vistazo. */
+.why--ancho { width: min(820px, 100%); }
+
 .why {
   position: fixed; inset: 0 0 0 auto; width: min(520px, 100%);
   background: var(--bg-raised); border-left: 1px solid var(--border);

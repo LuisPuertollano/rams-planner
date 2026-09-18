@@ -32,6 +32,7 @@ parece una mala idea, aquí está el razonamiento que había detrás.
 | [0025](0025-ci-arranca-el-contenedor.md) | CI construye la imagen y la arranca; una regla vigila las listas del Dockerfile | — |
 | [0026](0026-las-horas-reales.md) | Las horas reales van al informe, no al motor; el trabajo fuera de plan se cuenta y se dice | P1, P2, P3, P5 |
 | [0027](0027-catalogo-de-entregables.md) | La ficha del entregable, el catálogo por CSV y una pantalla que aguanta ochenta filas | P1, P5, P6 |
+| [0028](0028-el-fichero-se-explica-solo.md) | El contrato de cada importación vive en un sitio; la plantilla trae su manual dentro | P1, P6 |
 
 ## Decisiones tomadas por defecto
 

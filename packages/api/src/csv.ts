@@ -4,22 +4,46 @@
  * Detecta el separador: Excel en español y en alemán escribe con punto y coma,
  * y dar por hecha la coma es la causa número uno de importaciones que «no
  * funcionan» sin que nadie sepa por qué.
+ *
+ * Y admite **comentarios**: una línea cuya primera celda empieza por `#` no es
+ * un dato. Es lo que permite que una plantilla se explique sola —el manual de
+ * las columnas viaja dentro del propio fichero, y las filas de ejemplo van
+ * comentadas para que no se importen por descuido— sin que el importador
+ * necesite saber nada de eso.
  */
 
 export type CsvRow = Readonly<Record<string, string>>
 
+/** Una línea de comentario: la primera celda empieza por `#`. */
+const esComentario = (linea: string): boolean => linea.trimStart().startsWith('#')
+
+/**
+ * El separador, mirando la primera línea que **no** sea un comentario.
+ *
+ * Mirar la primera a secas bastaba hasta que las plantillas empezaron a llevar
+ * su manual delante: una línea de prosa sin puntos y coma haría elegir la coma
+ * y el fichero entero se leería como una sola columna.
+ */
 export function detectDelimiter(text: string): ';' | ',' | '\t' {
-  const header = text.split(/\r?\n/)[0] ?? ''
+  const header = text.split(/\r?\n/).find((linea) => linea.trim() !== '' && !esComentario(linea)) ?? ''
   const counts = { ';': count(header, ';'), ',': count(header, ','), '\t': count(header, '\t') }
   if (counts['\t'] > counts[';'] && counts['\t'] > counts[',']) return '\t'
   return counts[';'] >= counts[','] ? ';' : ','
 }
 
-/** Parser completo: admite comillas, separadores dentro de comillas y saltos de línea. */
+/**
+ * Parser completo: admite comillas, separadores dentro de comillas, saltos de
+ * línea dentro de un campo, y líneas de comentario.
+ *
+ * El coste de los comentarios, dicho: un valor que empiece por `#` en la
+ * primera columna se pierde. En las tres importaciones que hay, esa columna es
+ * un código de proyecto o de entregable, donde `#` no aparece; y a cambio, la
+ * plantilla puede traer su propio manual.
+ */
 export function parseCsv(text: string): readonly CsvRow[] {
   const delimiter = detectDelimiter(text)
   const clean = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text // BOM de Excel
-  const records = parseRecords(clean, delimiter)
+  const records = parseRecords(clean, delimiter).filter((record) => !esComentario(record[0] ?? ''))
   const header = records[0]
   if (header === undefined) return []
 
