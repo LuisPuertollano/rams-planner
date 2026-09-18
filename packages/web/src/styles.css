@@ -389,6 +389,40 @@ select.button { padding: 6px 10px; }
 }
 .ficha__candidatos label { display: block; padding: 2px 0; }
 
+/* ------------------------------------------------- ciclo de firma --- */
+
+/* Cinco filas de «etiqueta · rol · minutos». Rejilla y no una tabla porque
+   una tabla de tres columnas con un input en dos de ellas se desalinea en
+   cuanto una etiqueta es más larga en alemán que en castellano. */
+.ficha__firmas {
+  display: grid;
+  grid-template-columns: max-content minmax(180px, 1fr) max-content;
+  gap: 6px 10px;
+  align-items: center;
+  max-width: 720px;
+  margin-bottom: 12px;
+}
+.ficha__firmas label { display: contents; }
+.ficha__firmas label > span:first-child { color: var(--text-muted); white-space: nowrap; }
+/* La nota de los revisores ocupa las tres columnas de su propia fila. */
+.ficha__firmas label > span:last-child:not(:first-child) {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  margin: -2px 0 4px;
+}
+
+.firma__problemas {
+  margin: 0 0 10px;
+  padding-left: 20px;
+  color: var(--severity-warning);
+  max-width: 90ch;
+}
+.firma__problemas li { margin: 2px 0; }
+
+/* El aviso de la celda no es sólo color: lleva el signo delante y el detalle
+   en el título, porque una fila en ámbar entre ochenta no se distingue. */
+.firma--rota { color: var(--severity-warning); }
+
 a.button { text-decoration: none; display: inline-block; }
 
 /* ------------------------------------------------------------------ why --- */

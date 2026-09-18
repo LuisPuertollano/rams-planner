@@ -5,12 +5,16 @@ import {
   removeDocumentType,
   setPredecessors,
   setPrecedence,
+  setSignatures,
   updateDocumentType,
   DOCUMENT_KINDS,
   type DocumentCatalogue,
   type DocumentFields,
   type DocumentKind,
+  type DocumentSignature,
   type DocumentType,
+  type Signature,
+  type SignatureProblem,
 } from '../api.js'
 import { ImportDialog } from '../components/ImportDialog.js'
 import { errorRows, errorText } from '../errors.js'
@@ -120,6 +124,31 @@ export function DocumentsView({ canEdit }: Props): React.JSX.Element {
     }
     return malos
   }, [cruces])
+
+  /** El ciclo de firma de cada entregable, ya indexado y en orden. */
+  const firmasDe = useMemo(() => {
+    const mapa = new Map<string, DocumentSignature[]>()
+    for (const firma of catalogo?.signatures ?? []) {
+      const lista = mapa.get(firma.documentTypeId) ?? []
+      lista.push(firma)
+      mapa.set(firma.documentTypeId, lista)
+    }
+    return mapa
+  }, [catalogo])
+
+  /**
+   * Lo que está mal repartido en cada ciclo. Lo calcula el servidor y aquí sólo
+   * se agrupa: el código es el contrato y la frase la escribe el diccionario.
+   */
+  const problemasDe = useMemo(() => {
+    const mapa = new Map<string, SignatureProblem[]>()
+    for (const problema of catalogo?.signatureProblems ?? []) {
+      const lista = mapa.get(problema.documentTypeId) ?? []
+      lista.push(problema)
+      mapa.set(problema.documentTypeId, lista)
+    }
+    return mapa
+  }, [catalogo])
 
   const disciplinas = useMemo(
     () => [...new Set(tipos.map((x) => x.discipline).filter((d): d is string => d !== null))].sort(),
@@ -271,6 +300,8 @@ export function DocumentsView({ canEdit }: Props): React.JSX.Element {
           documento={enEdicion}
           todos={tipos}
           predecesores={esperaA.get(enEdicion.id) ?? []}
+          firmas={firmasDe.get(enEdicion.id) ?? []}
+          problemas={problemasDe.get(enEdicion.id) ?? []}
           busy={busy}
           onRun={run}
           onCerrar={() => { setAbierto(null) }}
@@ -281,6 +312,8 @@ export function DocumentsView({ canEdit }: Props): React.JSX.Element {
         <Lista
           visibles={visibles}
           esperaA={esperaA}
+          firmasDe={firmasDe}
+          problemasDe={problemasDe}
           codigoDe={codigoDe}
           canEdit={canEdit}
           busy={busy}
@@ -321,10 +354,12 @@ export function DocumentsView({ canEdit }: Props): React.JSX.Element {
  * «espera a 2» no dice nada que sirva.
  */
 function Lista({
-  visibles, esperaA, codigoDe, canEdit, busy, abierto, locale, t, onAbrir, onQuitar,
+  visibles, esperaA, firmasDe, problemasDe, codigoDe, canEdit, busy, abierto, locale, t, onAbrir, onQuitar,
 }: {
   readonly visibles: readonly DocumentType[]
   readonly esperaA: ReadonlyMap<string, readonly string[]>
+  readonly firmasDe: ReadonlyMap<string, readonly DocumentSignature[]>
+  readonly problemasDe: ReadonlyMap<string, readonly SignatureProblem[]>
   readonly codigoDe: ReadonlyMap<string, string>
   readonly canEdit: boolean
   readonly busy: boolean
@@ -349,6 +384,7 @@ function Lista({
           <th title={t('documentos.col.semanasTitulo')}>{t('documentos.col.semanas')}</th>
           <th>{t('documentos.col.esfuerzo')}</th>
           <th>{t('documentos.col.esperaA')}</th>
+          <th title={t('documentos.col.firmaTitulo')}>{t('documentos.col.firma')}</th>
           <th>{t('documentos.col.enTareas')}</th>
           {!canEdit ? null : <th />}
         </tr>
@@ -380,6 +416,13 @@ function Lista({
                   : `${hours(documento.standardMinutes, 0, locale)} h`}
               </td>
               <td className="faint">{predecesores.length === 0 ? '—' : predecesores.join(', ')}</td>
+              <td>
+                <Ciclo
+                  firmas={firmasDe.get(documento.id) ?? []}
+                  problemas={problemasDe.get(documento.id) ?? []}
+                  t={t}
+                />
+              </td>
               <td>{documento.usedInTasks === 0 ? '—' : documento.usedInTasks}</td>
               {!canEdit ? null : (
                 <td>
@@ -492,11 +535,13 @@ function Matriz({
  * volver a escribir el primero.
  */
 function Editor({
-  documento, todos, predecesores, busy, onRun, onCerrar,
+  documento, todos, predecesores, firmas, problemas, busy, onRun, onCerrar,
 }: {
   readonly documento: DocumentType
   readonly todos: readonly DocumentType[]
   readonly predecesores: readonly string[]
+  readonly firmas: readonly DocumentSignature[]
+  readonly problemas: readonly SignatureProblem[]
   readonly busy: boolean
   readonly onRun: (accion: () => Promise<void>) => void
   readonly onCerrar: () => void
@@ -702,6 +747,14 @@ function Editor({
           {!cambiados && mismos ? t('documentos.sinCambios') : t('documentos.conCambios')}
         </span>
       </div>
+
+      <CicloDeFirma
+        documento={documento}
+        firmas={firmas}
+        problemas={problemas}
+        busy={busy}
+        onRun={onRun}
+      />
     </div>
   )
 }
@@ -731,5 +784,230 @@ function NuevoDocumento({
     >
       {t('documentos.nuevo')}
     </button>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// El ciclo de firma
+// ---------------------------------------------------------------------------
+
+/** Las cinco casillas del ciclo, en el orden en que se firman. */
+const CASILLAS = [
+  { step: 'author', position: 1, clave: 'documentos.firma.autor' },
+  { step: 'verifier', position: 1, clave: 'documentos.firma.verificador1' },
+  { step: 'verifier', position: 2, clave: 'documentos.firma.verificador2' },
+  { step: 'approver', position: 1, clave: 'documentos.firma.aprobador' },
+] as const
+
+/**
+ * El ciclo en una celda: los roles en el orden en que firman.
+ *
+ * Los roles y no un contador, por lo mismo que la columna «espera a» escribe
+ * los códigos: «Ing. RAMS → Ing. Sistemas → PrEM» se verifica de un vistazo y
+ * «3 firmas» no dice nada que sirva.
+ */
+function Ciclo({
+  firmas, problemas, t,
+}: {
+  readonly firmas: readonly DocumentSignature[]
+  readonly problemas: readonly SignatureProblem[]
+  readonly t: Traductor
+}): React.JSX.Element {
+  if (firmas.length === 0) return <span className="faint">{/* texto-fijo: guion de celda vacía */}—</span>
+  const cadena = firmas
+    .filter((firma) => firma.step !== 'reviewer')
+    .map((firma) => firma.role)
+    .join(' › ')
+  const revisores = firmas.filter((firma) => firma.step === 'reviewer').length
+  return (
+    <span className={problemas.length === 0 ? undefined : 'firma--rota'}>
+      {problemas.length === 0 ? null : (
+        <b title={problemas.map((problema) => fraseDeProblema(t, problema)).join(' · ')}>
+          {/* texto-fijo: señal de aviso, no es una palabra */}⚠{' '}
+        </b>
+      )}
+      {cadena === '' ? <span className="faint">{/* texto-fijo: guion */}—</span> : cadena}
+      {revisores === 0 ? null : (
+        <span className="faint"> {t('documentos.firma.masRevisores', revisores)}</span>
+      )}
+    </span>
+  )
+}
+
+/**
+ * La frase la escribe el diccionario; el servidor sólo manda código y datos.
+ *
+ * Cada código recibe los suyos, en vez de un `payload` volcado en orden: una
+ * frase que recibe un rol vacío porque ese código no lleva rol es la clase de
+ * detalle que sólo se ve en alemán y un viernes.
+ */
+function fraseDeProblema(t: Traductor, problema: SignatureProblem): string {
+  const clave = `firma.${problema.code}` as keyof Diccionario
+  const rol = String(problema.payload['role'] ?? '')
+  const paso = String(problema.payload['step'] ?? '')
+  const tipo = String(problema.payload['kind'] ?? '')
+  switch (problema.code) {
+    case 'SIGNATURE_NOT_INDEPENDENT':
+    case 'SIGNATURE_ROLE_REPEATED':
+      return t(clave, rol, t(`documentos.firma.paso.${paso}` as keyof Diccionario))
+    case 'SIGNATURE_ON_CONTAINER':
+      return t(clave, t(`documentos.tipo.${tipo}` as keyof Diccionario))
+    default:
+      return t(clave)
+  }
+}
+
+/**
+ * El ciclo de firma en la ficha: cuatro casillas y la lista de revisores.
+ *
+ * Cuatro casillas fijas y no una tabla que crece, porque los procedimientos
+ * que dieron pie a esto tienen exactamente esas cuatro y añadir un tercer
+ * verificador es una pantalla que nadie ha pedido. La base sí lo admite: el
+ * día que haga falta, el dato ya cabe y lo que cambia es esta pantalla.
+ *
+ * Los revisores no llevan minutos. No firman: se les convoca a la revisión, y
+ * lo que cuesta esa reunión ya está en el esfuerzo de la propia puerta.
+ */
+function CicloDeFirma({
+  documento, firmas, problemas, busy, onRun,
+}: {
+  readonly documento: DocumentType
+  readonly firmas: readonly DocumentSignature[]
+  readonly problemas: readonly SignatureProblem[]
+  readonly busy: boolean
+  readonly onRun: (accion: () => Promise<void>) => void
+}): React.JSX.Element {
+  const { t } = useT()
+  const guardadas = useMemo<readonly Signature[]>(
+    () => firmas.map(({ step, position, role, standardMinutes }) => ({ step, position, role, standardMinutes })),
+    [firmas],
+  )
+  const [borrador, setBorrador] = useState<readonly Signature[]>(guardadas)
+
+  // Al cambiar de entregable, el borrador vuelve a lo guardado: arrastrar el
+  // ciclo a medio escribir de otro documento sería la peor clase de sorpresa.
+  useEffect(() => { setBorrador(guardadas) }, [documento.id, guardadas])
+
+  const buscar = (step: Signature['step'], position: number): Signature | undefined =>
+    borrador.find((firma) => firma.step === step && firma.position === position)
+
+  const poner = (step: Signature['step'], position: number, cambio: Partial<Signature>): void => {
+    setBorrador((previo) => {
+      const resto = previo.filter((firma) => !(firma.step === step && firma.position === position))
+      const actual = previo.find((firma) => firma.step === step && firma.position === position)
+      const nueva: Signature = {
+        step,
+        position,
+        role: cambio.role ?? actual?.role ?? '',
+        standardMinutes: cambio.standardMinutes === undefined
+          ? (actual?.standardMinutes ?? null)
+          : cambio.standardMinutes,
+      }
+      // Una casilla sin rol no es una firma: se va del borrador entera.
+      return nueva.role.trim() === '' ? resto : [...resto, nueva]
+    })
+  }
+
+  const revisores = borrador
+    .filter((firma) => firma.step === 'reviewer')
+    .toSorted((a, b) => a.position - b.position)
+    .map((firma) => firma.role)
+
+  const ponerRevisores = (texto: string): void => {
+    const roles = texto.split(/[|,;]/).map((rol) => rol.trim()).filter((rol) => rol !== '')
+    setBorrador((previo) => [
+      ...previo.filter((firma) => firma.step !== 'reviewer'),
+      ...roles.map((role, indice): Signature => ({
+        step: 'reviewer',
+        position: indice + 1,
+        role,
+        standardMinutes: null,
+      })),
+    ])
+  }
+
+  const clave = (firmas: readonly Signature[]): string =>
+    firmas
+      .map((firma) => `${firma.step}:${String(firma.position)}:${firma.role}:${String(firma.standardMinutes)}`)
+      .toSorted()
+      .join('|')
+  const cambiado = clave(borrador) !== clave(guardadas)
+
+  return (
+    <>
+      <h4>{t('documentos.firma.titulo', borrador.length)}</h4>
+      <p className="faint" style={{ margin: '0 0 8px', maxWidth: '90ch' }}>
+        {t('documentos.firma.explica')}
+      </p>
+
+      {problemas.length === 0 || cambiado ? null : (
+        <ul className="firma__problemas">
+          {problemas.map((problema) => (
+            <li key={`${problema.code}-${String(problema.payload['role'] ?? '')}-${String(problema.payload['position'] ?? '')}`}>
+              {fraseDeProblema(t, problema)}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="ficha__firmas">
+        {CASILLAS.map((casilla) => {
+          const actual = buscar(casilla.step, casilla.position)
+          return (
+            <label key={`${casilla.step}${String(casilla.position)}`}>
+              <span>{t(casilla.clave)}</span>
+              <input
+                className="input"
+                placeholder={t('documentos.firma.rol')}
+                value={actual?.role ?? ''}
+                onChange={(e) => { poner(casilla.step, casilla.position, { role: e.target.value }) }}
+              />
+              <input
+                className="input"
+                type="number"
+                min={0}
+                step={15}
+                style={{ width: 96 }}
+                placeholder={t('documentos.firma.minutos')}
+                title={t('documentos.firma.minutosTitulo')}
+                value={actual?.standardMinutes ?? ''}
+                disabled={actual === undefined}
+                onChange={(e) => {
+                  const texto = e.target.value.trim()
+                  poner(casilla.step, casilla.position, {
+                    standardMinutes: texto === '' ? null : Math.max(0, Math.trunc(Number(texto))),
+                  })
+                }}
+              />
+            </label>
+          )
+        })}
+        <label>
+          <span>{t('documentos.firma.revisores')}</span>
+          <input
+            className="input"
+            placeholder={t('documentos.firma.revisoresEjemplo')}
+            value={revisores.join(', ')}
+            onChange={(e) => { ponerRevisores(e.target.value) }}
+          />
+          <span className="faint">{t('documentos.firma.revisoresSinMinutos')}</span>
+        </label>
+      </div>
+
+      <div className="toolbar">
+        <button
+          className="button"
+          disabled={busy || !cambiado}
+          onClick={() => {
+            onRun(async () => { await setSignatures(documento.id, borrador) })
+          }}
+        >
+          {t('documentos.firma.guardar')}
+        </button>
+        <span className="faint">
+          {cambiado ? t('documentos.conCambios') : t('documentos.sinCambios')}
+        </span>
+      </div>
+    </>
   )
 }

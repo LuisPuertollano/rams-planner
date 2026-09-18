@@ -120,6 +120,8 @@ export const DOCUMENTS_SPEC: ImportSpec = {
     '«espera_a» es la lista COMPLETA de lo que espera esa fila: lo que no venga, se borra.',
     'El orden de las filas es el orden del ciclo de vida, y es el que se ve en la pantalla.',
     'Un ciclo (A espera a B y B espera a A) no rechaza el fichero: se avisa con la ruta entera.',
+    'El ciclo de firma se declara por ROL, nunca por persona: «Ing. RAMS», no «Ana Müller».',
+    'Las cinco casillas de firma son la lista COMPLETA del ciclo: lo que no venga, se borra.',
   ],
   columnas: [
     { nombre: 'codigo', obligatoria: true, que: 'Código corto y único. Es lo que se ve en la matriz.', ejemplo: 'S-FMECA' },
@@ -132,12 +134,17 @@ export const DOCUMENTS_SPEC: ImportSpec = {
     { nombre: 'codigo_tarea', obligatoria: false, que: 'El código con el que se ficha en el sistema de horas.', ejemplo: 'PWTDF-D800' },
     { nombre: 'descripcion', obligatoria: false, que: 'Para qué es. Sale al pasar por encima del nombre.', ejemplo: 'Modos de fallo, efectos y criticidad' },
     { nombre: 'espera_a', obligatoria: false, que: 'Códigos que tienen que estar antes, separados por | o ,.', ejemplo: 'S-HAZLOG|S-SAP' },
+    { nombre: 'autor', obligatoria: false, que: 'Rol que lo escribe. Un rol, no una persona.', ejemplo: 'Ing. RAMS' },
+    { nombre: 'verificador_1', obligatoria: false, que: 'Rol que verifica el contenido. Distinto del autor.', ejemplo: 'Ing. Sistemas' },
+    { nombre: 'verificador_2', obligatoria: false, que: 'Segunda verificación, si el procedimiento la pide.', ejemplo: 'Jefe RAMS' },
+    { nombre: 'aprobador', obligatoria: false, que: 'Rol que aprueba. Sin él, el entregable no se cierra.', ejemplo: 'PrEM' },
+    { nombre: 'revisores', obligatoria: false, que: 'Roles a los que se convoca, separados por | o ,.', ejemplo: 'Calidad|Compras' },
   ],
   ejemplos: [
-    ['S-HAZLOG', 'Hazard Log preliminar', 'documento', 'Safety', 'IGR', '48', '120', 'PWTDF-D800', 'Registro de peligros de la primera vuelta', ''],
-    ['S-SAP', 'Safety Plan', 'documento', 'Safety', 'IGR', '50', '120', 'PWTDF-D800', '', 'S-HAZLOG'],
-    ['S-FMECA', 'FMECA', 'documento', 'Safety', 'CGR', '28', '450', 'PWTDF-D800', 'Modos de fallo, efectos y criticidad', 'S-HAZLOG|S-SAP'],
-    ['MST-IQA', 'Puerta IQA', 'hito', '', 'IQA', '0', '16', '', 'Las 16 h son las de la propia reunión de revisión', 'S-FMECA'],
+    ['S-HAZLOG', 'Hazard Log preliminar', 'documento', 'Safety', 'IGR', '48', '120', 'PWTDF-D800', 'Registro de peligros de la primera vuelta', '', 'Ing. RAMS', 'Ing. Sistemas', '', 'PrEM', ''],
+    ['S-SAP', 'Safety Plan', 'documento', 'Safety', 'IGR', '50', '120', 'PWTDF-D800', '', 'S-HAZLOG', 'Ing. RAMS', 'Ing. Sistemas', 'Jefe RAMS', 'PrEM', 'Calidad|Compras'],
+    ['S-FMECA', 'FMECA', 'documento', 'Safety', 'CGR', '28', '450', 'PWTDF-D800', 'Modos de fallo, efectos y criticidad', 'S-HAZLOG|S-SAP', 'Ing. RAMS 1', 'Ing. RAMS 2', 'Ing. Sistemas', 'PrEM', ''],
+    ['MST-IQA', 'Puerta IQA', 'hito', '', 'IQA', '0', '16', '', 'Las 16 h son las de la propia reunión de revisión', 'S-FMECA', '', '', '', '', ''],
   ],
 }
 

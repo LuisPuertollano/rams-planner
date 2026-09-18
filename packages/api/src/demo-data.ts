@@ -225,6 +225,55 @@ const DEMO_PRECEDENCES: readonly (readonly [string, string])[] = [
   ['HL', 'SC'],
 ]
 
+/**
+ * El ciclo de firma de la demostración, **por rol y con roles inventados**.
+ *
+ * Inventados a propósito y dichos aquí: los datos de demostración no llevan ni
+ * un nombre de persona ni un puesto de una organización real. El catálogo dice
+ * que hace falta un jefe de seguridad; quién lo sea lo pone el equipo que
+ * instala esto.
+ *
+ * Dos de ellos están mal a propósito, para que la pantalla enseñe lo que hace
+ * cuando un ciclo no cuadra: el `PHA` no tiene aprobador y en el `SIL` el autor
+ * se verifica a sí mismo. Una demostración en la que todo está bien no enseña
+ * la mitad de la pantalla.
+ */
+const DEMO_SIGNATURES: readonly {
+  readonly code: string
+  readonly step: string
+  readonly position: number
+  readonly role: string
+  readonly minutes: number | null
+}[] = [
+  { code: 'PGS', step: 'author', position: 1, role: 'Ing. de seguridad', minutes: 960 },
+  { code: 'PGS', step: 'verifier', position: 1, role: 'Ing. de sistemas', minutes: 180 },
+  { code: 'PGS', step: 'verifier', position: 2, role: 'Jefe de seguridad', minutes: 120 },
+  { code: 'PGS', step: 'approver', position: 1, role: 'Jefe de ingeniería', minutes: 60 },
+  { code: 'PGS', step: 'reviewer', position: 1, role: 'Calidad', minutes: null },
+  { code: 'PGS', step: 'reviewer', position: 2, role: 'Compras', minutes: null },
+  // Sin aprobador: el entregable no se puede cerrar, y la pantalla lo dice.
+  { code: 'PHA', step: 'author', position: 1, role: 'Ing. de seguridad', minutes: 480 },
+  { code: 'PHA', step: 'verifier', position: 1, role: 'Ing. de sistemas', minutes: 120 },
+  { code: 'HL', step: 'author', position: 1, role: 'Ing. de seguridad', minutes: 240 },
+  { code: 'HL', step: 'verifier', position: 1, role: 'Jefe de seguridad', minutes: 90 },
+  { code: 'HL', step: 'approver', position: 1, role: 'Jefe de ingeniería', minutes: 45 },
+  // El autor se verifica a sí mismo: no hay independencia, y se avisa.
+  { code: 'SIL', step: 'author', position: 1, role: 'Ing. de seguridad', minutes: 360 },
+  { code: 'SIL', step: 'verifier', position: 1, role: 'Ing. de seguridad', minutes: 90 },
+  { code: 'SIL', step: 'approver', position: 1, role: 'Jefe de ingeniería', minutes: 45 },
+  // «Ing. de seguridad 1» y «2» son dos personas del mismo puesto: eso SÍ es
+  // independiente, y es como lo escriben los procedimientos de verdad.
+  { code: 'FMECA', step: 'author', position: 1, role: 'Ing. de seguridad 1', minutes: 1800 },
+  { code: 'FMECA', step: 'verifier', position: 1, role: 'Ing. de seguridad 2', minutes: 240 },
+  { code: 'FMECA', step: 'verifier', position: 2, role: 'Ing. de sistemas', minutes: 180 },
+  { code: 'FMECA', step: 'approver', position: 1, role: 'Jefe de ingeniería', minutes: 60 },
+  { code: 'SC', step: 'author', position: 1, role: 'Jefe de seguridad', minutes: 2400 },
+  { code: 'SC', step: 'verifier', position: 1, role: 'Ing. de seguridad 1', minutes: 480 },
+  { code: 'SC', step: 'verifier', position: 2, role: 'Ing. de sistemas', minutes: 300 },
+  { code: 'SC', step: 'approver', position: 1, role: 'Jefe de ingeniería', minutes: 120 },
+  { code: 'SC', step: 'reviewer', position: 1, role: 'Calidad', minutes: null },
+]
+
 async function seedDocuments(db: Queryable): Promise<void> {
   for (const [index, doc] of DEMO_DOCUMENTS.entries()) {
     await db.query(
@@ -240,6 +289,15 @@ async function seedDocuments(db: Queryable): Promise<void> {
        WHERE a.code = $1 AND b.code = $2
        ON CONFLICT DO NOTHING`,
       [antes, despues],
+    )
+  }
+
+  for (const firma of DEMO_SIGNATURES) {
+    await db.query(
+      `INSERT INTO document_signature (document_type_id, step, position, role, standard_minutes)
+       SELECT d.id, $2::signature_step, $3, $4, $5 FROM document_type d WHERE d.code = $1
+       ON CONFLICT DO NOTHING`,
+      [firma.code, firma.step, firma.position, firma.role, firma.minutes],
     )
   }
 

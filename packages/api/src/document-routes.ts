@@ -8,17 +8,22 @@
 
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import { z } from 'zod'
+import { checkSignatureCycle, type Signature, type SignatureProblem } from '@planner/domain'
 import {
   createDocumentType,
   readDocumentTypes,
   readPrecedences,
+  readSignatures,
   setNodeDocument,
   setPrecedence,
   setPredecessors,
+  setSignatures,
   softDeleteDocumentType,
   updateDocumentType,
   withTransaction,
   DOCUMENT_KINDS,
+  type DocumentKind,
+  type DocumentSignature,
   type Pool,
 } from '@planner/persistence'
 import { toCsv } from './csv.js'
@@ -41,6 +46,18 @@ const ficha = {
 }
 
 /**
+ * Una firma que llega del cliente. **Rol, nunca persona**: el esquema no acepta
+ * un identificador de recurso y no es un descuido — el catálogo dice que hace
+ * falta un jefe RAMS, no quién lo es esta semana.
+ */
+const firmaSchema = z.object({
+  step: z.enum(['author', 'verifier', 'approver', 'reviewer']),
+  position: z.number().int().min(1).max(20),
+  role: z.string().trim().min(1).max(80),
+  standardMinutes: z.number().int().min(0).max(10_000_000).nullable(),
+})
+
+/**
  * Las columnas de la exportación, tomadas del contrato de la importación.
  *
  * De ahí y no de una lista propia: exportar, corregir en la hoja de cálculo y
@@ -48,6 +65,60 @@ const ficha = {
  * dos listas paralelas se separan el día que alguien añade una columna.
  */
 const COLUMNAS_CSV = DOCUMENTS_SPEC.columnas.map((columna) => columna.nombre)
+
+/** Un problema del ciclo, con el entregable al que pertenece. */
+interface ProblemaDeFirma extends SignatureProblem {
+  readonly documentTypeId: string
+}
+
+/**
+ * Los problemas de todos los ciclos del catálogo, en una pasada.
+ *
+ * El orden es el del catálogo y, dentro de cada entregable, el de la propia
+ * función pura: salida estable (P2), que es lo que permite comparar dos
+ * lecturas sin que la lista baile.
+ */
+function problemasDeFirma(
+  types: readonly { readonly id: string; readonly kind: DocumentKind }[],
+  signatures: readonly DocumentSignature[],
+): readonly ProblemaDeFirma[] {
+  const porDocumento = new Map<string, DocumentSignature[]>()
+  for (const firma of signatures) {
+    const lista = porDocumento.get(firma.documentTypeId) ?? []
+    lista.push(firma)
+    porDocumento.set(firma.documentTypeId, lista)
+  }
+  return types.flatMap((tipo) =>
+    checkSignatureCycle(tipo.kind, porDocumento.get(tipo.id) ?? []).map((problema) => ({
+      ...problema,
+      documentTypeId: tipo.id,
+    })),
+  )
+}
+
+/**
+ * El ciclo de firma, repartido en las cinco casillas del CSV.
+ *
+ * Al volver al fichero se pierde algo y conviene saber qué: los minutos de cada
+ * firma, que el CSV no lleva, y cualquier verificador a partir del tercero, que
+ * no tiene columna. Lo primero es a propósito; lo segundo no le ha pasado a
+ * ningún procedimiento visto hasta ahora, y si pasa, el que sobre se queda en
+ * la base y no en el fichero.
+ */
+function casillasDeFirma(firmas: readonly DocumentSignature[]): Readonly<Record<string, string>> {
+  const rol = (step: Signature['step'], position: number): string =>
+    firmas.find((firma) => firma.step === step && firma.position === position)?.role ?? ''
+  return {
+    autor: rol('author', 1),
+    verificador_1: rol('verifier', 1),
+    verificador_2: rol('verifier', 2),
+    aprobador: rol('approver', 1),
+    revisores: firmas
+      .filter((firma) => firma.step === 'reviewer')
+      .map((firma) => firma.role)
+      .join('|'),
+  }
+}
 
 export function registerDocumentRoutes(app: FastifyInstance, pool: Pool): void {
   const escribir = async (
@@ -67,10 +138,21 @@ export function registerDocumentRoutes(app: FastifyInstance, pool: Pool): void {
 
   /** El catálogo y la matriz, que es lo que pinta la pantalla de una vez. */
   app.get('/api/documents', { config: { permission: 'documentos.ver' } }, async () =>
-    withTransaction(pool, async (db) => ({
-      types: await readDocumentTypes(db),
-      precedences: await readPrecedences(db),
-    })),
+    withTransaction(pool, async (db) => {
+      const types = await readDocumentTypes(db)
+      const signatures = await readSignatures(db)
+      return {
+        types,
+        precedences: await readPrecedences(db),
+        signatures,
+        // Los problemas del ciclo se calculan AQUÍ y no en la pantalla, por lo
+        // mismo que los hallazgos, los permisos y los errores: el código es el
+        // contrato y la frase la escribe el diccionario. La alternativa era que
+        // la web se trajera el paquete `domain` para repetir la comprobación, y
+        // una regla escrita dos veces es una regla que se separa.
+        signatureProblems: problemasDeFirma(types, signatures),
+      }
+    }),
   )
 
   app.post('/api/documents', { config: { permission: 'documentos.gestionar' } }, async (request, reply) => {
@@ -152,6 +234,39 @@ export function registerDocumentRoutes(app: FastifyInstance, pool: Pool): void {
   })
 
   /**
+   * El ciclo de firma de un entregable, de golpe.
+   *
+   * **Sustituye el ciclo entero**, igual que los predecesores: lo que no venga
+   * se borra. Un ciclo mal repartido —sin aprobador, o con el autor
+   * verificándose a sí mismo— **se guarda igual**. Avisar es trabajo de la
+   * pantalla, que lo calcula con la misma función pura que la importación; un
+   * catálogo a medio rellenar es el estado normal de un catálogo el primer día,
+   * y una herramienta que se niega a guardarlo es una herramienta que no se usa.
+   *
+   * Lo único que sí se rechaza es la casilla repetida: dos firmas para el mismo
+   * paso y la misma posición no es un catálogo incompleto, es un cuerpo que se
+   * contradice, y guardarlo dejaría en la base sólo una de las dos sin decir
+   * cuál.
+   */
+  app.put('/api/documents/:documentId/signatures', { config: { permission: 'documentos.gestionar' } }, async (request, reply) => {
+    const { documentId } = z.object({ documentId: z.string().uuid() }).parse(request.params)
+    const body = z.object({ signatures: z.array(firmaSchema).max(40) }).parse(request.body)
+
+    const casillas = body.signatures.map((firma) => `${firma.step}:${String(firma.position)}`)
+    if (new Set(casillas).size !== casillas.length) {
+      return fallar(
+        reply,
+        422,
+        'FIRMA_CASILLA_REPETIDA',
+        'Dos firmas ocupan el mismo paso y la misma posición.',
+      )
+    }
+    return escribir(reply, 'ciclo de firma de un documento', async (db) => {
+      await setSignatures(db, documentId, body.signatures satisfies readonly Signature[])
+    })
+  })
+
+  /**
    * El catálogo entero desde un CSV.
    *
    * Es la puerta por la que entra una plantilla de verdad: un catálogo EN 50126
@@ -185,9 +300,10 @@ export function registerDocumentRoutes(app: FastifyInstance, pool: Pool): void {
    * filas, y sólo funciona si el fichero que sale es el que entra.
    */
   app.get('/api/documents/export.csv', { config: { permission: 'documentos.ver' } }, async (_request, reply) => {
-    const { types, precedences } = await withTransaction(pool, async (db) => ({
+    const { types, precedences, signatures } = await withTransaction(pool, async (db) => ({
       types: await readDocumentTypes(db),
       precedences: await readPrecedences(db),
+      signatures: await readSignatures(db),
     }))
     const codigoDe = new Map(types.map((tipo) => [tipo.id, tipo.code]))
     const esperaA = new Map<string, string[]>()
@@ -196,6 +312,12 @@ export function registerDocumentRoutes(app: FastifyInstance, pool: Pool): void {
       const codigo = codigoDe.get(p.predecessorId)
       if (codigo !== undefined) lista.push(codigo)
       esperaA.set(p.successorId, lista)
+    }
+    const firmasDe = new Map<string, DocumentSignature[]>()
+    for (const firma of signatures) {
+      const lista = firmasDe.get(firma.documentTypeId) ?? []
+      lista.push(firma)
+      firmasDe.set(firma.documentTypeId, lista)
     }
     const rows = types.map((tipo) => ({
       codigo: tipo.code,
@@ -212,6 +334,7 @@ export function registerDocumentRoutes(app: FastifyInstance, pool: Pool): void {
       codigo_tarea: tipo.taskCode ?? '',
       descripcion: tipo.description ?? '',
       espera_a: (esperaA.get(tipo.id) ?? []).join('|'),
+      ...casillasDeFirma(firmasDe.get(tipo.id) ?? []),
     }))
     return reply
       .header('content-type', 'text/csv; charset=utf-8')

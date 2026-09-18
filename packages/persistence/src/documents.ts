@@ -12,6 +12,7 @@
  * entrega qué documento. De ahí salen las dependencias sin teclearlas.
  */
 
+import type { Signature, SignatureStep } from '@planner/domain'
 import type { Queryable } from './db.js'
 
 /**
@@ -325,4 +326,86 @@ export async function readProjectNodes(db: Queryable, projectId: string): Promis
     [projectId],
   )
   return rows.map((row) => ({ nodeId: row.id, name: row.name, path: row.path, kind: row.node_kind }))
+}
+
+// ---------------------------------------------------------------------------
+// El ciclo de firma
+// ---------------------------------------------------------------------------
+
+/**
+ * Una firma declarada de un entregable. **Por rol, nunca por persona**: aquí no
+ * hay ni va a haber un `resource_id`. Quién ocupa hoy el puesto de «Jefe RAMS»
+ * es un dato de personas que cambia; el catálogo dice que hace falta uno.
+ */
+export interface DocumentSignature extends Signature {
+  readonly documentTypeId: string
+}
+
+/**
+ * Todas las firmas del catálogo, de una vez.
+ *
+ * De una vez y no por entregable a propósito: la pantalla las quiere todas y
+ * ochenta consultas para pintar una tabla es la forma más fácil de convertir
+ * una pantalla rápida en una lenta.
+ *
+ * El orden es estable (P2): por entregable, por paso en el orden del ciclo
+ * —autor, verificador, aprobador, revisor— y por posición.
+ */
+export async function readSignatures(db: Queryable): Promise<readonly DocumentSignature[]> {
+  const { rows } = await db.query<{
+    document_type_id: string
+    step: SignatureStep
+    position: number
+    role: string
+    standard_minutes: number | null
+  }>(
+    `SELECT s.document_type_id, s.step, s.position, s.role, s.standard_minutes
+     FROM document_signature s
+     JOIN document_type d ON d.id = s.document_type_id AND d.deleted_at IS NULL
+     ORDER BY s.document_type_id,
+              array_position(ARRAY['author','verifier','approver','reviewer']::signature_step[], s.step),
+              s.position`,
+  )
+  return rows.map((row) => ({
+    documentTypeId: row.document_type_id,
+    step: row.step,
+    position: row.position,
+    role: row.role,
+    standardMinutes: row.standard_minutes,
+  }))
+}
+
+/**
+ * El ciclo de firma de un entregable, de golpe.
+ *
+ * **Sustituye el ciclo entero**: lo que no venga se borra. Misma decisión que
+ * `setPredecessors`, y por lo mismo — volver a importar un fichero corregido
+ * tiene que corregir, no acumular la tabla vieja con la nueva.
+ *
+ * Los roles en blanco se descartan aquí y no en la base: una casilla vacía del
+ * CSV no es un error del fichero, es una casilla vacía.
+ */
+export async function setSignatures(
+  db: Queryable,
+  documentTypeId: string,
+  firmas: readonly Signature[],
+): Promise<void> {
+  const limpias = firmas.filter((firma) => firma.role.trim() !== '')
+  await db.query('DELETE FROM document_signature WHERE document_type_id = $1', [documentTypeId])
+  if (limpias.length === 0) return
+  await db.query(
+    `INSERT INTO document_signature (document_type_id, step, position, role, standard_minutes)
+     SELECT $1, step::signature_step, position, role, standard_minutes
+     FROM unnest($2::text[], $3::smallint[], $4::text[], $5::integer[])
+          AS t(step, position, role, standard_minutes)
+     ON CONFLICT (document_type_id, step, position) DO UPDATE
+       SET role = EXCLUDED.role, standard_minutes = EXCLUDED.standard_minutes`,
+    [
+      documentTypeId,
+      limpias.map((firma) => firma.step),
+      limpias.map((firma) => firma.position),
+      limpias.map((firma) => firma.role.trim()),
+      limpias.map((firma) => firma.standardMinutes),
+    ],
+  )
 }
