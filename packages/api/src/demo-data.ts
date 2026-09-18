@@ -98,6 +98,12 @@ interface DemoProject {
   readonly code: string
   readonly name: string
   readonly start: string
+  /**
+   * Cuándo cae cada puerta de certificación de este proyecto. Es la mitad del
+   * dato que el catálogo no puede traer: el mismo entregable va a la misma
+   * puerta en todos los proyectos y la puerta cae un día distinto en cada uno.
+   */
+  readonly gates: readonly { gate: string; date: string; notes: string }[]
   readonly phases: readonly { key: number; name: string }[]
   readonly tasks: readonly DemoTask[]
 }
@@ -108,6 +114,17 @@ const PROJECTS: readonly DemoProject[] = [
     code: 'CBTC-L3',
     name: 'CBTC Línea 3 — Homologación RAMS',
     start: '2026-03-02',
+    // Las cuatro fechas están puestas contra lo que el motor calcula, no a ojo:
+    // la asignación de SIL **no llega** a su revisión de diseño por cuatro días
+    // y el Safety Case llega a la puesta en servicio por otros cuatro. Unas
+    // puertas holgadas harían una demostración en la que el aviso de fecha
+    // objetivo no sale nunca, que es tanto como no tenerlo.
+    gates: [
+      { gate: 'RP', date: '2026-04-10', notes: 'Revisión preliminar' },
+      { gate: 'RD', date: '2026-05-15', notes: 'Revisión de diseño' },
+      { gate: 'RF', date: '2026-05-29', notes: 'Revisión final' },
+      { gate: 'PES', date: '2026-08-07', notes: 'Puesta en servicio' },
+    ],
     phases: [
       { key: 11, name: 'Análisis preliminar' },
       { key: 12, name: 'Análisis detallado' },
@@ -134,6 +151,11 @@ const PROJECTS: readonly DemoProject[] = [
     code: 'DEP-SIG',
     name: 'Señalización depósito Neckarau',
     start: '2026-04-01',
+    gates: [
+      { gate: 'RP', date: '2026-05-15', notes: 'Revisión preliminar' },
+      { gate: 'RD', date: '2026-05-22', notes: 'Revisión de diseño' },
+      { gate: 'PES', date: '2026-07-10', notes: 'Puesta en servicio' },
+    ],
     phases: [
       { key: 21, name: 'Ingeniería' },
       { key: 22, name: 'Validación' },
@@ -152,6 +174,14 @@ const PROJECTS: readonly DemoProject[] = [
     code: 'FRENO-SIL2',
     name: 'Certificación SIL 2 del sistema de freno',
     start: '2026-06-01',
+    // A este proyecto le falta la puerta 'RF' a propósito: el descarte «la
+    // puerta no tiene fecha» es el que más se ve el primer día y conviene que
+    // se vea también en la demostración, con su nombre y su arreglo. Y el
+    // informe SIL 2 se pasa de largo su revisión de diseño, que es el aviso
+    // para el que existe todo esto.
+    gates: [
+      { gate: 'RD', date: '2026-07-10', notes: 'Revisión de diseño' },
+    ],
     phases: [{ key: 31, name: 'Demostración de integridad' }],
     tasks: [
       { key: 301, name: 'Revisión de arquitectura', days: 10, phase: 31, assign: [{ resource: 4 }], ramsTag: 'SIL' },
@@ -197,16 +227,26 @@ export async function seedDemoData(db: Queryable): Promise<boolean> {
  * ocurran a quien escribe el código. Una instalación real arranca con la matriz
  * vacía y su pantalla explicando cómo llenarla.
  */
-const DEMO_DOCUMENTS: readonly { readonly code: string; readonly name: string; readonly detail: string }[] = [
-  { code: 'PGS', name: 'Plan de gestión de la seguridad', detail: 'Cómo se va a demostrar la seguridad del sistema.' },
-  { code: 'PHA', name: 'Análisis preliminar de riesgos', detail: 'Los peligros que se ven antes de tener diseño.' },
-  { code: 'HL', name: 'Hazard Log', detail: 'El registro vivo de peligros y su tratamiento.' },
-  { code: 'SRS', name: 'Requisitos de seguridad', detail: 'Lo que el sistema tiene que cumplir, y por qué.' },
-  { code: 'SIL', name: 'Asignación de SIL', detail: 'Qué nivel de integridad se exige a cada función.' },
-  { code: 'FMECA', name: 'FMECA', detail: 'Modos de fallo, efectos y criticidad.' },
-  { code: 'RAM', name: 'Informe RAM', detail: 'Fiabilidad, disponibilidad y mantenibilidad demostradas.' },
-  { code: 'VV', name: 'Matriz de verificación', detail: 'Cada requisito contra la evidencia que lo cierra.' },
-  { code: 'SC', name: 'Safety Case', detail: 'El argumento completo, con su evidencia.' },
+interface DemoDocument {
+  readonly code: string
+  readonly name: string
+  readonly detail: string
+  /** A qué puerta de certificación va. Los nombres son inventados, como todo aquí. */
+  readonly gate: string
+  /** Semanas antes de esa puerta en las que tiene que estar terminado. */
+  readonly weeks: number
+}
+
+const DEMO_DOCUMENTS: readonly DemoDocument[] = [
+  { code: 'PGS', name: 'Plan de gestión de la seguridad', detail: 'Cómo se va a demostrar la seguridad del sistema.', gate: 'RP', weeks: 4 },
+  { code: 'PHA', name: 'Análisis preliminar de riesgos', detail: 'Los peligros que se ven antes de tener diseño.', gate: 'RP', weeks: 2 },
+  { code: 'HL', name: 'Hazard Log', detail: 'El registro vivo de peligros y su tratamiento.', gate: 'RD', weeks: 2 },
+  { code: 'SRS', name: 'Requisitos de seguridad', detail: 'Lo que el sistema tiene que cumplir, y por qué.', gate: 'RD', weeks: 4 },
+  { code: 'SIL', name: 'Asignación de SIL', detail: 'Qué nivel de integridad se exige a cada función.', gate: 'RD', weeks: 3 },
+  { code: 'FMECA', name: 'FMECA', detail: 'Modos de fallo, efectos y criticidad.', gate: 'RD', weeks: 1 },
+  { code: 'RAM', name: 'Informe RAM', detail: 'Fiabilidad, disponibilidad y mantenibilidad demostradas.', gate: 'RF', weeks: 4 },
+  { code: 'VV', name: 'Matriz de verificación', detail: 'Cada requisito contra la evidencia que lo cierra.', gate: 'RF', weeks: 2 },
+  { code: 'SC', name: 'Safety Case', detail: 'El argumento completo, con su evidencia.', gate: 'PES', weeks: 6 },
 ]
 
 /** La fila es condición necesaria de la columna. */
@@ -312,9 +352,9 @@ const DEMO_ACTIVITIES: readonly {
 async function seedDocuments(db: Queryable): Promise<void> {
   for (const [index, doc] of DEMO_DOCUMENTS.entries()) {
     await db.query(
-      `INSERT INTO document_type (code, name, description, sort_key)
-       VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
-      [doc.code, doc.name, doc.detail, (index + 1) * 10],
+      `INSERT INTO document_type (code, name, description, sort_key, gate, weeks_before_gate)
+       VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING`,
+      [doc.code, doc.name, doc.detail, (index + 1) * 10, doc.gate, doc.weeks],
     )
   }
   for (const [antes, despues] of DEMO_PRECEDENCES) {
@@ -443,6 +483,13 @@ async function seedProjects(db: Queryable, ramsFieldId: string): Promise<void> {
        VALUES ($1, $2, $3, $4, $5, $6, 'EUR')`,
       [projectId, project.code, project.name, CAL_BW, project.start, project.key * 100],
     )
+    for (const puerta of project.gates) {
+      await db.query(
+        `INSERT INTO project_gate (project_id, gate, gate_date, notes)
+         VALUES ($1, $2, $3::date, $4)`,
+        [projectId, puerta.gate, puerta.date, puerta.notes],
+      )
+    }
 
     const phaseIds = new Map<number, string>()
     for (const [index, phase] of project.phases.entries()) {
