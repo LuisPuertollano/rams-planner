@@ -551,6 +551,48 @@ a.button { text-decoration: none; display: inline-block; }
 .hoy__resto { padding: 14px 16px; border-top: 1px solid var(--border); }
 .hoy__resto summary { cursor: pointer; font-size: 14px; }
 
+/* --- El panel de capacidad ------------------------------------------------
+   Marcas finas, rejilla de un solo paso por debajo de la superficie, y el
+   número escrito en cada barra: el tono no distingue estados, los distinguen
+   las dos líneas de umbral y la cifra. */
+.panel-cap { display: flex; flex-direction: column; gap: 18px; padding: 16px; }
+.panel-cap__fresco { margin: 0; font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.panel-cap__filtros { padding: 0; gap: 14px; }
+.panel-cap__filtros .input { margin-left: 4px; }
+.panel-cap__grafico, .panel-cap__tabla { display: flex; flex-direction: column; gap: 2px; }
+.panel-cap__grafico h3, .panel-cap__tabla h3 { margin: 0; font-size: 14px; font-weight: 650; }
+.panel-cap__grafico p, .panel-cap__tabla p { margin: 0 0 6px; font-size: 12px; max-width: 86ch; }
+.panel-cap__leyenda { font-size: 12px; max-width: 96ch; margin: 0; }
+
+/* La cifra de una tarjeta es un número suelto: cifras proporcionales. Las
+   tabulares son para columnas que se alinean, no para un valor grande. */
+.stat__value--suelto { font-variant-numeric: normal; }
+
+.leyenda-viz { display: flex; gap: 16px; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+.leyenda-viz .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 5px; }
+.leyenda-viz .sw--acento { background: var(--accent); }
+.leyenda-viz .sw--pista { background: var(--border-strong); }
+
+.viz { position: relative; }
+.viz svg { display: block; width: 100%; height: auto; }
+.viz__rejilla { stroke: var(--border); stroke-width: 1; }
+.viz__umbral { stroke: var(--text-faint); stroke-width: 1; }
+.viz__tick { fill: var(--text-faint); font-size: 11px; font-variant-numeric: tabular-nums; }
+.viz__nombre { fill: var(--text-muted); font-size: 12px; }
+.viz__etiqueta { fill: var(--text); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.viz__barra--acento { fill: var(--accent); }
+.viz__barra--pista { fill: var(--border-strong); }
+/* El recorrido de una barra: el hueco que le queda por llenar. Sin regla de
+   relleno, SVG cae al negro y se come la etiqueta; no es un detalle de estilo. */
+.viz__pista { fill: var(--bg-sunken); }
+.viz__globo {
+  position: absolute; transform: translate(-50%, -110%);
+  background: var(--text); color: var(--bg-raised);
+  border-radius: var(--radius-sm); padding: 7px 10px; font-size: 12px;
+  pointer-events: none; white-space: nowrap; box-shadow: var(--shadow); z-index: 5;
+}
+.viz__globo b { display: block; margin-bottom: 2px; }
+
 @media (max-width: 1280px) {
   .brand span { display: none; }
   .run-chip { font-size: 10px; }
