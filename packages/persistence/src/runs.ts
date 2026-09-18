@@ -221,3 +221,34 @@ async function bulkInsert(
     await db.query(`INSERT INTO ${table} (${columns.join(', ')}) VALUES ${tuples.join(', ')}`, values)
   }
 }
+
+/**
+ * Borra las ejecuciones que nacieron a partir de un instante, con todo lo que
+ * cuelga de ellas. Devuelve cuántas se fueron.
+ *
+ * Existe por las pruebas de integración, y conviene decir por qué en vez de
+ * dejarlo como una utilidad suelta. Los ficheros de integración comparten UNA
+ * base de datos y cada cálculo deja unas once mil filas en
+ * `resource_capacity_timephased`. Nadie las borraba, así que una base de
+ * desarrollo de unas semanas llega al millón de filas y las pruebas que
+ * recalculan se vuelven lentas hasta agotar el plazo de vitest. El síntoma
+ * parece un fallo de la prueba y es basura acumulada.
+ *
+ * **Una ejecución congelada en una línea base NO se borra.** La `baseline`
+ * apunta a su ejecución con `ON DELETE NO ACTION` a propósito: una línea base
+ * es la foto contra la que se compara, y borrarla sería perder la referencia,
+ * no limpiar. Por eso se excluyen aquí en vez de dejar que la base grite.
+ *
+ * En producción no la llama nadie: una ejecución es historial, y decidir
+ * cuánto historial se guarda no es una tarea de mantenimiento, es una decisión
+ * de quien usa la herramienta.
+ */
+export async function deleteRunsSince(db: Queryable, since: Date): Promise<number> {
+  const { rowCount } = await db.query(
+    `DELETE FROM calculation_run r
+      WHERE r.started_at >= $1
+        AND NOT EXISTS (SELECT 1 FROM baseline b WHERE b.calculation_run_id = r.id)`,
+    [since],
+  )
+  return rowCount ?? 0
+}

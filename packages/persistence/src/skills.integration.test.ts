@@ -10,16 +10,29 @@ import { calendarDate } from '@planner/domain'
 import { schedulePlan } from '@planner/scheduler'
 import { afterAll, describe, expect, it } from 'vitest'
 import { createPool, withTransaction } from './db.js'
+import { deleteRunsSince } from './runs.js'
 import { duplicateProject } from './duplicate.js'
 import { createNode, createProject, upsertAssignment } from './plan-edit.js'
 import { createResource } from './resources.js'
 import { readSkillMatrix, setNodeSkillRequirement, setResourceSkill } from './skills.js'
 import { loadSnapshot } from './snapshot.js'
 
+/**
+ * El instante en que arranca este fichero. Lo que se calcule a partir de
+ * aquí es suyo y se borra al terminar: con `fileParallelism` desactivado
+ * cuando hay base de datos, no hay otro fichero calculando a la vez.
+ */
+const ARRANQUE_DEL_FICHERO = new Date()
+
 const url = process.env['DATABASE_URL']
 const pool = url === undefined ? null : createPool(url)
 
 afterAll(async () => {
+  // Cada cálculo deja miles de filas de capacidad. Sin esto, una base de
+  // desarrollo de unas semanas llega al millón y las pruebas que recalculan
+  // se vuelven lentas hasta agotar el plazo: el síntoma parece un fallo de
+  // la prueba y es basura acumulada.
+  if (pool !== null) await withTransaction(pool, (db) => deleteRunsSince(db, ARRANQUE_DEL_FICHERO))
   await pool?.end()
 })
 

@@ -18,12 +18,20 @@ import {
   createPool,
   createRole,
   createUser,
+  deleteRunsSince,
   grantRole,
   setRolePermissions,
   withTransaction,
   type Pool,
 } from '@planner/persistence'
 import { buildServer } from './build-server.js'
+
+/**
+ * El instante en que arranca este fichero. Lo que se calcule a partir de
+ * aquí es suyo y se borra al terminar: con `fileParallelism` desactivado
+ * cuando hay base de datos, no hay otro fichero calculando a la vez.
+ */
+const ARRANQUE_DEL_FICHERO = new Date()
 
 const url = process.env['DATABASE_URL']
 const pool = url === undefined ? null : createPool(url)
@@ -132,6 +140,11 @@ async function creaProyecto(cookie: string, prefijo: string): Promise<string> {
 }
 
 afterAll(async () => {
+  // Cada cálculo deja unas once mil filas de capacidad. Sin esto, una base
+  // de desarrollo de unas semanas llega al millón y las pruebas que
+  // recalculan se vuelven lentas hasta agotar el plazo: el síntoma parece
+  // un fallo de la prueba y es basura acumulada.
+  if (pool !== null) await withTransaction(pool, (db) => deleteRunsSince(db, ARRANQUE_DEL_FICHERO))
   await app?.close()
   await pool?.end()
 })
