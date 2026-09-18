@@ -2,16 +2,18 @@ import {
   importActualsCsv,
   importDocumentsCsv,
   importPlanCsv,
+  importTeamCsv,
   type ActualsImported,
   type DocumentsImported,
   type PlanImported,
+  type TeamImported,
 } from '../api.js'
 import { hours, shortDate } from '../format.js'
 import { useT } from '../i18n/index.js'
 import { ImportPanel } from './ImportPanel.js'
 
-/** Las tres cosas que se pueden cargar desde un CSV. */
-export type TipoDeImportacion = 'plan' | 'actuals' | 'documents'
+/** Las cuatro cosas que se pueden cargar desde un CSV. */
+export type TipoDeImportacion = 'plan' | 'actuals' | 'documents' | 'team'
 
 interface Props {
   readonly tipo: TipoDeImportacion
@@ -86,6 +88,27 @@ export function ImportDialog({ tipo, onClose, onImported, exportarUrl }: Props):
           )
         }
         avisos={(r) => r.warnings}
+      />
+    )
+  }
+
+  if (tipo === 'team') {
+    // Cambiar una jornada o una tarifa cambia la capacidad y el coste, así que
+    // esta importación SÍ recalcula: es la diferencia con el catálogo.
+    return (
+      <ImportPanel<TeamImported>
+        tipo="team"
+        onClose={onClose}
+        importar={importTeamCsv}
+        onImported={onImported}
+        exportarUrl={exportarUrl}
+        resumen={(r) =>
+          t('equipo.importado', r.rows, r.created, r.updated, r.skillsSet, r.rates)
+        }
+        avisos={(r) => [
+          ...(r.skillsCreated === 0 ? [] : [t('equipo.competenciasNuevas', r.skillsCreated)]),
+          ...r.warnings,
+        ]}
       />
     )
   }

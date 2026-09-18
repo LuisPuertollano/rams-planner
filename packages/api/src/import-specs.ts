@@ -148,7 +148,44 @@ export const DOCUMENTS_SPEC: ImportSpec = {
   ],
 }
 
-export const IMPORT_SPECS: readonly ImportSpec[] = [PLAN_SPEC, ACTUALS_SPEC, DOCUMENTS_SPEC]
+export const TEAM_SPEC: ImportSpec = {
+  tipo: 'team',
+  titulo: 'El equipo entero desde una tabla',
+  resumen:
+    'Una fila por persona: su jornada, su calendario, sus competencias y su tarifa. Da de alta a ' +
+    'quien no esté y actualiza a quien ya esté.',
+  reglas: [
+    'Las líneas que empiezan por # son comentarios: no se importan.',
+    'El código manda: una fila cuyo código ya existe ACTUALIZA a esa persona, no crea otra.',
+    '«competencias» es la lista COMPLETA de esa persona: lo que no venga, se le quita.',
+    'Las competencias que no existan se crean. El nivel va de 1 a 5 y es obligatorio: «FMECA:4».',
+    'Las tarifas se AÑADEN, no reemplazan: una tarifa es un tramo con fechas, y borrar los anteriores reescribiría el coste de lo que ya pasó.',
+    'Traer tarifas pide además el permiso de tarifas. Un fichero sin esa columna no lo necesita.',
+    'Los porcentajes se escriben en porcentaje: «100» es la jornada entera, no «10000».',
+    'Cualquier error deja el fichero fuera entero. No hay importaciones a medias.',
+  ],
+  columnas: [
+    { nombre: 'codigo', obligatoria: true, que: 'Código corto y único. Es la identidad de la fila.', ejemplo: 'RAMS-01' },
+    { nombre: 'nombre', obligatoria: true, que: 'Nombre con el que aparece en toda la herramienta.', ejemplo: 'Ana Müller' },
+    { nombre: 'calendario', obligatoria: false, que: 'Calendario laboral, por su código o su nombre.', ejemplo: 'base_bw' },
+    { nombre: 'jornada', obligatoria: false, que: 'Porcentaje de jornada. Sin nada, 100.', ejemplo: '80' },
+    { nombre: 'indirecto', obligatoria: false, que: 'Lo que del día no llega a una tarea. Máximo 50 %.', ejemplo: '15' },
+    { nombre: 'reserva', obligatoria: false, que: 'Lo que se guarda para lo que no ha pasado. Máximo 50 %.', ejemplo: '10' },
+    { nombre: 'alta', obligatoria: false, que: 'Desde cuándo cuenta su capacidad, AAAA-MM-DD.', ejemplo: '2026-01-01' },
+    { nombre: 'baja', obligatoria: false, que: 'Hasta cuándo, AAAA-MM-DD. Vacío: sigue.', ejemplo: '' },
+    { nombre: 'competencias', obligatoria: false, que: 'Qué sabe hacer y a qué nivel, separadas por |.', ejemplo: 'FMECA:4|Hazard Log:3' },
+    { nombre: 'tarifa', obligatoria: false, que: 'Euros por hora. Coma o punto decimal.', ejemplo: '78,50' },
+    { nombre: 'tarifa_desde', obligatoria: false, que: 'Desde cuándo vale esa tarifa, AAAA-MM-DD.', ejemplo: '2026-01-01' },
+    { nombre: 'tarifa_hasta', obligatoria: false, que: 'Hasta cuándo, AAAA-MM-DD. Una tarifa sin tramo no se cobra a nada.', ejemplo: '2026-12-31' },
+  ],
+  ejemplos: [
+    ['RAMS-01', 'Ana Müller', 'base_bw', '100', '15', '10', '2026-01-01', '', 'FMECA:4|Hazard Log:3', '78,50', '2026-01-01', '2026-12-31'],
+    ['RAMS-02', 'Marc Iglesias', 'base_bw', '80', '15', '10', '2026-02-01', '', 'RAM:5|FMECA:3', '82,00', '2026-01-01', '2026-12-31'],
+    ['RAMS-03', 'Jan Kowalski', '', '100', '', '', '', '', 'Safety Case:4', '', '', ''],
+  ],
+}
+
+export const IMPORT_SPECS: readonly ImportSpec[] = [PLAN_SPEC, ACTUALS_SPEC, DOCUMENTS_SPEC, TEAM_SPEC]
 
 // ---------------------------------------------------------------------------
 

@@ -101,7 +101,9 @@ Lo importante de la importación:
   importación nombrando el conflicto. Si quieres reemplazarlo, cambia el código
   o borra el proyecto anterior.
 - Las personas que no existan **se crean solas**, con jornada estándar y **sin
-  tarifa**. La respuesta te dice cuáles. Vuelve a la pestaña Equipo y complétalas.
+  tarifa**. La respuesta te dice cuáles. Complétalas después: una a una en la
+  pestaña Equipo, o todas de golpe con la importación **El equipo**, que es para
+  lo que está.
 
 ##### Si tu plan vive en un Gantt de Excel
 
@@ -264,6 +266,29 @@ De qué está hecha la capacidad. Ver el paso 1.
 
 **Todo lo de esta pestaña recalcula el plan al guardarlo.** Es intencionado: una
 capacidad que cambia sin que cambie la carga sería una pantalla mintiendo.
+
+**Y el equipo entero se puede cargar de una vez**, desde *Datos › Importaciones ›
+El equipo*: una fila por persona con su jornada, su calendario, sus competencias
+y su tarifa. Da de alta a quien no esté y actualiza a quien ya esté, así que es
+también la forma de completar a las personas que entraron solas al importar un
+plan —con jornada estándar y sin tarifa—.
+
+Cuatro cosas de ese fichero:
+
+- **El código manda.** Cargar dos veces el mismo fichero deja el equipo igual
+  que cargarlo una vez.
+- **La casilla de competencias es la lista completa** de esa persona: lo que no
+  venga, se le quita. Si no quieres tocarlas, quita la columna entera. El nivel
+  es obligatorio y va de 1 a 5 — `FMECA:4` —, porque de él depende a quién
+  propone el reparto.
+- **Las tarifas se añaden, no reemplazan.** Una tarifa es un tramo con fechas, y
+  borrar las anteriores reescribiría el coste de lo que ya pasó. Una idéntica no
+  se duplica; una que se pisa con otra se avisa y no entra.
+- **Si el fichero trae tarifas, hace falta el permiso de tarifas.** Sin esa
+  columna no se necesita, así que quien sólo mantiene el equipo sigue pudiendo.
+
+Una fila que desaparece del fichero **no borra a nadie**: para dar de baja se
+pone fecha en la columna `baja`.
 
 ### Calendario
 

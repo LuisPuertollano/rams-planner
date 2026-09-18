@@ -78,7 +78,9 @@ manual lo detalla en [«Empezar desde cero»](manual-de-uso.md#2-empezar-desde-c
 aquí va el orden y el porqué:
 
 1. **Equipo** — las personas, su calendario y sus ausencias. Sin esto no hay
-   capacidad contra la que medir nada.
+   capacidad contra la que medir nada. Si son más de cinco, no las teclees:
+   *Datos › Importaciones › El equipo* las carga de una vez, con sus
+   competencias y sus tarifas, desde un CSV.
 2. **Competencias** — quién sabe hacer qué. Es lo que después permite que el
    reparto proponga a alguien y no a cualquiera.
 3. **Documentos** — el catálogo de entregables y la matriz de precedencias.
