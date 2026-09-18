@@ -42,7 +42,8 @@ parece una mala idea, aquí está el razonamiento que había detrás.
 | [0035](0035-la-capacidad-no-se-repite.md) | Se guarda todo el historial, pero la capacidad se escribe una vez y se comparte | P2, P3, P5 |
 | [0036](0036-la-rampa-de-saturacion.md) | La rampa de saturación es divergente, se mide en CI y el número de dentro se lee | P1, P4, P6 |
 | [0037](0037-las-subactividades-del-entregable.md) | Un entregable es una cadena de subactividades: crear, revisar en tres niveles, soportar | P1, P2, P5, P6 |
-| [0038](0038-una-puerta-por-rol.md) | Una página de documentación por rol, y los permisos de documentos que no tenía nadie | P1, P6 |
+&
+| [0039](0039-partir-la-tarea-en-su-cadena.md) | Partir una tarea en su cadena de subactividades, repartiendo sin re-estimar | P1, P2, P4, P5, P7 |
 
 ## Decisiones tomadas por defecto
 
