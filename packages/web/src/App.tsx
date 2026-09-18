@@ -25,10 +25,11 @@ import {
   useT,
   type Idioma,
 } from './i18n/index.js'
+import { GRUPOS, type GrupoId, type Vista, type VistaId } from './nav.js'
 import { activePeriods } from './periods.js'
 import { EditPanel } from './components/EditPanel.js'
-import { ImportActualsButton } from './components/ImportActualsButton.js'
-import { ImportButton } from './components/ImportButton.js'
+import { ImportDialog, type TipoDeImportacion } from './components/ImportDialog.js'
+import { Menu } from './components/Menu.js'
 import { PasswordPanel } from './components/PasswordPanel.js'
 import { ProjectPanel } from './components/ProjectPanel.js'
 import { WhyPanel } from './components/WhyPanel.js'
@@ -38,59 +39,18 @@ import { LoginView } from './views/LoginView.js'
 import { DiffView } from './views/DiffView.js'
 import { ApplyMatrixPanel } from './views/ApplyMatrixPanel.js'
 import { DocumentsView } from './views/DocumentsView.js'
-import { FindingsView } from './views/FindingsView.js'
 import { GanttView } from './views/GanttView.js'
 import { HistoryView } from './views/HistoryView.js'
 import { HeatmapView } from './views/HeatmapView.js'
+import { ImportsView } from './views/ImportsView.js'
 import { MatrixView } from './views/MatrixView.js'
 import { PlanView } from './views/PlanView.js'
 import { RebalanceView } from './views/RebalanceView.js'
 import { ReportView } from './views/ReportView.js'
 import { SkillsView } from './views/SkillsView.js'
 import { ResourcesView } from './views/ResourcesView.js'
+import { TodayView } from './views/TodayView.js'
 import { errorText } from './errors.js'
-
-type Tab =
-  | 'matriz' | 'saturacion' | 'plan' | 'cronograma'
-  | 'equipo' | 'competencias' | 'calendario' | 'documentos' | 'reparto' | 'informes' | 'hallazgos'
-  | 'comparar' | 'registro' | 'admin'
-
-/**
- * Cada pestaña declara con qué permiso se entra. Si alguien no tiene ninguno de
- * ellos, la pestaña no se enseña — pero eso es cortesía, no seguridad: quien
- * escriba la URL a mano se encuentra con un 403 del servidor igualmente.
- */
-const TABS: readonly {
-  id: Tab
-  /** La clave del diccionario. El texto vive en `i18n/`, no aquí. */
-  label: 'tab.carga' | 'tab.saturacion' | 'tab.plan' | 'tab.cronograma' | 'tab.equipo'
-  | 'tab.calendario' | 'tab.competencias' | 'tab.documentos' | 'tab.reparto' | 'tab.informes'
-  | 'tab.hallazgos' | 'tab.comparar' | 'tab.registro' | 'tab.admin'
-  hint: 'tab.carga.pista' | 'tab.saturacion.pista' | 'tab.plan.pista' | 'tab.cronograma.pista'
-  | 'tab.equipo.pista' | 'tab.calendario.pista' | 'tab.competencias.pista' | 'tab.documentos.pista'
-  | 'tab.reparto.pista' | 'tab.informes.pista' | 'tab.hallazgos.pista' | 'tab.comparar.pista'
-  | 'tab.registro.pista' | 'tab.admin.pista'
-  permission: readonly string[]
-  /** El permiso hace falta en toda la herramienta, no sobre un proyecto. */
-  everywhere?: true
-}[] = [
-  { id: 'matriz', label: 'tab.carga', hint: 'tab.carga.pista', permission: ['carga.ver'] },
-  // La saturación es del equipo entero: con la carga de un solo proyecto, la
-  // ocupación de una persona no es su ocupación.
-  { id: 'saturacion', label: 'tab.saturacion', hint: 'tab.saturacion.pista', permission: ['carga.ver'], everywhere: true },
-  { id: 'plan', label: 'tab.plan', hint: 'tab.plan.pista', permission: ['plan.ver'] },
-  { id: 'cronograma', label: 'tab.cronograma', hint: 'tab.cronograma.pista', permission: ['plan.ver'] },
-  { id: 'equipo', label: 'tab.equipo', hint: 'tab.equipo.pista', permission: ['equipo.ver'] },
-  { id: 'calendario', label: 'tab.calendario', hint: 'tab.calendario.pista', permission: ['equipo.ver'] },
-  { id: 'competencias', label: 'tab.competencias', hint: 'tab.competencias.pista', permission: ['competencias.ver'] },
-  { id: 'documentos', label: 'tab.documentos', hint: 'tab.documentos.pista', permission: ['documentos.ver'] },
-  { id: 'reparto', label: 'tab.reparto', hint: 'tab.reparto.pista', permission: ['reparto.ver'] },
-  { id: 'informes', label: 'tab.informes', hint: 'tab.informes.pista', permission: ['informes.ver'] },
-  { id: 'hallazgos', label: 'tab.hallazgos', hint: 'tab.hallazgos.pista', permission: ['carga.ver', 'plan.ver'] },
-  { id: 'comparar', label: 'tab.comparar', hint: 'tab.comparar.pista', permission: ['ejecuciones.ver'] },
-  { id: 'registro', label: 'tab.registro', hint: 'tab.registro.pista', permission: ['historial.ver'] },
-  { id: 'admin', label: 'tab.admin', hint: 'tab.admin.pista', permission: ['roles.gestionar', 'usuarios.gestionar'] },
-]
 
 /**
  * El idioma envuelve a toda la aplicación.
@@ -133,7 +93,11 @@ function Planner({
   const [me, setMe] = useState<MeResponse | null>(null)
   const [state, setState] = useState<AppState | null>(null)
   const [data, setData] = useState<RunData | null>(null)
-  const [tab, setTab] = useState<Tab>('matriz')
+  const [vista, setVista] = useState<VistaId>('hoy')
+  // Volver a un grupo devuelve a la pantalla en la que lo dejaste. Sin esto,
+  // ir de Equipo → Calendario → Plan → Equipo te deja otra vez en Equipo, y
+  // castiga justo a quien usa más de una pantalla de un grupo.
+  const [ultima, setUltima] = useState<Readonly<Record<string, VistaId>>>({})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -142,6 +106,9 @@ function Planner({
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [theme, setTheme] = useState<'auto' | 'light' | 'dark'>('auto')
   const [cambiandoClave, setCambiandoClave] = useState(false)
+  // Qué se está importando, si es que se está importando algo. Vive aquí y no
+  // en el menú porque cerrar el menú no puede cancelar una importación a medias.
+  const [importando, setImportando] = useState<TipoDeImportacion | null>(null)
 
   const load = useCallback(async () => {
     const next = await fetchState()
@@ -182,6 +149,10 @@ function Planner({
       // Da igual: es una comodidad, no un dato del plan.
     }
   }, [theme])
+
+  const recargar = useCallback((): void => {
+    load().catch((cause: unknown) => { setError(errorText(t, cause, 'app.errorRecargar')) })
+  }, [load, t])
 
   const onFreeze = (): void => {
     if (state?.run == null) return
@@ -243,24 +214,46 @@ function Planner({
     }
   }, [data])
 
-  const visibleTabs = useMemo(
-    () =>
-      TABS.filter((item) =>
-        item.permission.some((code) =>
-          item.everywhere === true ? canEverywhere(me, code) : can(me, code),
-        ),
-      ),
-    [me],
-  )
+  // Los seis grupos, con dentro sólo las vistas a las que llega tu rol. Un grupo
+  // que se queda sin ninguna no se enseña: es una pestaña que no lleva a nada.
+  const grupos = useMemo(() => {
+    const alcanza = (item: Vista): boolean =>
+      item.permission.some((code) =>
+        item.everywhere === true ? canEverywhere(me, code) : can(me, code),
+      )
+    return GRUPOS.map((grupo) => ({ ...grupo, vistas: grupo.vistas.filter(alcanza) })).filter(
+      (grupo) => grupo.vistas.length > 0,
+    )
+  }, [me])
 
-  // Si el rol de quien mira no llega a la pestaña elegida (o a la de inicio),
-  // se cae a la primera que sí pueda ver en vez de dejar el panel en blanco.
+  const grupoActivo = grupos.find((grupo) => grupo.vistas.some((item) => item.id === vista))
+  const vistaActiva = grupoActivo?.vistas.find((item) => item.id === vista)
+
+  // Si el rol de quien mira no llega a la vista elegida (o a la de inicio), se
+  // cae a la primera que sí pueda ver en vez de dejar el panel en blanco.
   useEffect(() => {
-    if (visibleTabs.length === 0) return
-    if (!visibleTabs.some((item) => item.id === tab)) setTab(visibleTabs[0]?.id ?? 'matriz')
-  }, [visibleTabs, tab])
+    if (grupos.length === 0 || grupoActivo !== undefined) return
+    const primera = grupos[0]?.vistas[0]?.id
+    if (primera !== undefined) setVista(primera)
+  }, [grupos, grupoActivo])
 
-  const activeTab = TABS.find((item) => item.id === tab)
+  const irAlGrupo = (id: GrupoId): void => {
+    const grupo = grupos.find((candidato) => candidato.id === id)
+    if (grupo === undefined) return
+    const recordada = ultima[id]
+    const destino =
+      recordada !== undefined && grupo.vistas.some((item) => item.id === recordada)
+        ? recordada
+        : grupo.vistas[0]?.id
+    if (destino !== undefined) setVista(destino)
+  }
+
+  const irALaVista = (id: VistaId): void => {
+    const grupo = GRUPOS.find((candidato) => candidato.vistas.some((item) => item.id === id))
+    if (grupo !== undefined) setUltima((previo) => ({ ...previo, [grupo.id]: id }))
+    setVista(id)
+  }
+
   const puede = (code: string): boolean => can(me, code)
 
   if (me === null) {
@@ -271,6 +264,95 @@ function Planner({
     return <LoginView onEntered={setMe} />
   }
 
+  const sinCifras = vistaActiva?.sinCifras === true
+
+  // Todo lo que cambia los datos, en un solo sitio. Antes estaba repartido por
+  // la cabecera entre el selector de tema y el de idioma, con el mismo peso
+  // visual: «Recalcular» daba el mismo respeto que «Tema», que es al revés.
+  const acciones: readonly { clave: string; nodo: (cerrar: () => void) => React.JSX.Element }[] = [
+    ...(!puede('calcular') ? [] : [{
+      clave: 'calcular',
+      nodo: (cerrar: () => void) => (
+        <button
+          className="menu__item"
+          role="menuitem"
+          disabled={busy}
+          onClick={() => { cerrar(); onRecalculate(false) }}
+        >
+          {busy ? t('boton.calculando') : t('boton.recalcular')}
+        </button>
+      ),
+    }]),
+    ...(!puede('nivelar') ? [] : [{
+      clave: 'nivelar',
+      nodo: (cerrar: () => void) => (
+        <button
+          className="menu__item"
+          role="menuitem"
+          disabled={busy}
+          title={t('boton.nivelarTitulo')}
+          onClick={() => { cerrar(); onRecalculate(true) }}
+        >
+          {t('boton.nivelar')}
+        </button>
+      ),
+    }]),
+    ...(!puede('lineabase.crear') ? [] : [{
+      clave: 'lineaBase',
+      nodo: (cerrar: () => void) => (
+        <button
+          className="menu__item"
+          role="menuitem"
+          disabled={busy || state?.run == null}
+          title={t('boton.lineaBaseTitulo')}
+          onClick={() => { cerrar(); onFreeze() }}
+        >
+          {t('boton.lineaBase')}
+        </button>
+      ),
+    }]),
+    ...(!puede('importar') ? [] : [{
+      clave: 'importarPlan',
+      nodo: (cerrar: () => void) => (
+        <button
+          className="menu__item"
+          role="menuitem"
+          title={t('importar.plan.titulo')}
+          onClick={() => { cerrar(); setImportando('plan') }}
+        >
+          {t('boton.importar')}
+        </button>
+      ),
+    }]),
+    ...(!puede('reales.registrar') ? [] : [{
+      clave: 'importarHoras',
+      nodo: (cerrar: () => void) => (
+        <button
+          className="menu__item"
+          role="menuitem"
+          title={t('horas.importarTitulo')}
+          onClick={() => { cerrar(); setImportando('actuals') }}
+        >
+          {t('horas.importar')}
+        </button>
+      ),
+    }]),
+    ...(state?.run == null || !puede('exportar') ? [] : [{
+      clave: 'exportar',
+      nodo: (cerrar: () => void) => (
+        <a
+          className="menu__item"
+          role="menuitem"
+          href={`/api/runs/${state.run?.id ?? ''}/export.csv?bucket=month`}
+          title={t('boton.exportarTitulo')}
+          onClick={cerrar}
+        >
+          {t('boton.exportar')}
+        </a>
+      ),
+    }]),
+  ]
+
   return (
     <div className="app">
       <header className="topbar">
@@ -280,133 +362,82 @@ function Planner({
         </div>
 
         <nav className="tabs" role="tablist">
-          {visibleTabs.map((item) => (
+          {grupos.map((grupo) => (
             <button
-              key={item.id}
+              key={grupo.id}
               role="tab"
-              aria-selected={tab === item.id}
+              aria-selected={grupoActivo?.id === grupo.id}
               className="tab"
-              onClick={() => { setTab(item.id) }}
-              title={t(item.hint)}
+              onClick={() => { irAlGrupo(grupo.id) }}
+              title={t(grupo.hint)}
             >
-              {t(item.label)}
+              {t(grupo.label)}
             </button>
           ))}
         </nav>
 
-        {state?.run === null ||
-        state === null ||
-        tab === 'admin' ||
-        tab === 'registro' ||
-        tab === 'informes' ||
-        tab === 'documentos' ? null : (
-          <span className="run-chip" title={t('ejecucion.hash', state.run.inputHash)}>
-            {t(
-              'ejecucion.chip',
-              state.run.id.slice(0, 8),
-              state.run.engineVersion,
-              dateTime(state.run.startedAt),
-              state.run.durationMs ?? 0,
-            )}
-          </span>
+        {/* Hacer: lo que cambia los datos y recalcula el plan. */}
+        {acciones.length === 0 ? null : (
+          <Menu etiqueta={t('menu.calcular')} titulo={t('menu.calcular.titulo')} principal>
+            {(cerrar) => acciones.map((accion) => (
+              <span key={accion.clave} style={{ display: 'contents' }}>{accion.nodo(cerrar)}</span>
+            ))}
+          </Menu>
         )}
 
-        <button
-          className="button"
-          onClick={() => { setTheme(theme === 'dark' ? 'light' : theme === 'light' ? 'auto' : 'dark') }}
-          title={t('boton.tema')}
-        >
-          {theme === 'auto' ? '◐' : theme === 'light' ? '☀' : '☾'}
-        </button>
-        <select
-          className="input input--idioma"
-          value={idioma}
-          title={t('boton.idioma')}
-          aria-label={t('boton.idioma')}
-          onChange={(event) => { onIdioma(event.target.value as Idioma) }}
-        >
-          {IDIOMAS.map((codigo) => (
-            // Cada idioma, escrito en su propio idioma: quien abre esto sin
-            // entender la pantalla necesita reconocer el suyo, no leerlo.
-            <option key={codigo} value={codigo}>{NOMBRE_DEL_IDIOMA[codigo]}</option>
-          ))}
-        </select>
-        {!puede('importar') ? null : (
-          <ImportButton
-            onImported={() => {
-              load().catch((cause: unknown) => {
-                setError(errorText(t, cause, 'app.errorRecargar'))
-              })
-            }}
-          />
-        )}
-        {/* Sin `onImported`: cargar horas no recalcula nada, así que no hay
-            nada que recargar. Es la diferencia con el plan, y es a propósito. */}
-        {!puede('reales.registrar') ? null : <ImportActualsButton />}
-        {state?.run == null || !puede('exportar') ? null : (
-          <a
-            className="button"
-            href={`/api/runs/${state.run.id}/export.csv?bucket=month`}
-            title={t('boton.exportarTitulo')}
-          >
-            {t('boton.exportar')}
-          </a>
-        )}
-        {!puede('lineabase.crear') ? null : (
+        {/* Mirar: cómo ves tú la herramienta. No cambia ni un dato. */}
+        <div className="topbar__mirar">
           <button
             className="button"
-            onClick={onFreeze}
-            disabled={busy || state?.run == null}
-            title={t('boton.lineaBaseTitulo')}
+            onClick={() => { setTheme(theme === 'dark' ? 'light' : theme === 'light' ? 'auto' : 'dark') }}
+            title={t('boton.tema')}
           >
-            {t('boton.lineaBase')}
+            {theme === 'auto' ? '◐' : theme === 'light' ? '☀' : '☾'}
           </button>
-        )}
-        {!puede('nivelar') ? null : (
-          <button
-            className="button"
-            onClick={() => { onRecalculate(true) }}
-            disabled={busy}
-            title={t('boton.nivelarTitulo')}
+          <select
+            className="input input--idioma"
+            value={idioma}
+            title={t('boton.idioma')}
+            aria-label={t('boton.idioma')}
+            onChange={(event) => { onIdioma(event.target.value as Idioma) }}
           >
-            {t('boton.nivelar')}
-          </button>
-        )}
-        {!puede('calcular') ? null : (
-          <button className="button button--primary" onClick={() => { onRecalculate(false) }} disabled={busy}>
-            {busy ? t('boton.calculando') : t('boton.recalcular')}
-          </button>
-        )}
-        {me.user === null ? null : (
-          <span className="usuario-chip" title={me.user.email}>
-            {me.user.displayName}
-            <button
-              className="button"
-              title={t('boton.contrasenaTitulo')}
-              onClick={() => { setCambiandoClave(true) }}
-            >
-              {t('boton.contrasena')}
-            </button>
-            <button
-              className="button"
-              title={t('boton.salir')}
-              onClick={() => {
-                signOut()
-                  .then(fetchMe)
-                  .then(setMe)
-                  .catch((cause: unknown) => {
-                    setError(errorText(t, cause, 'app.errorRecargar'))
-                  })
-              }}
-            >
-              {t('boton.salir')}
-            </button>
-          </span>
-        )}
+            {IDIOMAS.map((codigo) => (
+              // Cada idioma, escrito en su propio idioma: quien abre esto sin
+              // entender la pantalla necesita reconocer el suyo, no leerlo.
+              <option key={codigo} value={codigo}>{NOMBRE_DEL_IDIOMA[codigo]}</option>
+            ))}
+          </select>
+          {me.user === null ? null : (
+            <span className="usuario-chip" title={me.user.email}>
+              {me.user.displayName}
+              <button
+                className="button"
+                title={t('boton.contrasenaTitulo')}
+                onClick={() => { setCambiandoClave(true) }}
+              >
+                {t('boton.contrasena')}
+              </button>
+              <button
+                className="button"
+                title={t('boton.salir')}
+                onClick={() => {
+                  signOut()
+                    .then(fetchMe)
+                    .then(setMe)
+                    .catch((cause: unknown) => {
+                      setError(errorText(t, cause, 'app.errorRecargar'))
+                    })
+                }}
+              >
+                {t('boton.salir')}
+              </button>
+            </span>
+          )}
+        </div>
       </header>
 
       <main className="content">
-        {visibleTabs.length > 0 ? null : (
+        {grupos.length > 0 ? null : (
           <div className="empty">
             <h3>{t('vacio.sinPermisos.titulo')}</h3>
             <p style={{ maxWidth: '52ch', margin: '0 auto' }}>{t('vacio.sinPermisos.texto')}</p>
@@ -428,12 +459,7 @@ function Planner({
           </div>
         )}
 
-        {totals === null ||
-        visibleTabs.length === 0 ||
-        tab === 'admin' ||
-        tab === 'registro' ||
-        tab === 'informes' ||
-        tab === 'documentos' ? null : (
+        {totals === null || grupos.length === 0 || sinCifras ? null : (
           <div className="stat-row">
             <div className="stat">
               <div className="stat__label">{t('stat.planificado')}</div>
@@ -483,73 +509,69 @@ function Planner({
           </div>
         )}
 
-        {visibleTabs.length === 0 ? null : (
+        {grupos.length === 0 || grupoActivo === undefined || vistaActiva === undefined ? null : (
         <section className="panel">
           <div className="panel__head">
-            <h2>{activeTab === undefined ? '' : t(activeTab.label)}</h2>
-            <p>{activeTab === undefined ? '' : t(activeTab.hint)}</p>
+            {grupoActivo.vistas.length === 1 ? (
+              <h2>{t(vistaActiva.label)}</h2>
+            ) : (
+              // El segundo nivel: dentro de un grupo se cambia de pantalla sin
+              // salir de él. Es lo que permite que arriba haya seis y no catorce.
+              <div className="subtabs" role="tablist" aria-label={t(grupoActivo.label)}>
+                {grupoActivo.vistas.map((item) => (
+                  <button
+                    key={item.id}
+                    role="tab"
+                    aria-selected={item.id === vista}
+                    className="subtab"
+                    onClick={() => { irALaVista(item.id) }}
+                    title={t(item.hint)}
+                  >
+                    {t(item.label)}
+                  </button>
+                ))}
+              </div>
+            )}
+            <p>{t(vistaActiva.hint)}</p>
             <span className="spacer faint" style={{ fontSize: 12 }}>
-              {tab === 'admin'
-                ? t('nota.admin')
-                : tab === 'documentos'
-                  ? t('nota.documentos')
-                : tab === 'registro'
-                  ? t('nota.registro')
-                : tab === 'equipo' || tab === 'competencias'
-                  ? t('nota.declarado')
-                  : tab === 'plan'
-                    ? t('nota.plan')
-                    : t('nota.derivado')}
+              {state?.run == null || sinCifras ? null : (
+                <span className="run-chip" title={t('ejecucion.hash', state.run.inputHash)}>
+                  {t(
+                    'ejecucion.chip',
+                    state.run.id.slice(0, 8),
+                    state.run.engineVersion,
+                    dateTime(state.run.startedAt),
+                    state.run.durationMs ?? 0,
+                  )}
+                </span>
+              )}
             </span>
+            <span className="faint" style={{ fontSize: 12 }}>{t(vistaActiva.nota)}</span>
           </div>
-          <div className={tab === 'hallazgos' ? 'panel__body panel__body--flush' : 'panel__body panel__body--flush'}>
-            {tab === 'admin' ? (
+          <div className="panel__body panel__body--flush">
+            {vista === 'admin' ? (
               <AdminView projects={state?.projects ?? []} currentUserId={me.user?.id ?? null} />
-            ) : tab === 'documentos' ? (
-              // El catálogo es dato declarado del equipo: existe aunque no
-              // haya ni un proyecto, y de hecho conviene llenarlo antes.
+            ) : vista === 'documentos' ? (
               <>
                 <DocumentsView canEdit={puede('documentos.gestionar')} />
                 {(state?.projects ?? []).length === 0 ? null : (
                   <ApplyMatrixPanel
                     projects={state?.projects ?? []}
                     canApply={puede('dependencias.editar')}
-                    onApplied={() => {
-                      load().catch((cause: unknown) => {
-                        setError(errorText(t, cause, 'app.errorRecargar'))
-                      })
-                    }}
+                    onApplied={recargar}
                   />
                 )}
               </>
-            ) : tab === 'informes' ? (
-              // El informe se pide a su propia ruta y trae su ejecución dentro,
-              // así que no depende de la que tenga cargada el resto de la app.
+            ) : vista === 'importaciones' ? (
+              <ImportsView puede={puede} onPlanImportado={recargar} />
+            ) : vista === 'informes' ? (
               <ReportView projects={state?.projects ?? []} />
-            ) : tab === 'registro' ? (
-              // El registro es dato propio: existe aunque no se haya calculado
-              // nada, y de hecho lo primero que se registra es el alta de la
-              // primera persona del equipo.
+            ) : vista === 'registro' ? (
               <HistoryView projects={state?.projects ?? []} />
-            ) : tab === 'competencias' ? (
-              <SkillsView
-                onChanged={() => {
-                  load().catch((cause: unknown) => {
-                    setError(errorText(t, cause, 'app.errorRecargar'))
-                  })
-                }}
-              />
-            ) : tab === 'equipo' ? (
-              // La ficha del equipo es dato declarado: existe aunque todavía no
-              // se haya calculado nada, y de hecho es por donde hay que empezar
-              // en una base de datos vacía.
-              <ResourcesView
-                onChanged={() => {
-                  load().catch((cause: unknown) => {
-                    setError(errorText(t, cause, 'app.errorRecargar'))
-                  })
-                }}
-              />
+            ) : vista === 'competencias' ? (
+              <SkillsView onChanged={recargar} />
+            ) : vista === 'equipo' ? (
+              <ResourcesView onChanged={recargar} />
             ) : state === null ? (
               <div className="empty">
                 <h3>{t('app.cargando')}</h3>
@@ -563,7 +585,7 @@ function Planner({
                 <p style={{ maxWidth: '52ch', margin: '0 auto' }}>{t('vacio.nada.texto')}</p>
                 <div className="stat-row" style={{ justifyContent: 'center', marginTop: 20 }}>
                   {!puede('equipo.ver') ? null : (
-                    <button className="button" onClick={() => { setTab('equipo') }}>
+                    <button className="button" onClick={() => { irALaVista('equipo') }}>
                       {t('vacio.nada.irEquipo')}
                     </button>
                   )}
@@ -577,7 +599,14 @@ function Planner({
                   {t('vacio.nada.demo', '')} <code>pnpm --filter @planner/api seed:demo</code>
                 </p>
               </div>
-            ) : tab === 'matriz' ? (
+            ) : vista === 'hoy' ? (
+              <TodayView
+                state={state}
+                data={data}
+                puedeVerReales={puede('reales.ver')}
+                onIr={irALaVista}
+              />
+            ) : vista === 'carga' ? (
               <MatrixView
                 costsHidden={data.costsHidden}
                 resources={state.resources}
@@ -586,9 +615,9 @@ function Planner({
                 utilization={data.utilization}
                 runId={state.run?.id ?? ''}
               />
-            ) : tab === 'saturacion' ? (
+            ) : vista === 'saturacion' ? (
               <HeatmapView resources={state.resources} utilization={data.utilization} />
-            ) : tab === 'plan' ? (
+            ) : vista === 'plan' ? (
               <PlanView
                 tasks={data.tasks}
                 projects={state.projects}
@@ -596,38 +625,35 @@ function Planner({
                 onExplain={setExplaining}
                 onEdit={setEditing}
                 onEditProject={setEditingProject}
-                onChanged={() => {
-                  load().catch((cause: unknown) => {
-                    setError(errorText(t, cause, 'app.errorRecargar'))
-                  })
-                }}
+                onChanged={recargar}
               />
-            ) : tab === 'reparto' ? (
-              <RebalanceView
-                projects={state.projects}
-                onChanged={() => {
-                  load().catch((cause: unknown) => {
-                    setError(errorText(t, cause, 'app.errorRecargar'))
-                  })
-                }}
-              />
-            ) : tab === 'calendario' ? (
+            ) : vista === 'reparto' ? (
+              <RebalanceView projects={state.projects} onChanged={recargar} />
+            ) : vista === 'calendario' ? (
               <CalendarView runId={state.run?.id ?? ''} />
-            ) : tab === 'cronograma' ? (
+            ) : vista === 'cronograma' ? (
               <GanttView tasks={data.tasks} projects={state.projects} />
-            ) : tab === 'comparar' ? (
+            ) : (
               <DiffView
-                baselines={state?.baselines ?? []}
+                baselines={state.baselines}
                 currentRunId={state.run?.id ?? ''}
                 projects={state.projects}
               />
-            ) : (
-              <FindingsView findings={data.findings} />
             )}
           </div>
         </section>
         )}
       </main>
+
+      {importando === null ? null : (
+        <ImportDialog
+          tipo={importando}
+          onClose={() => { setImportando(null) }}
+          // Cargar horas no recalcula nada, así que no hay nada que recargar.
+          // Es la diferencia con el plan, y es a propósito.
+          onImported={importando === 'plan' ? recargar : undefined}
+        />
+      )}
 
       {!cambiandoClave || me.user === null ? null : (
         <PasswordPanel
@@ -652,11 +678,7 @@ function Planner({
           project={editingProject}
           baselines={state?.baselines ?? []}
           onClose={() => { setEditingProject(null) }}
-          onChanged={() => {
-            load().catch((cause: unknown) => {
-              setError(errorText(t, cause, 'app.errorRecargar'))
-            })
-          }}
+          onChanged={recargar}
         />
       )}
 
@@ -666,11 +688,7 @@ function Planner({
           tasks={data.tasks}
           resources={state.resources}
           onClose={() => { setEditing(null) }}
-          onChanged={() => {
-            load().catch((cause: unknown) => {
-              setError(errorText(t, cause, 'app.errorRecargar'))
-            })
-          }}
+          onChanged={recargar}
         />
       )}
     </div>
