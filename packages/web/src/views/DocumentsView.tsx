@@ -3,11 +3,16 @@ import {
   createDocumentType,
   fetchDocuments,
   removeDocumentType,
+  setActivities,
   setPredecessors,
   setPrecedence,
   setSignatures,
   updateDocumentType,
   DOCUMENT_KINDS,
+  type ActivityEffort,
+  type ActivityProblem,
+  type ActivityStep,
+  type DocumentActivity,
   type DocumentCatalogue,
   type DocumentFields,
   type DocumentKind,
@@ -147,6 +152,35 @@ export function DocumentsView({ canEdit }: Props): React.JSX.Element {
       lista.push(problema)
       mapa.set(problema.documentTypeId, lista)
     }
+    return mapa
+  }, [catalogo])
+
+  /** Las subactividades de cada entregable, ya indexadas y en orden. */
+  const actividadesDe = useMemo(() => {
+    const mapa = new Map<string, DocumentActivity[]>()
+    for (const actividad of catalogo?.activities ?? []) {
+      const lista = mapa.get(actividad.documentTypeId) ?? []
+      lista.push(actividad)
+      mapa.set(actividad.documentTypeId, lista)
+    }
+    return mapa
+  }, [catalogo])
+
+  /** Lo que está mal en las subactividades. Lo calcula el servidor, igual que la firma. */
+  const problemasDeActividad = useMemo(() => {
+    const mapa = new Map<string, ActivityProblem[]>()
+    for (const problema of catalogo?.activityProblems ?? []) {
+      const lista = mapa.get(problema.documentTypeId) ?? []
+      lista.push(problema)
+      mapa.set(problema.documentTypeId, lista)
+    }
+    return mapa
+  }, [catalogo])
+
+  /** Lo que cuesta cada entregable según su cadena, y por dónde cierra. */
+  const esfuerzoDe = useMemo(() => {
+    const mapa = new Map<string, ActivityEffort>()
+    for (const fila of catalogo?.activityEffort ?? []) mapa.set(fila.documentTypeId, fila)
     return mapa
   }, [catalogo])
 
@@ -302,6 +336,8 @@ export function DocumentsView({ canEdit }: Props): React.JSX.Element {
           predecesores={esperaA.get(enEdicion.id) ?? []}
           firmas={firmasDe.get(enEdicion.id) ?? []}
           problemas={problemasDe.get(enEdicion.id) ?? []}
+          actividades={actividadesDe.get(enEdicion.id) ?? []}
+          problemasDeActividad={problemasDeActividad.get(enEdicion.id) ?? []}
           busy={busy}
           onRun={run}
           onCerrar={() => { setAbierto(null) }}
@@ -314,6 +350,9 @@ export function DocumentsView({ canEdit }: Props): React.JSX.Element {
           esperaA={esperaA}
           firmasDe={firmasDe}
           problemasDe={problemasDe}
+          actividadesDe={actividadesDe}
+          problemasDeActividad={problemasDeActividad}
+          esfuerzoDe={esfuerzoDe}
           codigoDe={codigoDe}
           canEdit={canEdit}
           busy={busy}
@@ -354,12 +393,16 @@ export function DocumentsView({ canEdit }: Props): React.JSX.Element {
  * «espera a 2» no dice nada que sirva.
  */
 function Lista({
-  visibles, esperaA, firmasDe, problemasDe, codigoDe, canEdit, busy, abierto, locale, t, onAbrir, onQuitar,
+  visibles, esperaA, firmasDe, problemasDe, actividadesDe, problemasDeActividad, esfuerzoDe,
+  codigoDe, canEdit, busy, abierto, locale, t, onAbrir, onQuitar,
 }: {
   readonly visibles: readonly DocumentType[]
   readonly esperaA: ReadonlyMap<string, readonly string[]>
   readonly firmasDe: ReadonlyMap<string, readonly DocumentSignature[]>
   readonly problemasDe: ReadonlyMap<string, readonly SignatureProblem[]>
+  readonly actividadesDe: ReadonlyMap<string, readonly DocumentActivity[]>
+  readonly problemasDeActividad: ReadonlyMap<string, readonly ActivityProblem[]>
+  readonly esfuerzoDe: ReadonlyMap<string, ActivityEffort>
   readonly codigoDe: ReadonlyMap<string, string>
   readonly canEdit: boolean
   readonly busy: boolean
@@ -385,6 +428,7 @@ function Lista({
           <th>{t('documentos.col.esfuerzo')}</th>
           <th>{t('documentos.col.esperaA')}</th>
           <th title={t('documentos.col.firmaTitulo')}>{t('documentos.col.firma')}</th>
+          <th title={t('documentos.col.cadenaTitulo')}>{t('documentos.col.cadena')}</th>
           <th>{t('documentos.col.enTareas')}</th>
           {!canEdit ? null : <th />}
         </tr>
@@ -420,6 +464,15 @@ function Lista({
                 <Ciclo
                   firmas={firmasDe.get(documento.id) ?? []}
                   problemas={problemasDe.get(documento.id) ?? []}
+                  t={t}
+                />
+              </td>
+              <td>
+                <Cadena
+                  actividades={actividadesDe.get(documento.id) ?? []}
+                  problemas={problemasDeActividad.get(documento.id) ?? []}
+                  esfuerzo={esfuerzoDe.get(documento.id)}
+                  locale={locale}
                   t={t}
                 />
               </td>
@@ -535,13 +588,16 @@ function Matriz({
  * volver a escribir el primero.
  */
 function Editor({
-  documento, todos, predecesores, firmas, problemas, busy, onRun, onCerrar,
+  documento, todos, predecesores, firmas, problemas, actividades, problemasDeActividad,
+  busy, onRun, onCerrar,
 }: {
   readonly documento: DocumentType
   readonly todos: readonly DocumentType[]
   readonly predecesores: readonly string[]
   readonly firmas: readonly DocumentSignature[]
   readonly problemas: readonly SignatureProblem[]
+  readonly actividades: readonly DocumentActivity[]
+  readonly problemasDeActividad: readonly ActivityProblem[]
   readonly busy: boolean
   readonly onRun: (accion: () => Promise<void>) => void
   readonly onCerrar: () => void
@@ -752,6 +808,15 @@ function Editor({
         documento={documento}
         firmas={firmas}
         problemas={problemas}
+        busy={busy}
+        onRun={onRun}
+      />
+
+      <Subactividades
+        documento={documento}
+        actividades={actividades}
+        firmas={firmas}
+        problemas={problemasDeActividad}
         busy={busy}
         onRun={onRun}
       />
@@ -990,7 +1055,7 @@ function CicloDeFirma({
             value={revisores.join(', ')}
             onChange={(e) => { ponerRevisores(e.target.value) }}
           />
-          <span className="faint">{t('documentos.firma.revisoresSinMinutos')}</span>
+          <span className="faint firma__nota">{t('documentos.firma.revisoresSinMinutos')}</span>
         </label>
       </div>
 
@@ -1006,6 +1071,276 @@ function CicloDeFirma({
         </button>
         <span className="faint">
           {cambiado ? t('documentos.conCambios') : t('documentos.sinCambios')}
+        </span>
+      </div>
+    </>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Las subactividades
+// ---------------------------------------------------------------------------
+
+/**
+ * Las cinco casillas de la cadena, en el orden en que se trabajan.
+ *
+ * Cinco fijas y no una tabla que crece, por lo mismo que el ciclo de firma:
+ * son exactamente las cinco que tiene el libro con el que el equipo planifica,
+ * y una sexta es una pantalla que nadie ha pedido. La base admite más de un rol
+ * por casilla; el día que haga falta, lo que cambia es esto.
+ */
+const PASOS = [
+  { step: 'create', clave: 'documentos.sub.crear' },
+  { step: 'review_1', clave: 'documentos.sub.revisar1' },
+  { step: 'review_2', clave: 'documentos.sub.revisar2' },
+  { step: 'review_3', clave: 'documentos.sub.revisar3' },
+  { step: 'support', clave: 'documentos.sub.soportar' },
+] as const satisfies readonly { step: ActivityStep; clave: keyof Diccionario }[]
+
+/** Lo que cada subactividad puede descargar, más «ninguna». */
+const FIRMAS_QUE_DESCARGA = [
+  { step: 'author', position: 1, clave: 'documentos.firma.autor' },
+  { step: 'verifier', position: 1, clave: 'documentos.firma.verificador1' },
+  { step: 'verifier', position: 2, clave: 'documentos.firma.verificador2' },
+  { step: 'approver', position: 1, clave: 'documentos.firma.aprobador' },
+] as const
+
+type Subactividad = Omit<DocumentActivity, 'documentTypeId'>
+
+/**
+ * La cadena en una celda: los roles en el orden en que trabajan.
+ *
+ * Se escribe `S-Eng › TL RAMS` y no «2 subactividades», por lo mismo que la
+ * columna del ciclo escribe los roles: la cadena se verifica de un vistazo y un
+ * contador no dice nada que sirva. El soporte va aparte y entre paréntesis
+ * porque no está en la cadena: acompaña, no bloquea.
+ */
+function Cadena({
+  actividades, problemas, esfuerzo, locale, t,
+}: {
+  readonly actividades: readonly DocumentActivity[]
+  readonly problemas: readonly ActivityProblem[]
+  readonly esfuerzo: ActivityEffort | undefined
+  readonly locale: string
+  readonly t: Traductor
+}): React.JSX.Element {
+  if (actividades.length === 0) return <span className="faint">{/* texto-fijo: guion de celda vacía */}—</span>
+  const enCadena = actividades.filter((actividad) => actividad.step !== 'support')
+  const soporte = actividades.filter((actividad) => actividad.step === 'support')
+  const minutos = esfuerzo?.minutes ?? 0
+  return (
+    <span className={problemas.length === 0 ? undefined : 'firma--rota'}>
+      {problemas.length === 0 ? null : (
+        <b title={problemas.map((problema) => fraseDeSubactividad(t, problema)).join(' · ')}>
+          {/* texto-fijo: señal de aviso, no es una palabra */}⚠{' '}
+        </b>
+      )}
+      {enCadena.length === 0 ? (
+        <span className="faint">{/* texto-fijo: guion */}—</span>
+      ) : (
+        enCadena.map((actividad) => actividad.role).join(' › ')
+      )}
+      {soporte.length === 0 ? null : (
+        <span className="faint"> {t('documentos.sub.masSoporte', soporte.length)}</span>
+      )}
+      {minutos === 0 ? null : (
+        <span className="faint"> · {hours(minutos, 0, locale)} h</span>
+      )}
+    </span>
+  )
+}
+
+/** La frase la escribe el diccionario; el servidor sólo manda código y datos. */
+function fraseDeSubactividad(t: Traductor, problema: ActivityProblem): string {
+  const clave = `sub.${problema.code}` as keyof Diccionario
+  const tipo = String(problema.payload['kind'] ?? '')
+  const firma = String(problema.payload['signatureStep'] ?? '')
+  const nombreDeFirma = (): string => t(`documentos.firma.paso.${firma}` as keyof Diccionario)
+  switch (problema.code) {
+    case 'ACTIVITY_ON_CONTAINER':
+      return t(clave, t(`documentos.tipo.${tipo}` as keyof Diccionario))
+    case 'ACTIVITY_SUPPORT_SIGNS':
+      return t(clave, String(problema.payload['role'] ?? ''), nombreDeFirma())
+    case 'ACTIVITY_SIGNATURE_TWICE':
+      return t(clave, nombreDeFirma(), String(problema.payload['steps'] ?? ''))
+    case 'ACTIVITY_SIGNATURE_ORPHAN':
+      return t(clave, nombreDeFirma(), Number(problema.payload['minutes'] ?? 0))
+    default:
+      return t(clave)
+  }
+}
+
+/**
+ * Las subactividades en la ficha: crear, tres niveles de revisión y soporte.
+ *
+ * Es lo que hace que un entregable deje de ser «40 h de alguien». En el libro
+ * con el que el equipo planifica de verdad, un documento son 40 h de quien lo
+ * escribe y 10 h de quien lo revisa, y son dos personas distintas en dos
+ * momentos distintos. Aquí se declara eso una vez, por rol, y vale para todos
+ * los proyectos.
+ *
+ * Lo que este editor todavía **no** hace, y conviene decirlo: no parte ninguna
+ * tarea ni mueve ninguna fecha. Es el catálogo. Aplicarlo a un proyecto es el
+ * paso siguiente, y cambiará cifras en todas las pantallas.
+ */
+function Subactividades({
+  documento, actividades, firmas, problemas, busy, onRun,
+}: {
+  readonly documento: DocumentType
+  readonly actividades: readonly DocumentActivity[]
+  readonly firmas: readonly DocumentSignature[]
+  readonly problemas: readonly ActivityProblem[]
+  readonly busy: boolean
+  readonly onRun: (accion: () => Promise<void>) => void
+}): React.JSX.Element {
+  const { t } = useT()
+  const guardadas = useMemo<readonly Subactividad[]>(
+    () => actividades.map(({ step, position, role, standardMinutes, signature }) =>
+      ({ step, position, role, standardMinutes, signature })),
+    [actividades],
+  )
+  const [borrador, setBorrador] = useState<readonly Subactividad[]>(guardadas)
+
+  // Al cambiar de entregable, el borrador vuelve a lo guardado. Misma razón que
+  // en el ciclo de firma: arrastrar lo de otro documento sería la peor sorpresa.
+  useEffect(() => { setBorrador(guardadas) }, [documento.id, guardadas])
+
+  const buscar = (step: ActivityStep): Subactividad | undefined =>
+    borrador.find((actividad) => actividad.step === step && actividad.position === 1)
+
+  const poner = (step: ActivityStep, cambio: Partial<Subactividad>): void => {
+    setBorrador((previo) => {
+      const resto = previo.filter((actividad) => !(actividad.step === step && actividad.position === 1))
+      const actual = previo.find((actividad) => actividad.step === step && actividad.position === 1)
+      const nueva: Subactividad = {
+        step,
+        position: 1,
+        role: cambio.role ?? actual?.role ?? '',
+        standardMinutes:
+          cambio.standardMinutes === undefined
+            ? (actual?.standardMinutes ?? null)
+            : cambio.standardMinutes,
+        signature: cambio.signature === undefined ? (actual?.signature ?? null) : cambio.signature,
+      }
+      // Una casilla sin rol no es una subactividad: se va del borrador entera.
+      return nueva.role.trim() === '' ? resto : [...resto, nueva]
+    })
+  }
+
+  const clave = (lista: readonly Subactividad[]): string =>
+    lista
+      .map((a) =>
+        [a.step, a.position, a.role, a.standardMinutes, a.signature?.step, a.signature?.position].join(':'),
+      )
+      .toSorted()
+      .join('|')
+  const cambiado = clave(borrador) !== clave(guardadas)
+
+  /** Sólo se ofrecen las firmas que este entregable declara: no hay otras. */
+  const descargables = FIRMAS_QUE_DESCARGA.filter((casilla) =>
+    firmas.some((firma) => firma.step === casilla.step && firma.position === casilla.position),
+  )
+
+  return (
+    <>
+      <h4>{t('documentos.sub.titulo', borrador.length)}</h4>
+      <p className="faint" style={{ margin: '0 0 8px', maxWidth: '90ch' }}>
+        {t('documentos.sub.explica')}
+      </p>
+
+      {problemas.length === 0 || cambiado ? null : (
+        <ul className="firma__problemas">
+          {problemas.map((problema) => (
+            <li key={`${problema.code}-${String(problema.payload['signatureStep'] ?? '')}-${String(problema.payload['signaturePosition'] ?? '')}`}>
+              {fraseDeSubactividad(t, problema)}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="ficha__firmas ficha__subactividades">
+        {PASOS.map((paso) => {
+          const actual = buscar(paso.step)
+          return (
+            <label key={paso.step}>
+              <span>{t(paso.clave)}</span>
+              <input
+                className="input"
+                placeholder={t('documentos.sub.rol')}
+                value={actual?.role ?? ''}
+                onChange={(e) => { poner(paso.step, { role: e.target.value }) }}
+              />
+              <input
+                className="input"
+                type="number"
+                min={0}
+                step={15}
+                style={{ width: 96 }}
+                placeholder={t('documentos.sub.minutos')}
+                title={t('documentos.sub.minutosTitulo')}
+                value={actual?.standardMinutes ?? ''}
+                disabled={actual === undefined}
+                onChange={(e) => {
+                  const texto = e.target.value.trim()
+                  poner(paso.step, {
+                    standardMinutes: texto === '' ? null : Math.max(0, Math.trunc(Number(texto))),
+                  })
+                }}
+              />
+              {/* La cuarta celda va SIEMPRE, aunque vaya vacía: la rejilla reparte
+                  por orden, y una fila de tres celdas en una rejilla de cuatro
+                  se lleva la primera casilla de la fila siguiente. El soporte no
+                  firma, así que su casilla es la que va vacía. */}
+              <span className="sub__firma">
+              {paso.step === 'support' || descargables.length === 0 ? null : (
+                <select
+                  className="input"
+                  title={t('documentos.sub.descargaTitulo')}
+                  value={
+                    actual?.signature === null || actual?.signature === undefined
+                      ? ''
+                      : `${actual.signature.step}:${String(actual.signature.position)}`
+                  }
+                  disabled={actual === undefined}
+                  onChange={(e) => {
+                    const [step, position] = e.target.value.split(':')
+                    poner(paso.step, {
+                      signature:
+                        step === undefined || position === undefined || e.target.value === ''
+                          ? null
+                          : { step: step as Signature['step'], position: Number(position) },
+                    })
+                  }}
+                >
+                  <option value="">{t('documentos.sub.noFirma')}</option>
+                  {descargables.map((casilla) => (
+                    <option
+                      key={`${casilla.step}${String(casilla.position)}`}
+                      value={`${casilla.step}:${String(casilla.position)}`}
+                    >
+                      {t(casilla.clave)}
+                    </option>
+                  ))}
+                </select>
+              )}
+              </span>
+            </label>
+          )
+        })}
+      </div>
+
+      <div className="toolbar">
+        <button
+          className="button"
+          disabled={busy || !cambiado}
+          onClick={() => {
+            onRun(async () => { await setActivities(documento.id, borrador) })
+          }}
+        >
+          {t('documentos.sub.guardar')}
+        </button>
+        <span className="faint">
+          {cambiado ? t('documentos.sub.conCambios') : t('documentos.sub.sinCambios')}
         </span>
       </div>
     </>
