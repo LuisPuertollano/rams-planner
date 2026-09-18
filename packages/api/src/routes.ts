@@ -32,7 +32,7 @@ import {
 import { frasesSinPermiso, puede } from './auth-routes.js'
 import { fallar } from './errors.js'
 import { EN_TODA_LA_HERRAMIENTA, PERMISSION_BY_CODE, RECORTADO, desde, porNodo } from './permissions.js'
-import { onlyVisible, visibleProjects } from './visibility.js'
+import { columnaSensible, onlyVisible, visibleProjects } from './visibility.js'
 import { toCsv } from './csv.js'
 import { calculate, defaultScenarioId } from './engine.js'
 import { ACTUALS_SPEC, PLAN_SPEC, plantillaCsv, type ImportSpec } from './import-specs.js'
@@ -341,8 +341,7 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
     // cero en un CSV se lee como «costó cero», que es peor que no decirlo.
     // Sólo se incluye si los costes se ven en **todos** los proyectos que salen
     // en el fichero: una columna de coste con huecos miente igual.
-    const conCostes =
-      costesVisibles === 'all' || cells.every((cell) => costesVisibles.has(cell.projectId))
+    const conCostes = columnaSensible(costesVisibles, cells, (cell) => cell.projectId)
     const columns = conCostes
       ? ['recurso', 'proyecto', 'periodo', 'horas', 'coste_eur', 'ejecucion']
       : ['recurso', 'proyecto', 'periodo', 'horas', 'ejecucion']

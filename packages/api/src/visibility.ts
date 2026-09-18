@@ -49,3 +49,24 @@ export function onlyVisible<T>(
     return projectId !== null && visible.has(projectId)
   })
 }
+
+/**
+ * ¿Puede el fichero llevar una columna de dato sensible?
+ *
+ * Sólo si ese dato se ve en **todos** los proyectos que salen en el fichero:
+ * una columna con huecos miente igual que un cero que se lee como «costó cero».
+ *
+ * Y sólo si hay filas. `every` sobre un array vacío es `true`, así que sin esa
+ * condición un fichero sin ninguna fila salía con la cabecera del dato para
+ * quien no puede ver ni un importe. No se filtraba ninguna cifra —no había
+ * cifras— pero la cabecera afirmaba un permiso que esa persona no tiene, y la
+ * cabecera es justo lo que alguien lee para saber qué le dejan ver.
+ */
+export function columnaSensible<T>(
+  visible: Visible,
+  rows: readonly T[],
+  projectOf: (row: T) => string,
+): boolean {
+  if (visible === 'all') return true
+  return rows.length > 0 && rows.every((row) => visible.has(projectOf(row)))
+}
