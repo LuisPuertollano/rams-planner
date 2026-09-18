@@ -86,7 +86,10 @@ aquí va el orden y el porqué:
 3. **Documentos** — el catálogo de entregables y la matriz de precedencias.
    Se declara **una vez** y vale para todos los proyectos.
 4. **Plan** — el proyecto, sus tareas y sus dependencias.
-5. **Calcular**.
+5. **Las puertas del proyecto** — cuándo cae cada revisión de certificación.
+   Es lo que convierte «este documento va a la revisión de diseño» en una fecha.
+   Se puede dejar para después, pero entonces no hay fechas objetivo.
+6. **Calcular**.
 
 ### Las cuatro cosas que sólo tú puedes hacer
 
@@ -143,10 +146,32 @@ nivel 1 *es* la verificación que firma el verificador, se marca en el desplegab
 de la derecha, y así la herramienta puede avisarte de lo que de otro modo se
 perdería: *una firma que cuesta minutos y que ninguna subactividad hace*.
 
-> **Hoy esto es declaración, no cálculo.** El catálogo guarda las
-> subactividades y sus minutos; el motor todavía **no** parte las tareas del
-> plan en su cadena ni mueve fechas por ellas. Es el paso siguiente, y cuando
-> llegue cambiará cifras: por eso va aparte.
+Debajo del catálogo hay dos paneles que llevan lo declarado al plan. Los dos
+funcionan igual: eliges proyecto, pulsas **Previsualizar**, y ves entero lo que
+harían —con el motivo de cada descarte— antes de que se escriba nada.
+
+**Partir las tareas en su cadena.** «Redactar el FMECA — 40 h» pasa a ser un
+paquete con *Crear* y *Revisar 1* encadenadas, y sus asignaciones y dependencias
+se mudan. Mira la cifra de arriba antes de aceptar: **el trabajo total no
+cambia**, porque se reparte en la proporción del catálogo y no se vuelve a
+estimar. Si no cuadra, no apliques.
+
+**Las puertas del proyecto y las fechas objetivo.** Arriba escribes cuándo cae
+cada puerta de certificación en *este* proyecto —el catálogo sabe a cuál va cada
+entregable, no en qué día cae—, y de cruzar las dos mitades sale la fecha
+objetivo de cada tarea: la fecha de la puerta menos siete días por semana
+declarada.
+
+Tres cosas de este segundo panel que evitan sustos:
+
+- **El objetivo es blando.** No mueve ninguna tarea; si el plan termina después,
+  sale en *Qué va tarde* y en los hallazgos. Es para enterarte, no para que el
+  plan finja que llega.
+- **Se pone una vez.** Mueves la fecha de una puerta y hay que volver a
+  previsualizar y aplicar: no se recalcula solo, porque pisaría una fecha que
+  pudiste poner a mano.
+- **Una puerta sin fecha sale avisada, con su nombre.** Es el descarte más
+  común el primer día; se arregla escribiendo la fecha arriba.
 
 ### Lo que la herramienta no hará por ti
 

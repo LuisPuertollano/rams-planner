@@ -38,6 +38,7 @@ import { CalendarView } from './views/CalendarView.js'
 import { LoginView } from './views/LoginView.js'
 import { DiffView } from './views/DiffView.js'
 import { ApplyMatrixPanel } from './views/ApplyMatrixPanel.js'
+import { GatesPanel } from './views/GatesPanel.js'
 import { SplitTasksPanel } from './views/SplitTasksPanel.js'
 import { DocumentsView } from './views/DocumentsView.js'
 import { GanttView } from './views/GanttView.js'
@@ -560,6 +561,13 @@ function Planner({
                   <ApplyMatrixPanel
                     projects={state?.projects ?? []}
                     canApply={puede('dependencias.editar')}
+                    onApplied={recargar}
+                  />
+                )}
+                {(state?.projects ?? []).length === 0 ? null : (
+                  <GatesPanel
+                    projects={state?.projects ?? []}
+                    canApply={puede('plan.editar')}
                     onApplied={recargar}
                   />
                 )}

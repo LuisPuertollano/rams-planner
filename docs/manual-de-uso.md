@@ -443,10 +443,55 @@ En la lista, la columna **Subactividades** resume la cadena —«S-Eng › TL RA
 y lo que suma. La ⚠ delante significa que hay algo que mirar; pasa el ratón por
 encima y lo dice.
 
-> **Esto es declaración, todavía no cálculo.** El catálogo guarda las
-> subactividades y sus minutos; el motor **no** parte aún las tareas del plan en
-> su cadena ni mueve fechas por ellas. Cuando lo haga cambiarán cifras, y por
-> eso va en un paso aparte.
+**Partir las tareas en su cadena.** Debajo del catálogo hay un panel que hace
+con el plan lo que el catálogo declara: «Redactar el FMECA — 40 h» pasa a ser un
+paquete con *Crear · 32 h* y *Revisar 1 · 8 h* encadenadas, y el siguiente
+documento deja de esperar a que termine todo para esperar a que esté
+**revisado**.
+
+Lo que hay que mirar antes de aceptar, y por eso sale arriba y en grande: **el
+trabajo total no cambia**. Partir reparte en la proporción del catálogo, no
+vuelve a estimar. Si esas dos cifras no coinciden no hay que aplicar.
+
+Se elige el proyecto, se pulsa **Previsualizar**, y sale todo: lo que se
+partiría, en qué trozos, y lo que no se toca con su motivo —ya tiene horas
+fichadas, entrega dos documentos, su entregable no declara cadena—. Se puede
+desmarcar fila por fila.
+
+### Las puertas del proyecto y las fechas objetivo
+
+El catálogo dice a qué **puerta de certificación** va cada entregable y cuántas
+semanas antes tiene que estar terminado. Lo que el catálogo no puede saber es
+**cuándo cae esa puerta en tu proyecto**: el mismo FMECA va a la misma revisión
+de diseño en todos, y esa revisión cae un día distinto en cada uno.
+
+Eso se escribe en este panel, arriba: una fila por puerta, con su fecha. Y de
+cruzar las dos mitades sale la **fecha objetivo** de la tarea que entrega el
+documento:
+
+```
+fecha de la puerta − 7 × semanas antes
+```
+
+Cada fila de la propuesta lleva la cuenta entera —«RD el 2026-05-22, menos 2
+semanas» → 2026-05-08—, así que se revisa sin tener que fiarse.
+
+Tres cosas que conviene saber antes de darle al botón:
+
+- **El objetivo no mueve nada.** Es blando: la tarea se queda donde el motor la
+  pone, y si termina después aparece en *Qué va tarde* y en los hallazgos. Sirve
+  para enterarte, no para que el plan finja que llega.
+- **Se pone una vez.** Si mueves la fecha de una puerta, hay que volver a
+  previsualizar y aplicar. No se recalcula solo, porque pisaría sin avisar una
+  fecha que alguien pudo poner a mano.
+- **Si una puerta no tiene fecha, sale en un aviso con su nombre.** Es el
+  descarte más común el primer día y se arregla escribiendo la fecha arriba, no
+  tocando el catálogo. Lo mismo si un entregable no declara puerta: es opcional
+  a propósito.
+
+Y un detalle de la cuenta: un entregable **sin semanas declaradas** se lee como
+cero, es decir, el día de la puerta. La propuesta enseña ese cero para que se
+vea que es una lectura y no un dato, y se corrige en la ficha del entregable.
 
 ### Informes
 

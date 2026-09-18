@@ -1359,6 +1359,108 @@ export async function applySubactivities(
   return (await response.json()) as SplitApplied
 }
 
+// --- Las puertas del proyecto, y los objetivos que salen de ellas -----------
+
+/** Una puerta de certificación del proyecto, con su fecha. */
+export interface ProjectGate {
+  readonly gate: string
+  readonly date: string
+  readonly notes: string | null
+}
+
+export type GateSkipReason =
+  | 'no-es-tarea'
+  | 'sin-entregable'
+  | 'varios-entregables'
+  | 'sin-puerta'
+  | 'puerta-sin-fecha'
+  | 'antes-del-arranque'
+  | 'ya-puesta'
+
+/** Un objetivo que se pondría, con la cuenta entera a la vista (P4). */
+export interface ProposedDeadline {
+  readonly nodeId: string
+  readonly name: string
+  readonly path: string
+  readonly documentTypeId: string
+  readonly documentCode: string
+  readonly gate: string
+  readonly gateDate: string
+  readonly weeks: number
+  readonly deadline: string
+  readonly previous: string | null
+}
+
+export interface SkippedDeadline {
+  readonly nodeId: string
+  readonly name: string
+  readonly path: string
+  readonly reason: GateSkipReason
+  readonly gate: string | null
+  readonly deadline: string | null
+}
+
+export interface GateTotals {
+  readonly candidatas: number
+  readonly nuevas: number
+  readonly cambiadas: number
+  readonly descartadas: number
+  readonly puertasSinFecha: readonly string[]
+}
+
+export interface GatePlan {
+  readonly set: readonly ProposedDeadline[]
+  readonly skipped: readonly SkippedDeadline[]
+  readonly totals: GateTotals
+  readonly documents: readonly DocumentType[]
+}
+
+export interface GatesApplied {
+  readonly result: {
+    readonly deadlinesSet: number
+    readonly deadlinesChanged: number
+    readonly skipped: readonly SkippedDeadline[]
+    readonly totals: GateTotals
+  }
+  readonly run: CalculationSummary
+}
+
+export async function fetchProjectGates(projectId: string): Promise<readonly ProjectGate[]> {
+  return (await get<{ gates: readonly ProjectGate[] }>(`/api/projects/${projectId}/gates`)).gates
+}
+
+/** Deja las puertas del proyecto exactamente como se le manden. Reemplaza. */
+export async function saveProjectGates(
+  projectId: string,
+  gates: readonly ProjectGate[],
+): Promise<readonly ProjectGate[]> {
+  const response = await fetch(`/api/projects/${projectId}/gates`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ gates }),
+  })
+  if (!response.ok) throw await comoError(response, 'No se pudieron guardar las puertas')
+  return ((await response.json()) as { gates: readonly ProjectGate[] }).gates
+}
+
+export async function fetchGatePlan(projectId: string): Promise<GatePlan> {
+  return get<GatePlan>(`/api/projects/${projectId}/gates/plan`)
+}
+
+/** Pone los objetivos que no estén excluidos, y recalcula. */
+export async function applyGates(
+  projectId: string,
+  exclude: readonly string[],
+): Promise<GatesApplied> {
+  const response = await fetch(`/api/projects/${projectId}/gates/apply`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ exclude }),
+  })
+  if (!response.ok) throw await comoError(response, 'No se pudieron poner las fechas objetivo')
+  return (await response.json()) as GatesApplied
+}
+
 export async function fetchMatrixPlan(projectId: string): Promise<MatrixPlan> {
   return get<MatrixPlan>(`/api/projects/${projectId}/documents/plan`)
 }
