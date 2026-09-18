@@ -163,6 +163,64 @@ button { font: inherit; color: inherit; }
 .tab:hover { color: var(--text); }
 .tab[aria-selected="true"] { background: var(--bg-raised); color: var(--text); box-shadow: var(--shadow); }
 
+/* El segundo nivel. Vive dentro del panel, no en la cabecera: es «dónde estoy
+   dentro de este grupo», no «a qué grupo voy». Por eso pesa menos —sin fondo
+   hundido, subrayado en vez de pastilla— y por eso no compite con las seis
+   pestañas de arriba. */
+.subtabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.subtab {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  padding: 2px 8px 5px;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.subtab:hover { color: var(--text); }
+.subtab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+
+/* Lo que cambia los datos, detrás de un solo botón. La cabecera tenía diez
+   controles en fila y «Recalcular» pesaba lo mismo que «Tema». */
+.menu { position: relative; }
+.menu__panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 41;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 18%);
+}
+.menu__item {
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text);
+  font: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.menu__item:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent-text); }
+.menu__item:disabled { opacity: 0.5; cursor: default; }
+/* El fondo del menú sólo recoge el clic de fuera: oscurecer media pantalla
+   por un desplegable de seis líneas es un peaje que no paga nadie. */
+.menu .backdrop { background: transparent; }
+
+/* Mirar: el tema, el idioma y quién eres. No cambian ni un dato, y por eso
+   están al otro lado del menú de «Calcular» y no mezclados con él. */
+.topbar__mirar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
 .button {
   border: 1px solid var(--border-strong);
   background: var(--bg-raised);
@@ -469,6 +527,29 @@ a.button { text-decoration: none; display: inline-block; }
   gap: 16px;
 }
 .notice .button { margin-left: auto; white-space: nowrap; }
+
+/* --- La portada -----------------------------------------------------------
+   Bloques apilados, cada uno con su cuenta y su salida hacia la pantalla que
+   lo explica. Nada aquí se calcula: todo estaba ya repartido por seis
+   pantallas, y esta sólo lo pone en el mismo sitio. */
+.hoy { display: flex; flex-direction: column; }
+.hoy__bloque { border-bottom: 1px solid var(--border); padding: 14px 16px; }
+.hoy__bloque:last-child { border-bottom: 0; }
+.hoy__cabeza { display: flex; align-items: center; gap: 10px; }
+.hoy__cabeza h2, .hoy__cabeza h3 { margin: 0; font-size: 14px; font-weight: 650; display: flex; align-items: center; gap: 8px; }
+.hoy__cabeza .button { margin-left: auto; }
+.hoy__cuenta {
+  font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
+  background: var(--bg-sunken); border: 1px solid var(--border);
+  border-radius: 999px; padding: 1px 8px; color: var(--text-muted);
+}
+.hoy__pista { margin: 2px 0 10px; font-size: 12px; color: var(--text-muted); max-width: 78ch; }
+.hoy__cuerpo .finding { padding: 8px 0; border-bottom: 0; }
+.hoy__fila { margin: 0 0 4px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.hoy__fila b { font-weight: 600; }
+.hoy__mas { margin: 6px 0 0; font-size: 12px; }
+.hoy__resto { padding: 14px 16px; border-top: 1px solid var(--border); }
+.hoy__resto summary { cursor: pointer; font-size: 14px; }
 
 @media (max-width: 1280px) {
   .brand span { display: none; }

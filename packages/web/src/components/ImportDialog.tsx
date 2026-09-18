@@ -1,0 +1,104 @@
+import {
+  importActualsCsv,
+  importDocumentsCsv,
+  importPlanCsv,
+  type ActualsImported,
+  type DocumentsImported,
+  type PlanImported,
+} from '../api.js'
+import { hours, shortDate } from '../format.js'
+import { useT } from '../i18n/index.js'
+import { ImportPanel } from './ImportPanel.js'
+
+/** Las tres cosas que se pueden cargar desde un CSV. */
+export type TipoDeImportacion = 'plan' | 'actuals' | 'documents'
+
+interface Props {
+  readonly tipo: TipoDeImportacion
+  readonly onClose: () => void
+  /**
+   * Qué hacer cuando ha entrado. No es lo mismo en las tres: el plan recalcula
+   * y hay que recargar la pantalla; el parte de horas no cambia ni una fecha.
+   */
+  readonly onImported?: (() => void) | undefined
+  /** El CSV que ya hay, que es la mejor plantilla cuando existe. */
+  readonly exportarUrl?: string | undefined
+}
+
+/**
+ * El único sitio donde se dice cómo es cada importación.
+ *
+ * Antes cada botón traía su propio `ImportPanel` configurado a mano, y eso
+ * aguantaba mientras hubo un botón. Con el menú «Calcular», la pantalla de
+ * Importaciones y el catálogo de documentos pidiendo los mismos tres diálogos,
+ * tres copias del mismo `resumen` habrían empezado a separarse a la primera
+ * frase que alguien mejorase en una sola de ellas.
+ *
+ * Y hay una razón que no es de estilo: el panel tiene que sobrevivir a que se
+ * cierre el menú desde el que se abrió. Si viviera dentro del menú, cerrarlo lo
+ * desmontaría en mitad de la importación. Por eso quien lo abre guarda **qué**
+ * está importando, y el diálogo se pinta arriba del todo.
+ */
+export function ImportDialog({ tipo, onClose, onImported, exportarUrl }: Props): React.JSX.Element {
+  const { t, locale } = useT()
+
+  if (tipo === 'plan') {
+    return (
+      <ImportPanel<PlanImported>
+        tipo="plan"
+        onClose={onClose}
+        importar={importPlanCsv}
+        onImported={onImported}
+        exportarUrl={exportarUrl}
+        resumen={(r) =>
+          t('importar.plan.hecho', r.projects, r.phases, r.tasks, r.dependencies, r.assignments)
+        }
+        avisos={(r) => [
+          ...(r.resourcesCreated.length === 0
+            ? []
+            : [t('importar.plan.personasNuevas', r.resourcesCreated.join(', '))]),
+          ...r.warnings,
+        ]}
+      />
+    )
+  }
+
+  if (tipo === 'actuals') {
+    // Sin `onImported` por defecto: cargar horas no recalcula nada, así que no
+    // hay nada que recargar. Es la diferencia con el plan, y es a propósito.
+    return (
+      <ImportPanel<ActualsImported>
+        tipo="actuals"
+        onClose={onClose}
+        importar={importActualsCsv}
+        onImported={onImported}
+        exportarUrl={exportarUrl}
+        resumen={(r) =>
+          t(
+            'horas.resultado',
+            hours(r.minutes, 0, locale),
+            r.rows,
+            r.saved,
+            r.projects,
+            r.people,
+            shortDate(r.from),
+            shortDate(r.to),
+          )
+        }
+        avisos={(r) => r.warnings}
+      />
+    )
+  }
+
+  return (
+    <ImportPanel<DocumentsImported>
+      tipo="documents"
+      onClose={onClose}
+      importar={importDocumentsCsv}
+      onImported={onImported}
+      exportarUrl={exportarUrl}
+      resumen={(r) => t('documentos.importado', r.rows, r.created, r.updated, r.links)}
+      avisos={(r) => r.warnings}
+    />
+  )
+}

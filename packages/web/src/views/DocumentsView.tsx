@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   createDocumentType,
   fetchDocuments,
-  importDocumentsCsv,
   removeDocumentType,
   setPredecessors,
   setPrecedence,
@@ -12,9 +11,8 @@ import {
   type DocumentFields,
   type DocumentKind,
   type DocumentType,
-  type DocumentsImported,
 } from '../api.js'
-import { ImportPanel } from '../components/ImportPanel.js'
+import { ImportDialog } from '../components/ImportDialog.js'
 import { errorRows, errorText } from '../errors.js'
 import { hours } from '../format.js'
 import { useT, type Diccionario } from '../i18n/index.js'
@@ -170,15 +168,16 @@ export function DocumentsView({ canEdit }: Props): React.JSX.Element {
     </button>
   )
 
+  // El diálogo lo define `ImportDialog`, no esta pantalla: el mismo contrato se
+  // abre desde aquí, desde el menú «Calcular» y desde Datos → Importaciones, y
+  // tres copias del mismo texto se separan a la primera frase que alguien
+  // mejore en una sola de ellas.
   const panelDeImportacion = !importando ? null : (
-    <ImportPanel<DocumentsImported>
+    <ImportDialog
       tipo="documents"
       onClose={() => { setImportando(false) }}
-      importar={importDocumentsCsv}
       onImported={() => { void recargar() }}
       exportarUrl={tipos.length === 0 ? undefined : '/api/documents/export.csv'}
-      resumen={(r) => t('documentos.importado', r.rows, r.created, r.updated, r.links)}
-      avisos={(r) => r.warnings}
     />
   )
 
