@@ -9,23 +9,28 @@ import {
   type SkillMatrix,
 } from '../api.js'
 import { errorText } from '../errors.js'
-import { useT } from '../i18n/index.js'
+import { useT, type Diccionario } from '../i18n/index.js'
 
 interface Props {
   readonly onChanged: () => void
 }
 
-/** La escala, explicada donde se usa. Un número del 1 al 5 no dice nada solo. */
-const NIVELES: readonly { value: number; label: string; hint: string }[] = [
-  { value: 0, label: '—', hint: 'No la tiene declarada' },
-  { value: 1, label: '1', hint: 'En formación: necesita que le enseñen' },
-  { value: 2, label: '2', hint: 'Con apoyo: puede hacerlo si alguien revisa' },
-  { value: 3, label: '3', hint: 'Autónomo: lo saca adelante solo' },
-  { value: 4, label: '4', hint: 'Referencia: los demás le preguntan' },
-  { value: 5, label: '5', hint: 'Experto reconocido: defiende el trabajo fuera' },
-]
+/**
+ * La escala, explicada donde se usa. Un número del 1 al 5 no dice nada solo.
+ *
+ * Las etiquetas son el número; lo que significa cada uno vive en el
+ * diccionario, porque eso sí se lee.
+ */
+const NIVELES = [0, 1, 2, 3, 4, 5] as const
 
-const hintOf = (level: number): string => NIVELES.find((item) => item.value === level)?.hint ?? ''
+const CLAVE_DEL_NIVEL: Readonly<Record<number, keyof Diccionario>> = {
+  0: 'competencias.nivel.0',
+  1: 'competencias.nivel.1',
+  2: 'competencias.nivel.2',
+  3: 'competencias.nivel.3',
+  4: 'competencias.nivel.4',
+  5: 'competencias.nivel.5',
+}
 
 /**
  * La hoja de competencias: personas en las filas, competencias en las columnas.
@@ -75,52 +80,48 @@ export function SkillsView({ onChanged }: Props): React.JSX.Element {
     (matrix?.resourceSkills ?? []).filter((row) => row.skillId === skillId && row.level >= 3).length
 
   const nuevaCompetencia = (): void => {
-    const name = window.prompt('Nombre de la competencia nueva')
+    const name = window.prompt(t('competencias.pideNombre'))
     if (name === null || name.trim() === '') return
-    const code = window.prompt('Código corto (el que se usa para agrupar)', name.trim().slice(0, 20))
+    const code = window.prompt(t('competencias.pideCodigo'), name.trim().slice(0, 20))
     if (code === null || code.trim() === '') return
     run(async () => { await createSkill(code.trim(), name.trim()) })
   }
 
   if (matrix === null || team === null) {
-    return <div className="empty"><h3>{error ?? 'Cargando las competencias…'}</h3></div>
+    return <div className="empty"><h3>{error ?? t('competencias.cargando')}</h3></div>
   }
 
   return (
     <>
       {error === null ? null : <div className="error-banner" style={{ margin: 12 }}>{error}</div>}
       <div className="toolbar">
-        <button className="button" onClick={nuevaCompetencia} disabled={busy}>+ Competencia</button>
-        <span className="faint">
-          1 en formación · 2 con apoyo · 3 autónomo · 4 referencia · 5 experto. El motor avisa cuando alguien
-          está en una tarea que pide una competencia que no tiene.
-        </span>
+        <button className="button" onClick={nuevaCompetencia} disabled={busy}>
+          {t('competencias.nueva')}
+        </button>
+        <span className="faint">{t('competencias.escala')}</span>
       </div>
 
       {team.length === 0 ? (
         <div className="empty">
-          <h3>Todavía no hay nadie en el equipo</h3>
-          <p>Las competencias se declaran sobre personas: empieza por la pestaña Equipo.</p>
+          <h3>{t('competencias.sinEquipo')}</h3>
+          <p>{t('competencias.sinEquipoDetalle', t('tab.equipo'))}</p>
         </div>
       ) : (
         <table className="grid">
           <thead>
             <tr>
-              <th style={{ minWidth: 200 }}>Persona</th>
+              <th style={{ minWidth: 200 }}>{t('col.persona')}</th>
               {matrix.skills.map((skill) => (
                 <th key={skill.id} title={skill.name}>
                   <span className="skill-head">
                     {skill.code}
                     <button
                       className="skill-head__drop"
-                      title={`Quitar «${skill.name}» del catálogo, con los niveles y requisitos que tenga`}
+                      title={t('competencias.quitarTitulo', skill.name)}
                       disabled={busy}
                       onClick={() => {
                         if (
-                          window.confirm(
-                            `¿Quitar la competencia «${skill.name}»? Se pierden los niveles de todo el ` +
-                              'equipo y los requisitos de las tareas que la pedían.',
-                          )
+                          window.confirm(t('competencias.quitarConfirma', skill.name))
                         ) {
                           run(async () => { await removeSkill(skill.id) })
                         }
@@ -145,15 +146,20 @@ export function SkillsView({ onChanged }: Props): React.JSX.Element {
                         className="level"
                         value={level}
                         disabled={busy}
-                        title={`${resource.displayName} · ${skill.name}: ${hintOf(level)}`}
+                        title={t(
+                          'competencias.celda',
+                          resource.displayName,
+                          skill.name,
+                          t(CLAVE_DEL_NIVEL[level] ?? 'competencias.nivel.0'),
+                        )}
                         data-level={level}
                         onChange={(event) => {
                           const siguiente = Number(event.target.value)
                           run(async () => { await setResourceSkill(resource.id, skill.id, siguiente) })
                         }}
                       >
-                        {NIVELES.map((item) => (
-                          <option key={item.value} value={item.value}>{item.label}</option>
+                        {NIVELES.map((nivel) => (
+                          <option key={nivel} value={nivel}>{nivel === 0 ? '—' : nivel}</option>
                         ))}
                       </select>
                     </td>
@@ -162,9 +168,7 @@ export function SkillsView({ onChanged }: Props): React.JSX.Element {
               </tr>
             ))}
             <tr className="row--total">
-              <td title="Personas de nivel 3 o superior: las que pueden sacar ese trabajo adelante solas">
-                Autónomos o más
-              </td>
+              <td title={t('competencias.autonomosTitulo')}>{t('competencias.autonomos')}</td>
               {matrix.skills.map((skill) => {
                 // Cero es un agujero y uno es un riesgo: si esa persona se va
                 // de vacaciones o del equipo, ese trabajo se para. Eso es lo
@@ -177,10 +181,10 @@ export function SkillsView({ onChanged }: Props): React.JSX.Element {
                     className={clase}
                     title={
                       cobertura === 0
-                        ? `Nadie puede sacar «${skill.name}» adelante solo: hoy el equipo no cubre esto`
+                        ? t('competencias.cobertura.nadie', skill.name)
                         : cobertura === 1
-                          ? `Un único especialista en «${skill.name}»: si falta, ese trabajo se para`
-                          : `${String(cobertura)} personas de nivel 3 o superior en «${skill.name}»`
+                          ? t('competencias.cobertura.unico', skill.name)
+                          : t('competencias.cobertura.varios', cobertura, skill.name)
                     }
                   >
                     {cobertura}

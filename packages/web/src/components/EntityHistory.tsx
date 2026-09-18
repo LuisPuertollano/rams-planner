@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { fetchEntityHistory, type ChangeEvent } from '../api.js'
 import { dateTime } from '../format.js'
-import { Cambios, OPERACION } from '../views/history-shared.js'
+import { useT } from '../i18n/index.js'
+import { Cambios, operacion } from '../views/history-shared.js'
 
 interface Props {
   readonly entityId: string
@@ -21,6 +22,7 @@ interface Props {
  * sobre algo que esa persona no pidió y no puede arreglar.
  */
 export function EntityHistory({ entityId, limit = 6 }: Props): React.JSX.Element | null {
+  const { t } = useT()
   const [events, setEvents] = useState<readonly ChangeEvent[] | null>(null)
   const [denegado, setDenegado] = useState(false)
 
@@ -39,17 +41,14 @@ export function EntityHistory({ entityId, limit = 6 }: Props): React.JSX.Element
 
   return (
     <div className="card">
-      <h3 className="card__title">Últimos cambios</h3>
-      <p className="card__note">
-        Lo escribe la base de datos con cada cambio, no la aplicación. En la pestaña <b>Registro</b> está
-        todo, con filtro.
-      </p>
+      <h3 className="card__title">{t('registro.ultimos')}</h3>
+      <p className="card__note">{t('registro.ultimosNota', t('tab.registro'))}</p>
       {events === null ? (
-        <p className="faint" style={{ margin: '8px 0 0' }}>Cargando…</p>
+        <p className="faint" style={{ margin: '8px 0 0' }}>{t('app.cargando')}</p>
       ) : (
         <table className="grid grid--inline">
           <thead>
-            <tr><th>Cuándo</th><th>Quién</th><th>Qué cambió</th></tr>
+            <tr><th>{t('col.cuando')}</th><th>{t('col.quien')}</th><th>{t('col.queCambio')}</th></tr>
           </thead>
           <tbody>
             {events.slice(0, limit).map((event) => (
@@ -57,12 +56,12 @@ export function EntityHistory({ entityId, limit = 6 }: Props): React.JSX.Element
                 <td className="muted" style={{ whiteSpace: 'nowrap' }}>
                   {dateTime(event.occurredAt)}
                 </td>
-                <td>{event.actorName ?? <span className="faint">sin sesión</span>}</td>
+                <td>{event.actorName ?? <span className="faint">{t('registro.sinSesion')}</span>}</td>
                 <td style={{ whiteSpace: 'normal' }}>
                   {event.operation === 'update' ? (
                     <Cambios event={event} />
                   ) : (
-                    <span className="faint">{OPERACION[event.operation] ?? event.operation}</span>
+                    <span className="faint">{operacion(t, event.operation)}</span>
                   )}
                   {event.comment === null || event.comment === '' ? null : (
                     <div className="funcion__detalle">«{event.comment}»</div>
@@ -75,7 +74,7 @@ export function EntityHistory({ entityId, limit = 6 }: Props): React.JSX.Element
       )}
       {events !== null && events.length > limit ? (
         <p className="faint" style={{ margin: '8px 0 0' }}>
-          y {events.length - limit} más, en la pestaña Registro.
+          {t('registro.yMas', events.length - limit, t('tab.registro'))}
         </p>
       ) : null}
     </div>

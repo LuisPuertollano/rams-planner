@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { fetchDerivations, type DerivationRow, type TaskRow } from '../api.js'
 import { errorText } from '../errors.js'
 import { days, fullDate, hours } from '../format.js'
-import { useT } from '../i18n/index.js'
+import { existeClave, useT, type Traductor } from '../i18n/index.js'
 
 interface Props {
   readonly runId: string
@@ -10,44 +10,22 @@ interface Props {
   readonly onClose: () => void
 }
 
-const RULES: Record<string, string> = {
-  FS_LINK: 'Enlace fin-inicio con su predecesora',
-  SS_LINK: 'Enlace inicio-inicio',
-  FF_LINK: 'Enlace fin-fin',
-  SF_LINK: 'Enlace inicio-fin',
-  PROJECT_START: 'Arranque del proyecto',
-  CONSTRAINT_SNET: 'Restricción: no empezar antes de',
-  CONSTRAINT_FNET: 'Restricción: no terminar antes de',
-  CONSTRAINT_MSO: 'Restricción dura: debe empezar el',
-  CONSTRAINT_MFO: 'Restricción dura: debe terminar el',
-  CALENDAR_RESOLUTION: 'Calendario que se ha usado',
-  TASK_EQUATION_FIXED_WORK: 'Ecuación de la tarea: trabajo fijo',
-  TASK_EQUATION_FIXED_DURATION: 'Ecuación de la tarea: duración fija',
-  TASK_EQUATION_FIXED_UNITS: 'Ecuación de la tarea: unidades fijas',
+/**
+ * El nombre de una regla y el de una entrada, en el idioma de quien mira.
+ *
+ * Mismo trato que los hallazgos y los errores: el código —`FS_LINK`,
+ * `lagMinutes`— es el contrato, y la frase la escribe la interfaz. Lo que no
+ * esté traducido sale con su código, que es feo pero no miente; y una regla
+ * nueva del motor aparece con su nombre técnico en vez de desaparecer.
+ */
+function nombreDeLaRegla(t: Traductor['t'], regla: string, respaldo: string): string {
+  const clave = `porque.regla.${regla}`
+  return existeClave(clave) ? t(clave) : respaldo
 }
 
-const INPUT_LABELS: Record<string, string> = {
-  predecessor: 'predecesora',
-  project: 'arranque del proyecto',
-  lagMinutes: 'desfase (min)',
-  calendar: 'calendario',
-  taskCalendar: 'calendario de la tarea',
-  resourceCalendar: 'calendario del recurso',
-  projectCalendar: 'calendario del proyecto',
-  defaultCalendar: 'calendario por defecto',
-  constraintKind: 'restricción',
-  constraintDate: 'fecha de la restricción',
-  calendarId: 'calendario',
-  taskCalendarId: 'calendario de la tarea',
-  projectCalendarId: 'calendario del proyecto',
-  defaultCalendarId: 'calendario por defecto',
-  workMinutes: 'trabajo (min)',
-  unitsBp: 'dedicación (pb)',
-  durationMinutes: 'duración (min)',
-  declaredDuration: 'duración declarada (min)',
-  dayCount: 'días laborables',
-  from: 'desde',
-  to: 'hasta',
+function nombreDeLaEntrada(t: Traductor['t'], entrada: string): string {
+  const clave = `porque.entrada.${entrada}`
+  return existeClave(clave) ? t(clave) : entrada
 }
 
 /**
@@ -80,29 +58,31 @@ export function WhyPanel({ runId, task, onClose }: Props): React.JSX.Element {
 
   return (
     <>
-      <button className="backdrop" onClick={onClose} aria-label="Cerrar" />
-      <aside className="why" role="dialog" aria-label={`Por qué: ${task.name}`}>
+      <button className="backdrop" onClick={onClose} aria-label={t('boton.cerrar')} />
+      <aside className="why" role="dialog" aria-label={t('porque.titulo', task.name)}>
         <div className="why__head">
           <div>
             <h2>{task.name}</h2>
             <p className="faint" style={{ margin: '2px 0 0', fontSize: 12 }}>
               {fullDate(task.scheduledStart)} → {fullDate(task.scheduledFinish)} · {days(task.durationMinutes)} ·{' '}
-              {task.workMinutes === null || task.workMinutes === 0 ? 'sin trabajo' : `${hours(task.workMinutes)} h`}
+              {task.workMinutes === null || task.workMinutes === 0
+                ? t('porque.sinTrabajo')
+                : `${hours(task.workMinutes)} h`}
             </p>
           </div>
           <button className="button" onClick={onClose} style={{ marginLeft: 'auto' }}>
-            Cerrar
+            {t('boton.cerrar')}
           </button>
         </div>
 
         <div className="why__body">
           {error !== null ? <div className="error-banner">{error}</div> : null}
-          {derivations === null && error === null ? <p className="faint">Cargando la traza…</p> : null}
+          {derivations === null && error === null ? <p className="faint">{t('porque.cargando')}</p> : null}
 
           {derivations?.map((derivation, index) => (
             <div className="why__node" key={`${derivation.rule}-${String(index)}`}>
               <div className="why__rule">{derivation.rule}</div>
-              <div className="why__output">{RULES[derivation.rule] ?? derivation.targetType}</div>
+              <div className="why__output">{nombreDeLaRegla(t, derivation.rule, derivation.targetType)}</div>
               <div className="muted" style={{ fontSize: 13 }}>
                 → {formatValue(derivation.output)}
               </div>
@@ -111,7 +91,7 @@ export function WhyPanel({ runId, task, onClose }: Props): React.JSX.Element {
                   .filter(([, value]) => value !== null && value !== '')
                   .map(([key, value]) => (
                     <div key={key} style={{ display: 'contents' }}>
-                      <dt>{INPUT_LABELS[key] ?? key}</dt>
+                      <dt>{nombreDeLaEntrada(t, key)}</dt>
                       <dd>{formatValue(value)}</dd>
                     </div>
                   ))}
@@ -120,15 +100,11 @@ export function WhyPanel({ runId, task, onClose }: Props): React.JSX.Element {
           ))}
 
           {derivations !== null && derivations.length === 0 ? (
-            <p className="faint">
-              Esta ejecución no guardó derivaciones para esta tarea. Las de las ejecuciones antiguas se purgan por
-              política; las de una línea base se conservan siempre.
-            </p>
+            <p className="faint">{t('porque.sinDerivaciones')}</p>
           ) : null}
 
           <p className="faint" style={{ fontSize: 12, marginBottom: 0 }}>
-            Traza de la ejecución <code>{runId.slice(0, 8)}</code>. Cada hoja de este árbol es un dato que alguien
-            escribió, y tiene su propia entrada en el registro de cambios.
+            {t('porque.traza')} <code>{runId.slice(0, 8)}</code>. {t('porque.trazaDetalle')}
           </p>
         </div>
       </aside>

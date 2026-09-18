@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import type { Project, TaskRow } from '../api.js'
 import { fullDate, monthLabel } from '../format.js'
+import { useT } from '../i18n/index.js'
 
 interface Props {
   readonly tasks: readonly TaskRow[]
@@ -17,6 +18,7 @@ const DAY_MS = 86_400_000
  * el sistema prohíbe. Aquí las barras son sólo una proyección de `task_result`.
  */
 export function GanttView({ tasks, projects }: Props): React.JSX.Element {
+  const { t } = useT()
   const scheduled = useMemo(
     () => tasks.filter((task) => task.scheduledStart !== null && task.scheduledFinish !== null),
     [tasks],
@@ -55,7 +57,7 @@ export function GanttView({ tasks, projects }: Props): React.JSX.Element {
   }, [bounds])
 
   if (bounds === null) {
-    return <div className="empty"><h3>No hay tareas planificadas</h3></div>
+    return <div className="empty"><h3>{t('cronograma.vacio')}</h3></div>
   }
 
   const position = (task: TaskRow): { left: number; width: number } => {
@@ -70,7 +72,7 @@ export function GanttView({ tasks, projects }: Props): React.JSX.Element {
   return (
     <div className="gantt">
       <div className="gantt__head">
-        <div className="gantt__label">Cronograma</div>
+        <div className="gantt__label">{t('tab.cronograma')}</div>
         <div className="gantt__months" style={{ position: 'relative', height: 28 }}>
           {months.map((month) => (
             <div
@@ -132,15 +134,15 @@ export function GanttView({ tasks, projects }: Props): React.JSX.Element {
       <div style={{ padding: '12px 16px' }} className="legend">
         <span>
           <span className="legend__swatch" style={{ background: 'var(--accent)' }} />
-          tarea
+          {t('cronograma.leyenda.tarea')}
         </span>
         <span>
           <span className="legend__swatch" style={{ background: 'var(--severity-error)' }} />
-          camino crítico
+          {t('cronograma.leyenda.critico')}
         </span>
         <span>
           <span className="legend__swatch" style={{ background: 'var(--text-faint)', height: 6 }} />
-          contenedor (agregado de sus hijos)
+          {t('cronograma.leyenda.contenedor')}
         </span>
       </div>
     </div>

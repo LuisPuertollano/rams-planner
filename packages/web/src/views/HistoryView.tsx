@@ -3,7 +3,7 @@ import { fetchRecentChanges, type ChangeEvent, type Project } from '../api.js'
 import { dateTime } from '../format.js'
 import { errorText } from '../errors.js'
 import { useT } from '../i18n/index.js'
-import { Cambios, ENTIDAD, OPERACION, SIN_NOMBRE } from './history-shared.js'
+import { Cambios, entidad, operacion, SIN_NOMBRE } from './history-shared.js'
 
 interface Props {
   readonly projects: readonly Project[]
@@ -45,22 +45,19 @@ export function HistoryView({ projects }: Props): React.JSX.Element {
     const texto = filtro.trim().toLowerCase()
     if (texto === '') return events
     return events.filter((event) =>
-      [event.actorName, event.entityName, event.comment, ENTIDAD[event.entityType] ?? event.entityType]
+      [event.actorName, event.entityName, event.comment, entidad(t, event.entityType)]
         .filter((campo): campo is string => campo !== null)
         .some((campo) => campo.toLowerCase().includes(texto)),
     )
   }, [events, filtro])
 
   if (error !== null) return <div className="empty"><h3>{error}</h3></div>
-  if (events === null) return <div className="empty"><h3>Cargando el registro…</h3></div>
+  if (events === null) return <div className="empty"><h3>{t('registro.cargando')}</h3></div>
   if (events.length === 0) {
     return (
       <div className="empty">
-        <h3>Todavía no hay nada registrado</h3>
-        <p style={{ maxWidth: '52ch', margin: '0 auto' }}>
-          El registro se escribe solo con cada cambio. En cuanto alguien edite una tarea, mueva una
-          asignación o dé de alta a una persona, aparecerá aquí con su nombre.
-        </p>
+        <h3>{t('registro.vacio')}</h3>
+        <p style={{ maxWidth: '52ch', margin: '0 auto' }}>{t('registro.vacioDetalle')}</p>
       </div>
     )
   }
@@ -70,26 +67,26 @@ export function HistoryView({ projects }: Props): React.JSX.Element {
       <div className="toolbar">
         <input
           className="input"
-          placeholder="Filtrar por persona, tarea o comentario"
+          placeholder={t('registro.filtrar')}
           value={filtro}
           onChange={(event) => { setFiltro(event.target.value) }}
           style={{ minWidth: 320 }}
         />
         <span className="faint">
           {visibles.length === events.length
-            ? `${events.length} cambios, del más reciente al más antiguo`
-            : `${visibles.length} de ${events.length} cambios`}
+            ? t('registro.cuantos', events.length)
+            : t('registro.cuantosDe', visibles.length, events.length)}
         </span>
       </div>
 
       <table className="grid grid--historial">
         <thead>
           <tr>
-            <th style={{ minWidth: 150 }}>Cuándo</th>
-            <th style={{ minWidth: 140 }}>Quién</th>
-            <th style={{ minWidth: 90 }}>Qué</th>
-            <th style={{ minWidth: 220 }}>Sobre</th>
-            <th>Qué cambió</th>
+            <th style={{ minWidth: 150 }}>{t('col.cuando')}</th>
+            <th style={{ minWidth: 140 }}>{t('col.quien')}</th>
+            <th style={{ minWidth: 90 }}>{t('col.que')}</th>
+            <th style={{ minWidth: 220 }}>{t('col.sobre')}</th>
+            <th>{t('col.queCambio')}</th>
           </tr>
         </thead>
         <tbody>
@@ -99,16 +96,15 @@ export function HistoryView({ projects }: Props): React.JSX.Element {
                 {dateTime(event.occurredAt)}
               </td>
               <td>
-                {event.actorName ?? <span className="faint">sin sesión (CLI o importación)</span>}
+                {event.actorName ?? <span className="faint">{t('registro.sinSesionLargo')}</span>}
               </td>
               <td>
-                {OPERACION[event.operation] ?? event.operation.toLowerCase()} de{' '}
-                {ENTIDAD[event.entityType] ?? event.entityType}
+                {operacion(t, event.operation)} {t('registro.de')} {entidad(t, event.entityType)}
               </td>
               <td style={{ whiteSpace: 'normal' }}>
                 {event.entityName ?? (
                   <span className="faint">
-                    {SIN_NOMBRE.has(event.entityType) ? 'sin nombre propio' : 'ya no existe'}
+                    {SIN_NOMBRE.has(event.entityType) ? t('registro.sinNombre') : t('registro.yaNoExiste')}
                   </span>
                 )}
                 {event.projectId === null ? null : (

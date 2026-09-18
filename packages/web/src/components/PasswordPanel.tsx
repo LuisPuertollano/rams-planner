@@ -52,8 +52,8 @@ export function PasswordPanel({ onClose, onChanged }: Props): React.JSX.Element 
 
   return (
     <>
-      <button className="backdrop" onClick={onClose} aria-label="Cerrar" />
-      <aside className="why" role="dialog" aria-label="Cambiar mi contraseña">
+      <button className="backdrop" onClick={onClose} aria-label={t('boton.cerrar')} />
+      <aside className="why" role="dialog" aria-label={t('clave.titulo')}>
       <div className="why__head">
         <h3 style={{ margin: 0 }}>{t('clave.titulo')}</h3>
         <button className="button" onClick={onClose} style={{ marginLeft: 'auto' }}>
