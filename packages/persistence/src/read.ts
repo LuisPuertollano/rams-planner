@@ -5,7 +5,7 @@
  * número que salga de aquí lleva su `runId` y por tanto se puede auditar.
  */
 
-import type { CalendarDate, CommitmentLevel, ProjectStatus } from '@planner/domain'
+import type { CalendarDate, CommitmentLevel, ProjectStatus, ScheduleMode } from '@planner/domain'
 import type { Queryable } from './db.js'
 
 export interface RunSummary {
@@ -378,6 +378,7 @@ export interface ProjectSummary {
    * es confianza —`firme` está contratado, `posible` puede no llegar nunca—.
    */
   readonly commitment: CommitmentLevel
+  readonly scheduleMode: ScheduleMode
   /**
    * Qué se hace con él. Lo que no está `activo` no entra en el cálculo, así
    * que no genera carga ni consume capacidad de nadie.
@@ -396,10 +397,11 @@ export async function readProjects(db: Queryable): Promise<readonly ProjectSumma
     priority: number
     is_template: boolean
     commitment: CommitmentLevel
+    schedule_mode: ScheduleMode
     status: ProjectStatus
     current_baseline_id: string | null
   }>(
-    `SELECT id, code, name, status_start::text, priority, is_template, commitment, status,
+    `SELECT id, code, name, status_start::text, priority, is_template, commitment, schedule_mode, status,
             current_baseline_id
      FROM project WHERE deleted_at IS NULL
      -- Lo archivado al final: sigue estando, y no es lo que se mira primero.
@@ -413,6 +415,7 @@ export async function readProjects(db: Queryable): Promise<readonly ProjectSumma
     priority: row.priority,
     isTemplate: row.is_template,
     commitment: row.commitment,
+    scheduleMode: row.schedule_mode,
     status: row.status,
     currentBaselineId: row.current_baseline_id,
   }))

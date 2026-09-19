@@ -574,9 +574,11 @@ semanas» → 2026-05-08—, así que se revisa sin tener que fiarse.
 
 Tres cosas que conviene saber antes de darle al botón:
 
-- **El objetivo no mueve nada.** Es blando: la tarea se queda donde el motor la
-  pone, y si termina después aparece en *Qué va tarde* y en los hallazgos. Sirve
-  para enterarte, no para que el plan finja que llega.
+- **El objetivo no mueve nada… mientras el proyecto vaya hacia delante.** Es
+  blando: la tarea se queda donde el motor la pone, y si termina después aparece
+  en *Qué va tarde* y en los hallazgos. Si pones el proyecto a calcular **hacia
+  atrás** (más abajo), esa misma fecha deja de avisar y pasa a **colocar** la
+  tarea.
 - **Se pone una vez.** Si mueves la fecha de una puerta, hay que volver a
   previsualizar y aplicar. No se recalcula solo, porque pisaría sin avisar una
   fecha que alguien pudo poner a mano.
@@ -803,6 +805,55 @@ eso el permiso no lo trae ningún rol de serie. Dos cosas más que saber:
 
 Y ponla en un cron, que es lo que la convierte en una copia de seguridad de
 verdad: `node packages/api/dist/cli.js copia copia.zip`.
+
+---
+
+### Desde qué lado se planifica
+
+Está en la ficha del proyecto, al lado del compromiso, y cambia qué pregunta
+responde el plan.
+
+**Hacia delante** es lo de siempre: cada tarea a su fecha más temprana. El plan
+contesta *«¿cuándo termina esto si empiezo ya?»*, y si algo se pasa de su fecha
+objetivo, sale un aviso.
+
+**Hacia atrás** ancla en las puertas de certificación. Cada tarea se va a la
+fecha más tardía que todavía llega a su puerta, y el plan contesta la pregunta
+que de verdad se hace en un proyecto RAMS: *«¿cuándo tengo que empezar para
+llegar?»*. La revisión de diseño cae el día que cae; lo que se decide es cuándo
+arrancar.
+
+Tres cosas cambian al ponerlo:
+
+- **El margen significa otra cosa.** Hacia delante, la holgura es cuánto puedes
+  retrasar algo sin retrasar el proyecto. Hacia atrás, cuánto puedes retrasarlo
+  **sin perder la certificación**. Es la misma cuenta contra otro ancla, y es la
+  que se mira los lunes.
+- **Aparece un aviso nuevo, y es el que vale.** No dice «llegas tarde» sino
+  *«para llegar, esto tendría que empezar el 27 de noviembre, y lo más pronto
+  que puede es el 29 de diciembre: faltan 21 días laborables»*. Eso se puede
+  llevar a una reunión: o se recorta alcance, o entra gente, o se mueve la
+  puerta. Hacia delante ese aviso no se puede dar — la cuenta no lo permite.
+- **Cuando la cuenta se sale del horizonte, lo dice.** Si para llegar habría que
+  haber empezado antes de lo que el cálculo abarca, el aviso dice «faltan **al
+  menos** N días». El número real es mayor, y decirlo redondo sería peor que no
+  decirlo.
+
+Y una cuarta, que importa el día que nivelas: **nivelar un plan hacia atrás
+puede costarte una puerta**. Nivelar funciona retrasando tareas, y aquí retrasar
+es empujar hacia la certificación. Si el retraso se pasa, el aviso de puerta
+inalcanzable aparece — y eso es justo lo que hay que mirar antes de aceptar la
+nivelación: cuánto margen de certificación cuesta deshacer las sobrecargas. La
+herramienta no te lo impide, porque nivelar propone y tú decides; lo que hace es
+no callárselo.
+
+Una cosa que conviene saber antes de buscarla: **un proyecto sin fechas objetivo
+puestas no cambia nada al ponerlo hacia atrás**, porque no hay dónde anclar.
+Primero se ponen las puertas y sus fechas objetivo, y después se cambia el modo.
+
+Y los dos modos conviven en la misma cartera a propósito: una oferta se
+planifica hacia delante para saber qué se promete, y un proyecto en marcha hacia
+atrás para saber si su puerta sigue en pie.
 
 ---
 

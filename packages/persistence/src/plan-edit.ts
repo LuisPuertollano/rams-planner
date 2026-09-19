@@ -11,7 +11,7 @@
  * barato que repartirlo.
  */
 
-import type { CommitmentLevel, ProjectStatus } from '@planner/domain'
+import type { CommitmentLevel, ProjectStatus, ScheduleMode } from '@planner/domain'
 import type { Queryable } from './db.js'
 
 const SEGMENT_WIDTH = 3
@@ -27,6 +27,7 @@ export interface ProjectInput {
   readonly asTemplate?: boolean | undefined
   /** Cuánto hay que servir de verdad. Sin decir nada, `firme`: lo de siempre. */
   readonly commitment?: CommitmentLevel | undefined
+  readonly scheduleMode?: ScheduleMode | undefined
 }
 
 export async function createProject(db: Queryable, input: ProjectInput): Promise<string> {
@@ -59,6 +60,7 @@ export interface ProjectChanges {
   readonly priority?: number | undefined
   readonly isTemplate?: boolean | undefined
   readonly commitment?: CommitmentLevel | undefined
+  readonly scheduleMode?: ScheduleMode | undefined
   readonly status?: ProjectStatus | undefined
   /**
    * La línea base de referencia. `null` la retira.
@@ -88,6 +90,7 @@ export async function updateProject(db: Queryable, projectId: string, changes: P
   if (changes.priority !== undefined) set('priority', changes.priority)
   if (changes.isTemplate !== undefined) set('is_template', changes.isTemplate)
   if (changes.commitment !== undefined) set('commitment', changes.commitment)
+  if (changes.scheduleMode !== undefined) set('schedule_mode', changes.scheduleMode)
   if (changes.status !== undefined) set('status', changes.status)
   if (changes.currentBaselineId !== undefined) set('current_baseline_id', changes.currentBaselineId)
   if (columns.length === 0) throw new Error('No hay nada que cambiar')

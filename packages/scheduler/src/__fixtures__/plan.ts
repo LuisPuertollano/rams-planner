@@ -51,7 +51,10 @@ export class PlanBuilder {
   private readonly skillRequirements: SkillRequirement[] = []
   private readonly skillNames: Record<string, string> = {}
   private readonly projects: ProjectDefinition[] = [
-    { id: 'p1', code: 'P1', name: 'Proyecto', status: 'activo', statusStart: d('2026-03-02'), priority: 500 },
+    {
+      id: 'p1', code: 'P1', name: 'Proyecto', status: 'activo',
+      statusStart: d('2026-03-02'), priority: 500, scheduleMode: 'adelante',
+    },
   ]
 
   project(project: Partial<ProjectDefinition> & { id: string }): this {
@@ -60,6 +63,7 @@ export class PlanBuilder {
       name: project.id,
       status: 'activo',
       statusStart: d('2026-03-02'),
+      scheduleMode: 'adelante',
       priority: 500,
       ...project,
     })

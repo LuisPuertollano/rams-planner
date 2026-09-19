@@ -140,3 +140,22 @@ export const PROJECT_STATUSES = ['activo', 'inactivo', 'archivado'] as const
 
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number]
 
+/**
+ * Desde dónde se planifica un proyecto.
+ *
+ * `adelante` empuja desde el arranque: cada tarea a su fecha más temprana. Es
+ * lo que hace casi todo planificador y responde a «¿cuándo termina esto si
+ * empiezo ya?».
+ *
+ * `atras` ancla en las puertas de certificación y va hacia atrás. Responde a
+ * «¿cuándo tengo que empezar para llegar?», que en un proyecto RAMS es la
+ * pregunta de verdad: la fecha de la revisión de diseño no la mueve nadie.
+ *
+ * Son dos modos y no dos herramientas porque conviven en la misma cartera: una
+ * oferta se planifica hacia delante para saber qué se promete, y un proyecto en
+ * marcha hacia atrás para saber si su puerta sigue siendo alcanzable.
+ */
+export const SCHEDULE_MODES = ['adelante', 'atras'] as const
+
+export type ScheduleMode = (typeof SCHEDULE_MODES)[number]
+

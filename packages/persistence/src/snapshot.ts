@@ -12,7 +12,7 @@
  * de la zona del servidor.
  */
 
-import { calendarDate, type CalendarDate } from '@planner/domain'
+import { calendarDate, type CalendarDate, type ScheduleMode } from '@planner/domain'
 import type { CalendarDefinition, Horizon } from '@planner/calendar'
 import type {
   AssignmentDefinition,
@@ -288,8 +288,9 @@ async function loadProjects(db: Queryable): Promise<readonly ProjectDefinition[]
     calendar_id: string | null
     status_start: string
     priority: number
+    schedule_mode: ScheduleMode
   }>(
-    `SELECT id, code, name, calendar_id, status_start::text, priority
+    `SELECT id, code, name, calendar_id, status_start::text, priority, schedule_mode
      FROM project p WHERE ${EN_EL_PLAN} ORDER BY code, id`,
   )
   return rows.map((row) => ({
@@ -302,6 +303,7 @@ async function loadProjects(db: Queryable): Promise<readonly ProjectDefinition[]
     status: 'activo',
     statusStart: calendarDate(row.status_start),
     priority: row.priority,
+    scheduleMode: row.schedule_mode,
   }))
 }
 

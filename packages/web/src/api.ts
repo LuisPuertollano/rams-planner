@@ -27,6 +27,16 @@ export const PROJECT_STATUSES = ['activo', 'inactivo', 'archivado'] as const
 
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number]
 
+/**
+ * Desde dónde se planifica un proyecto.
+ *
+ * `adelante`: cada tarea a su fecha más temprana. `atras`: ancla en las puertas
+ * de certificación y coloca cada tarea en la más tardía que todavía llega.
+ */
+export const SCHEDULE_MODES = ['adelante', 'atras'] as const
+
+export type ScheduleMode = (typeof SCHEDULE_MODES)[number]
+
 export interface CommitmentSplit {
   readonly firme: number
   readonly probable: number
@@ -48,6 +58,11 @@ export interface Project {
    * es la confianza en que llegue.
    */
   readonly commitment: CommitmentLevel
+  /**
+   * Desde dónde se planifica. `adelante` empuja desde el arranque; `atras`
+   * ancla en las puertas y responde a «¿cuándo tengo que empezar para llegar?».
+   */
+  readonly scheduleMode: ScheduleMode
   /**
    * Qué se hace con él. Lo que no está `activo` **no entra en el cálculo**: no
    * genera carga ni ocupa a nadie, y se guarda entero.

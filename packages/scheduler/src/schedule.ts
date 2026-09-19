@@ -279,17 +279,57 @@ export function schedulePlan(snapshot: PlanSnapshot, options: ScheduleOptions = 
     )
   }
 
+  // Planificar hacia atrás es ANCLAR EN OTRO SITIO, y nada más.
+  //
+  // El paso atrás ya existía: es el de toda la vida, el que da la holgura. Lo
+  // que hacía era anclarse en el fin calculado de cada proyecto, así que la
+  // holgura medía «cuánto puedo retrasar esto sin retrasar el proyecto». Con la
+  // fecha de la puerta como ancla, mide otra cosa y es la que importa: «cuánto
+  // puedo retrasar esto sin perder la certificación».
+  //
+  // La fecha objetivo lleva ahí desde ADR-0042 y hasta hoy sólo servía para
+  // avisar cuando no se llegaba. Aquí pasa a colocar la tarea.
+  const haciaAtras = new Set(
+    snapshot.projects.filter((p) => p.scheduleMode === 'atras').map((p) => p.id),
+  )
+
   for (const nodeId of [...order].reverse()) {
     const leaf = leafById.get(nodeId)
     if (leaf === undefined) continue
 
-    let lateFinish = projectFinish.get(leaf.node.projectId) ?? leaf.earlyFinish
+    // Lo que imponen los sucesores, que es igual en los dos modos.
+    let porSucesores: PlanInstant | undefined
     for (const link of successorsOf.get(nodeId) ?? []) {
       const successor = leafById.get(link.successorNodeId)
       if (successor === undefined) continue
       const candidate = candidateFinishFrom(link, successor, leaf)
-      lateFinish = earlierOf(lateFinish, candidate, horizonFrom)
+      porSucesores =
+        porSucesores === undefined ? candidate : earlierOf(porSucesores, candidate, horizonFrom)
     }
+
+    // El ancla, que es lo ÚNICO que distingue un modo del otro.
+    //
+    // Hacia delante, el fin calculado del proyecto: la holgura mide cuánto se
+    // puede retrasar algo sin retrasar el proyecto.
+    //
+    // Hacia atrás manda la puerta de la tarea, y la puerta SUSTITUYE al fin
+    // calculado en vez de acotarlo. Acotarlo fue el primer intento y no movía
+    // nada: el fin de un proyecto que llega con holgura cae antes que su
+    // puerta, así que ganaba siempre. Y una tarea sin puerta propia se deja
+    // arrastrar por sus sucesores —también hacia el futuro—, que es lo que
+    // hace que la cadena entera se pegue detrás de la puerta en vez de
+    // quedarse clavada al arranque.
+    const objetivo = leaf.task.deadline
+    const atras = haciaAtras.has(leaf.node.projectId)
+    const ancla =
+      atras && objetivo !== undefined
+        ? endOfDay(objetivo)
+        : atras && porSucesores !== undefined
+          ? porSucesores
+          : (projectFinish.get(leaf.node.projectId) ?? leaf.earlyFinish)
+
+    let lateFinish =
+      porSucesores === undefined ? ancla : earlierOf(ancla, porSucesores, horizonFrom)
 
     // Una restricción dura ancla también el paso atrás.
     if (leaf.task.constraintKind === 'must_start_on' || leaf.task.constraintKind === 'must_finish_on') {
@@ -333,9 +373,20 @@ export function schedulePlan(snapshot: PlanSnapshot, options: ScheduleOptions = 
             ...successorStarts.map((start) => safeBetween(leaf.earlyFinish, start, leaf.calendar, horizonFrom)),
           )
 
-    const alap = leaf.task.constraintKind === 'alap'
-    const scheduledStart = alap ? leaf.lateStart : leaf.earlyStart
-    const scheduledFinish = alap ? leaf.lateFinish : leaf.earlyFinish
+    // En un proyecto que va hacia atrás, TODAS sus tareas van a la fecha tardía,
+    // no sólo las marcadas `alap`: eso es lo que significa el modo. Y `alap`
+    // sigue valiendo tarea a tarea en los proyectos que van hacia delante.
+    const tardias = leaf.task.constraintKind === 'alap' || haciaAtras.has(leaf.node.projectId)
+    const scheduledStart = tardias ? leaf.lateStart : leaf.earlyStart
+    const scheduledFinish = tardias ? leaf.lateFinish : leaf.earlyFinish
+
+    // Y el hallazgo que da sentido a todo esto: si para llegar a la puerta hay
+    // que empezar antes de lo posible, la puerta NO es alcanzable. En el modo
+    // de siempre esto no puede pasar —lo tardío nunca precede a lo temprano
+    // porque el ancla es el propio fin calculado—; aquí sí, y es el dato.
+    if (haciaAtras.has(leaf.node.projectId) && totalSlack < 0) {
+      findings.push(puertaInalcanzable(leaf, totalSlack, horizonFrom))
+    }
 
     checkDeadline(leaf, scheduledFinish, findings, horizonFrom)
     checkWorkAndAssignments(leaf, assignmentsByNode.get(leaf.node.id) ?? [], findings)
@@ -545,6 +596,61 @@ function checkDeadline(
     message: `«${leaf.node.name}» termina el ${formatInstant(finish)}, después de su fecha objetivo ${deadline}.`,
     payload: { task: leaf.node.name, deadline, finish: formatInstant(finish) },
   })
+}
+
+/**
+ * La puerta no es alcanzable, y por cuánto.
+ *
+ * Es el hallazgo que justifica el modo entero. Planificando hacia delante, el
+ * motor dice «esto termina tarde» cuando ya ha terminado tarde. Hacia atrás lo
+ * dice **antes**, y en los términos en los que se puede hacer algo: no «llegas
+ * tarde» sino «para llegar habrías tenido que empezar el día tal».
+ *
+ * La holgura total negativa es exactamente esa distancia, porque el paso atrás
+ * está anclado en la fecha objetivo: lo tardío cae antes que lo temprano justo
+ * en lo que falta.
+ */
+/** La jornada, para decir la distancia en días y no en minutos. */
+const JORNADA = 480
+
+function puertaInalcanzable(
+  leaf: Working,
+  totalSlack: number,
+  horizonFrom: CalendarDate,
+): Finding {
+  const faltan = Math.round(-totalSlack / JORNADA)
+
+  // El inicio necesario se calcula restando duración, y esa resta se topa
+  // contra el principio del horizonte. Cuando llega ahí, el número REAL es
+  // mayor que el que sale — y un aviso que dice «faltan 40 días» cuando faltan
+  // ciento veinte es peor que no decir ninguno, porque alguien planifica con él.
+  //
+  // No se puede saber cuánto falta de verdad sin ampliar el horizonte, así que
+  // se dice lo que se sabe: «al menos».
+  const topado = leaf.lateStart.date <= horizonFrom
+  const cuantos = topado ? `al menos ${String(faltan)}` : String(faltan)
+
+  return {
+    severity: 'warning',
+    code: 'GATE_UNREACHABLE',
+    entityType: 'task',
+    entityId: leaf.node.id,
+    ...(leaf.task.deadline === undefined ? {} : { occursOn: leaf.task.deadline }),
+    message:
+      `Para llegar a la fecha objetivo, «${leaf.node.name}» tendría que empezar el ` +
+      `${formatInstant(leaf.lateStart)}, y lo más pronto que puede empezar es el ` +
+      `${formatInstant(leaf.earlyStart)}: faltan ${cuantos} día(s) laborable(s).`,
+    payload: {
+      task: leaf.node.name,
+      necesario: formatInstant(leaf.lateStart),
+      posible: formatInstant(leaf.earlyStart),
+      diasQueFaltan: faltan,
+      // `true` cuando el inicio necesario cae fuera del horizonte y la cuenta
+      // se quedó corta. Quien lea el hallazgo tiene que poder distinguirlo.
+      alMenos: topado,
+      ...(leaf.task.deadline === undefined ? {} : { deadline: leaf.task.deadline }),
+    },
+  }
 }
 
 /**

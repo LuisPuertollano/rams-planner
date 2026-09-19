@@ -9,7 +9,7 @@
 
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import { z } from 'zod'
-import { COMMITMENT_LEVELS, PROJECT_STATUSES } from '@planner/domain'
+import { COMMITMENT_LEVELS, PROJECT_STATUSES, SCHEDULE_MODES } from '@planner/domain'
 import {
   addDependency,
   createNode,
@@ -163,6 +163,7 @@ export function registerPlanRoutes(app: FastifyInstance, pool: Pool): void {
         priority: z.number().int().min(0).max(10_000).optional(),
         isTemplate: z.boolean().optional(),
         commitment: z.enum(COMMITMENT_LEVELS).optional(),
+        scheduleMode: z.enum(SCHEDULE_MODES).optional(),
         status: z.enum(PROJECT_STATUSES).optional(),
         currentBaselineId: z.string().uuid().nullable().optional(),
       })
