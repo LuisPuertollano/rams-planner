@@ -17,6 +17,7 @@ import {
   SESSION_ONLY_ROUTES,
 } from './permissions.js'
 import { registerAllRoutes } from './build-server.js'
+import { IMPORT_SPECS } from './import-specs.js'
 import {
   auditRoutes,
   collectRoutePermissions,
@@ -69,6 +70,20 @@ describe('permisos por ruta', () => {
     )
     expect(porProyecto.length).toBeGreaterThan(10)
     expect(porProyecto.filter((ruta) => ruta.project === undefined)).toEqual([])
+  })
+
+  it('cada importación declarada sirve su contrato y su plantilla', async () => {
+    // La otra mitad de la avería de la Checkliste: entró en IMPORT_SPECS —así
+    // que la pantalla la ofrecía— y nadie llamó a `servirFormato`, así que
+    // pedir su contrato habría dado un 404. No se vio porque el diálogo abría
+    // el importador de otra cosa y pedía el contrato de esa otra cosa.
+    const rutas = (await rutasRegistradas()).map((ruta) => ruta.url)
+    const faltan = IMPORT_SPECS.flatMap((spec) =>
+      [`/api/import/${spec.tipo}/formato`, `/api/import/${spec.tipo}/plantilla.csv`].filter(
+        (ruta) => !rutas.some((registrada) => registrada.endsWith(ruta)),
+      ),
+    )
+    expect(faltan).toEqual([])
   })
 
   it('una ruta por proyecto sin declararlo rompe el arranque', () => {

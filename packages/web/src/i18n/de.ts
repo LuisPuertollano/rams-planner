@@ -318,6 +318,9 @@ export const de: Diccionario = {
   'puertas.anadir': 'Tor hinzufügen',
   'puertas.guardar': 'Tore speichern',
   'puertas.faltanFechas': 'Der Katalog verlangt diese Tore, und dieses Projekt hat sie nicht datiert: %s. Oben eintragen und erneut die Vorschau aufrufen.',
+  'checklist.importado': '%s Abfrage(n) geladen: %s neu, %s aktualisiert, %s Tor-Feld(er) und %s Verknüpfung(en) zum Katalog.',
+  'checklist.importado.puertas': 'Tore, die das Blatt nennt: %s. Prüfe sie gegen die, die deine Projekte deklarieren.',
+  'checklist.importado.personas': '%s Abfrage(n) nennen kein Lieferobjekt: die beantwortet ein Mensch.',
   'checklist.titulo': 'Die Checkliste des Tors, vom Plan beantwortet',
   'checklist.explica': 'Abfragen, die ein Lieferobjekt nennen, beantwortet der Plan: Er weiß bereits, ob es geplant ist, in welcher Fassung und ob es das Tor erreicht. Die übrigen beantwortet ein Mensch, und vorher zu wissen welche, ist die halbe Arbeit.',
   'checklist.sinHoja': 'Es ist keine Checkliste geladen. Sie wird als CSV unter Daten → Importe geladen, eine Zeile je Paar (Abfrage, Tor).',
@@ -405,6 +408,7 @@ export const de: Diccionario = {
   // --- Das Fenster, das sagt, welche Datei gebraucht wird --------------------
   'importar.titulo': 'Aus einer CSV importieren',
   'importar.cerrar': 'Schließen',
+  'importar.otro': 'Weitere Datei laden',
   'importar.reglas': 'Bevor du etwas ausfüllst',
   'importar.columnas': 'Die Spalten',
   'importar.columnasNota': 'Überzählige Spalten werden ignoriert, und die nicht benötigten dürfen fehlen oder leer sein. Die Reihenfolge der Spalten ist egal: es zählt der Name in der Kopfzeile.',

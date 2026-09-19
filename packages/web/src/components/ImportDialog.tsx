@@ -2,12 +2,15 @@ import {
   importActualsCsv,
   importMonthlyCsv,
   importSplitsCsv,
+  importChecklistCsv,
   importDocumentsCsv,
   importPlanCsv,
   importTeamCsv,
   type ActualsImported,
   type MonthlyImported,
   type SplitsImported,
+  type ChecklistImported,
+  type TipoDeCsv,
   type DocumentsImported,
   type PlanImported,
   type TeamImported,
@@ -16,15 +19,14 @@ import { hours, shortDate } from '../format.js'
 import { useT } from '../i18n/index.js'
 import { ImportPanel } from './ImportPanel.js'
 
-/** Las seis cosas que se pueden cargar desde un CSV. */
-export type TipoDeImportacion =
-  | 'plan'
-  | 'actuals'
-  | 'monthly'
-  | 'splits'
-  | 'documents'
-  | 'team'
-  | 'checklist'
+/**
+ * Las siete cosas que se pueden cargar desde un CSV.
+ *
+ * Es un alias de `TipoDeCsv` y no una segunda unión: dos listas de lo mismo se
+ * separan, y separarse aquí significa que un tipo pide un contrato y se carga
+ * con otro importador.
+ */
+export type TipoDeImportacion = TipoDeCsv
 
 interface Props {
   readonly tipo: TipoDeImportacion
@@ -55,7 +57,14 @@ interface Props {
 export function ImportDialog({ tipo, onClose, onImported, exportarUrl }: Props): React.JSX.Element {
   const { t, locale } = useT()
 
-  if (tipo === 'plan') {
+  // Un `switch` sin `default`, y no una cadena de «if» con una caída al final.
+  // Es la diferencia entre que añadir un tipo a `TipoDeImportacion` sin su rama
+  // sea un ERROR DE COMPILACIÓN o que se lleve en silencio el importador del
+  // último `return`. Pasó: la Checkliste se cargaba contra el catálogo de
+  // documentos, y el mensaje que salía —«falta la columna nombre»— era cierto
+  // sobre un formato que nadie había elegido.
+  switch (tipo) {
+  case 'plan': {
     return (
       <ImportPanel<PlanImported>
         tipo="plan"
@@ -79,7 +88,7 @@ export function ImportDialog({ tipo, onClose, onImported, exportarUrl }: Props):
     )
   }
 
-  if (tipo === 'actuals') {
+  case 'actuals': {
     // Sin `onImported` por defecto: cargar horas no recalcula nada, así que no
     // hay nada que recargar. Es la diferencia con el plan, y es a propósito.
     return (
@@ -106,7 +115,7 @@ export function ImportDialog({ tipo, onClose, onImported, exportarUrl }: Props):
     )
   }
 
-  if (tipo === 'monthly') {
+  case 'monthly': {
     // Tampoco recalcula: son horas, no plan.
     return (
       <ImportPanel<MonthlyImported>
@@ -125,7 +134,7 @@ export function ImportDialog({ tipo, onClose, onImported, exportarUrl }: Props):
     )
   }
 
-  if (tipo === 'splits') {
+  case 'splits': {
     return (
       <ImportPanel<SplitsImported>
         tipo="splits"
@@ -141,7 +150,7 @@ export function ImportDialog({ tipo, onClose, onImported, exportarUrl }: Props):
     )
   }
 
-  if (tipo === 'team') {
+  case 'team': {
     // Cambiar una jornada o una tarifa cambia la capacidad y el coste, así que
     // esta importación SÍ recalcula: es la diferencia con el catálogo.
     return (
@@ -162,15 +171,41 @@ export function ImportDialog({ tipo, onClose, onImported, exportarUrl }: Props):
     )
   }
 
-  return (
-    <ImportPanel<DocumentsImported>
-      tipo="documents"
-      onClose={onClose}
-      importar={importDocumentsCsv}
-      onImported={onImported}
-      exportarUrl={exportarUrl}
-      resumen={(r) => t('documentos.importado', r.rows, r.created, r.updated, r.links, r.activities)}
-      avisos={(r) => r.warnings}
-    />
-  )
+  case 'documents': {
+    return (
+      <ImportPanel<DocumentsImported>
+        tipo="documents"
+        onClose={onClose}
+        importar={importDocumentsCsv}
+        onImported={onImported}
+        exportarUrl={exportarUrl}
+        resumen={(r) => t('documentos.importado', r.rows, r.created, r.updated, r.links, r.activities)}
+        avisos={(r) => r.warnings}
+      />
+    )
+  }
+
+  case 'checklist': {
+    return (
+      <ImportPanel<ChecklistImported>
+        tipo="checklist"
+        onClose={onClose}
+        importar={importChecklistCsv}
+        onImported={onImported}
+        exportarUrl={exportarUrl}
+        resumen={(r) =>
+          t('checklist.importado', r.queries, r.created, r.updated, r.gates, r.links)
+        }
+        avisos={(r) => [
+          // Las puertas que nombra la hoja: es lo que hay que cotejar con las
+          // que declaran los proyectos, y lo que destapa que la Checkliste
+          // pregunta en una puerta que nadie ha fechado.
+          t('checklist.importado.puertas', r.gateNames.join(', ')),
+          ...(r.humanOnly === 0 ? [] : [t('checklist.importado.personas', r.humanOnly)]),
+          ...r.warnings,
+        ]}
+      />
+    )
+  }
+  }
 }

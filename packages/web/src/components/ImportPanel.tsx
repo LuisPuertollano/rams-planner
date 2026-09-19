@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { fetchImportSpec, type ImportSpec } from '../api.js'
+import { fetchImportSpec, type ImportSpec, type TipoDeCsv } from '../api.js'
 import { errorRows, errorText } from '../errors.js'
 import { existeClave, useT } from '../i18n/index.js'
 
 interface Props<R> {
   /** Qué importación es. Decide el contrato que se pide y la plantilla. */
-  readonly tipo: 'plan' | 'actuals' | 'monthly' | 'splits' | 'documents' | 'team'
+  readonly tipo: TipoDeCsv
   readonly onClose: () => void
   readonly importar: (texto: string) => Promise<R>
   /** La frase de «ha ido bien», con las cifras de esa importación. */
@@ -48,6 +48,21 @@ export function ImportPanel<R>({
   const [detalle, setDetalle] = useState<readonly string[]>([])
   const [hecho, setHecho] = useState<{ texto: string; avisos: readonly string[] } | null>(null)
   const ficheroRef = useRef<HTMLInputElement>(null)
+  const respuestaRef = useRef<HTMLDivElement>(null)
+
+  /**
+   * Llevar la respuesta a donde está mirando quien la pidió.
+   *
+   * El contrato de una importación ocupa unos dos mil setecientos píxeles y el
+   * botón de cargar está **al final**. La respuesta se pinta al principio. Sin
+   * esto, cargas un fichero desde abajo del todo y el «ha ido bien» —o el «te
+   * falta una columna»— se dibuja dos pantallas más arriba: la herramienta
+   * contesta y parece que no ha contestado nada.
+   */
+  useEffect(() => {
+    if (hecho === null && error === null) return
+    respuestaRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }, [hecho, error])
 
   useEffect(() => {
     fetchImportSpec(tipo)
@@ -104,6 +119,8 @@ export function ImportPanel<R>({
         </div>
 
         <div className="why__body">
+          <div ref={respuestaRef} />
+
           {error === null ? null : (
             <div className="error-banner">
               <b>{error}</b>
@@ -117,15 +134,28 @@ export function ImportPanel<R>({
           )}
 
           {hecho === null ? null : (
-            <div className="ok-banner">
-              <b>{hecho.texto}</b>
-              {hecho.avisos.length === 0 ? null : (
-                <ul>{hecho.avisos.slice(0, 8).map((fila) => <li key={fila}>{fila}</li>)}</ul>
-              )}
-            </div>
+            <>
+              <div className="ok-banner">
+                <b>{hecho.texto}</b>
+                {hecho.avisos.length === 0 ? null : (
+                  <ul>{hecho.avisos.slice(0, 8).map((fila) => <li key={fila}>{fila}</li>)}</ul>
+                )}
+              </div>
+              {/* Cuando ha entrado, el contrato ya no es lo que se quiere leer:
+                  se aparta y deja sitio a lo que acaba de pasar. Vuelve con un
+                  clic para quien vaya a cargar otro fichero. */}
+              <div className="toolbar" style={{ padding: 0 }}>
+                <button className="button button--primary" onClick={onClose}>
+                  {t('importar.cerrar')}
+                </button>
+                <button className="button" onClick={() => { setHecho(null) }}>
+                  {t('importar.otro')}
+                </button>
+              </div>
+            </>
           )}
 
-          {spec === null ? (
+          {hecho !== null ? null : spec === null ? (
             <p className="faint">{t('app.cargando')}</p>
           ) : (
             <>

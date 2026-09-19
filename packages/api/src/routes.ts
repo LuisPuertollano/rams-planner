@@ -36,7 +36,7 @@ import { columnaSensible, onlyVisible, visibleProjects } from './visibility.js'
 import { toCsv } from './csv.js'
 import { calculate, defaultScenarioId } from './engine.js'
 import {
-  ACTUALS_SPEC, MONTHLY_SPEC, SPLITS_SPEC, PLAN_SPEC, plantillaCsv, type ImportSpec,
+  ACTUALS_SPEC, CHECKLIST_SPEC, MONTHLY_SPEC, SPLITS_SPEC, PLAN_SPEC, plantillaCsv, type ImportSpec,
 } from './import-specs.js'
 import { ImportError, importPlanCsv } from './import-plan.js'
 import { importActualsCsv } from './import-actuals.js'
@@ -390,6 +390,7 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
   servirFormato(ACTUALS_SPEC, 'reales.registrar')
   servirFormato(MONTHLY_SPEC, 'reales.registrar')
   servirFormato(SPLITS_SPEC, 'reales.registrar')
+  servirFormato(CHECKLIST_SPEC, 'documentos.gestionar')
 
   /** Exportación de la carga. El fichero lleva el runId: sigue siendo auditable fuera. */
   app.get('/api/runs/:runId/export.csv', { config: { permission: 'exportar' } }, async (request, reply) => {
