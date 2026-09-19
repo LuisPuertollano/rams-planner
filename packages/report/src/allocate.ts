@@ -125,13 +125,25 @@ export function repartirReales(
   // Las declaraciones, agrupadas por mes y **ordenadas por tarea**: el reparto
   // de un entero depende del orden de los pesos, así que sin un orden estable
   // dos ejecuciones podrían repartir el minuto que sobra a tareas distintas (P2).
-  const porMes = new Map<string, ActualSplit[]>()
+  //
+  // Cada entrada lleva su identidad al lado —persona, proyecto, mes— y no sólo
+  // la lista. Guardar sólo la lista obligaba a sacar esos tres campos de su
+  // primer elemento, y eso son dos comprobaciones de «y si no hay ninguno» que
+  // no pueden ocurrir pero que hay que escribir igual.
+  const porMes = new Map<string, { resourceId: string; projectId: string; period: string; filas: ActualSplit[] }>()
   for (const reparto of repartos) {
-    const bolsa = porMes.get(clave(reparto)) ?? []
-    bolsa.push(reparto)
+    const bolsa = porMes.get(clave(reparto)) ?? {
+      resourceId: reparto.resourceId,
+      projectId: reparto.projectId,
+      period: reparto.period,
+      filas: [],
+    }
+    bolsa.filas.push(reparto)
     porMes.set(clave(reparto), bolsa)
   }
-  for (const bolsa of porMes.values()) bolsa.sort((izq, der) => izq.nodeId.localeCompare(der.nodeId))
+  for (const bolsa of porMes.values()) {
+    bolsa.filas.sort((izq, der) => izq.nodeId.localeCompare(der.nodeId))
+  }
 
   const allocated: AllocatedActual[] = []
   const descuadres: Descuadre[] = []
@@ -144,7 +156,7 @@ export function repartirReales(
     mesesVistos.add(llave)
     minutesIn += mes.minutes
 
-    const declaracion = porMes.get(llave) ?? []
+    const declaracion = porMes.get(llave)?.filas ?? []
     const suma = declaracion.reduce((total, fila) => total + fila.shareBp, 0)
 
     if (conParteDiario.has(llave)) {
@@ -179,17 +191,15 @@ export function repartirReales(
   // Una declaración de un mes que nadie fichó. No pierde minutos —no los hay—
   // pero casi siempre es un mes o un proyecto equivocado, y callarlo deja a
   // alguien esperando unas horas que no van a aparecer nunca.
-  for (const llave of [...porMes.keys()].sort()) {
+  for (const [llave, bolsa] of [...porMes.entries()].sort(([izq], [der]) => izq.localeCompare(der))) {
     if (mesesVistos.has(llave)) continue
-    const primera = porMes.get(llave)?.[0]
-    if (primera === undefined) continue
     descuadres.push({
-      resourceId: primera.resourceId,
-      projectId: primera.projectId,
-      period: primera.period,
+      resourceId: bolsa.resourceId,
+      projectId: bolsa.projectId,
+      period: bolsa.period,
       motivo: 'sin-horas',
       minutes: 0,
-      declaredBp: (porMes.get(llave) ?? []).reduce((total, fila) => total + fila.shareBp, 0),
+      declaredBp: bolsa.filas.reduce((total, fila) => total + fila.shareBp, 0),
     })
   }
 

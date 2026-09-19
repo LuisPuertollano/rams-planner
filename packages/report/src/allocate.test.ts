@@ -49,6 +49,25 @@ describe('repartir las horas reales', () => {
     expect(resultado.minutesUnallocated).toBe(0)
   })
 
+  it('una parte tan pequeña que no llega ni a un minuto no deja fila', () => {
+    // Un mes de un minuto repartido entre tres: uno se lo lleva y los otros dos
+    // se quedan a cero. Una fila de cero minutos no es información, es ruido en
+    // el informe y en la conciliación, así que no se escribe.
+    const resultado = repartirReales(
+      [mes('ana', 'cbtc', '2026-04', 1)],
+      [
+        parte('ana', 'cbtc', '2026-04', 'a', 3334),
+        parte('ana', 'cbtc', '2026-04', 'b', 3333),
+        parte('ana', 'cbtc', '2026-04', 'c', 3333),
+      ],
+    )
+    expect(resultado.allocated).toHaveLength(1)
+    expect(resultado.allocated[0]?.actualMinutes).toBe(1)
+    // Y el minuto sigue sin perderse: el invariante aguanta también aquí.
+    expect(resultado.minutesAllocated).toBe(1)
+    expect(resultado.minutesUnallocated).toBe(0)
+  })
+
   it('horas sin declaración: no se reparten y se dice', () => {
     const resultado = repartirReales([mes('ana', 'cbtc', '2026-04', 6000)], [])
     expect(resultado.allocated).toEqual([])

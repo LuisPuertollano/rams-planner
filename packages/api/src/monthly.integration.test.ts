@@ -54,19 +54,34 @@ async function problemasDe(accion: (db: Queryable) => Promise<unknown>): Promise
 }
 
 
+let projectId = ''
+
 beforeAll(async () => {
   if (pool === null) return
-  await withTransaction(pool, (db) =>
-    importPlanCsv(
+  await withTransaction(pool, async (db) => {
+    await importPlanCsv(
       db,
       [
         'proyecto;nombre_proyecto;tarea;dias;recurso;no_antes_de',
         `${PROY};Proyecto del fichaje;Analizar;10;${QUIEN};2026-04-01`,
         `${PROY};;Documentar;10;${QUIEN};`,
       ].join('\n'),
-    ),
-  )
+    )
+    const { rows } = await db.query<{ id: string }>('SELECT id FROM project WHERE code = $1', [PROY])
+    projectId = rows[0]?.id ?? ''
+  })
 })
+
+/**
+ * Lo repartido de ESTE proyecto, y nada más.
+ *
+ * La conciliación mira la base entera, y la base de CI trae además los datos de
+ * demostración —que desde ADR-0052 tienen horas de abril a propósito—. Sin este
+ * filtro la prueba sumaba las de la demostración y fallaba sólo en CI, que es
+ * la peor clase de prueba: la que pasa en tu máquina.
+ */
+const mias = <T extends { projectId: string; period: string }>(filas: readonly T[]): readonly T[] =>
+  filas.filter((fila) => fila.projectId === projectId && fila.period === '2026-04')
 
 describeSiHayBase('las horas del mes y su reparto', () => {
   it('sin declaración, las horas están y no están en ninguna tarea', async () => {
@@ -83,8 +98,9 @@ describeSiHayBase('las horas del mes y su reparto', () => {
     const { reparto } = await withTransaction(pool, (db) =>
       reconcileActuals(db, '2026-04-01', '2026-04-30'),
     )
-    const mios = reparto.descuadres.filter((f) => f.period === '2026-04' && f.minutes === 2400)
+    const mios = mias(reparto.descuadres)
     expect(mios[0]?.motivo).toBe('sin-declarar')
+    expect(mios[0]?.minutes).toBe(2400)
   })
 
   it('con la declaración, las horas caen en sus tareas y cuadra', async () => {
@@ -106,10 +122,10 @@ describeSiHayBase('las horas del mes y su reparto', () => {
     const { reparto } = await withTransaction(pool, (db) =>
       reconcileActuals(db, '2026-04-01', '2026-04-30'),
     )
-    const mias = reparto.allocated.filter((f) => f.period === '2026-04')
-    const total = mias.reduce((suma, f) => suma + f.actualMinutes, 0)
+    const repartidas = mias(reparto.allocated)
+    const total = repartidas.reduce((suma, f) => suma + f.actualMinutes, 0)
     expect(total).toBe(2400)
-    expect(mias.map((f) => f.actualMinutes).sort((a, b) => a - b)).toEqual([960, 1440])
+    expect(repartidas.map((f) => f.actualMinutes).sort((a, b) => a - b)).toEqual([960, 1440])
   })
 
   it('un reparto que no suma 100 % se guarda, se avisa y NO se aplica', async () => {
@@ -128,9 +144,10 @@ describeSiHayBase('las horas del mes y su reparto', () => {
       reconcileActuals(db, '2026-04-01', '2026-04-30'),
     )
     // Y no se aplica a medias: las 40 h enteras se quedan fuera, con su motivo.
-    expect(reparto.allocated.filter((f) => f.period === '2026-04')).toEqual([])
-    const mio = reparto.descuadres.find((f) => f.period === '2026-04' && f.minutes === 2400)
+    expect(mias(reparto.allocated)).toEqual([])
+    const mio = mias(reparto.descuadres)[0]
     expect(mio?.motivo).toBe('no-suma-cien')
+    expect(mio?.minutes).toBe(2400)
     expect(mio?.declaredBp).toBe(6000)
   })
 
