@@ -92,7 +92,8 @@ aquí va el orden y el porqué:
 3.bis **Tu plantilla**, si la tienes. El CSV de plan con un «sí» en la columna
    `plantilla` crea el molde de tu departamento —fases, tareas, duraciones y
    dependencias— sin personas. Y la columna `entregable` lo ata al catálogo, que
-   es lo que después permite partir en subactividades y poner fechas de puerta.
+   es lo que después permite partir en entregas y en subactividades y poner
+   fechas de puerta.
 4. **Plan** — el proyecto, sus tareas y sus dependencias.
 5. **Las puertas del proyecto** — cuándo cae cada revisión de certificación.
    Es lo que convierte «este documento va a la revisión de diseño» en una fecha.
@@ -154,9 +155,18 @@ nivel 1 *es* la verificación que firma el verificador, se marca en el desplegab
 de la derecha, y así la herramienta puede avisarte de lo que de otro modo se
 perdería: *una firma que cuesta minutos y que ninguna subactividad hace*.
 
-Debajo del catálogo hay dos paneles que llevan lo declarado al plan. Los dos
+Debajo del catálogo hay tres paneles que llevan lo declarado al plan. Los tres
 funcionan igual: eliges proyecto, pulsas **Previsualizar**, y ves entero lo que
 harían —con el motivo de cada descarte— antes de que se escriba nada.
+
+**Partir las tareas en las entregas que piden las puertas.** Si tu Checkliste
+pide el documento en borrador antes, este panel lo pone en el plan: el «Safety
+Case — 120 h» pasa a ser un paquete con *SC · preliminar* (RD), *SC · as
+designed* (RF) y *SC* (PES), encadenadas y **cada una con la fecha objetivo de
+su propia puerta**. El trabajo total no cambia, y quien estaba asignado se
+queda asignado a todas: el borrador y la versión final son el mismo trabajo de
+la misma persona en dos momentos. Va **antes** que el panel siguiente: primero
+las versiones, y luego cada versión en crear y revisar.
 
 **Partir las tareas en su cadena.** «Redactar el FMECA — 40 h» pasa a ser un
 paquete con *Crear* y *Revisar 1* encadenadas, y sus asignaciones y dependencias
@@ -170,7 +180,7 @@ entregable, no en qué día cae—, y de cruzar las dos mitades sale la fecha
 objetivo de cada tarea: la fecha de la puerta menos siete días por semana
 declarada.
 
-Tres cosas de este segundo panel que evitan sustos:
+Tres cosas de este último panel que evitan sustos:
 
 - **El objetivo es blando.** No mueve ninguna tarea; si el plan termina después,
   sale en *Qué va tarde* y en los hallazgos. Es para enterarte, no para que el

@@ -68,6 +68,7 @@ export interface GateInputs {
     path: string
     kind: 'phase' | 'work_package' | 'task' | 'milestone'
     deadline: string | null
+    ownGate?: { gate: string; weeksBeforeGate: number | null } | undefined
   }[]
   readonly deliveries: readonly { nodeId: string; documentTypeId: string }[]
   readonly documents: readonly {
@@ -96,21 +97,41 @@ export async function readGateInputs(db: Queryable, projectId: string): Promise<
     path: string
     node_kind: 'phase' | 'work_package' | 'task' | 'milestone'
     deadline: string | null
+    own_gate: string | null
+    own_weeks: number | null
   }>(
-    `SELECT n.id, n.name, n.path, n.node_kind, t.deadline::text AS deadline
+    // La puerta propia sale de `node_delivery` cuando la tarea es una entrega
+    // concreta: el borrador va a una puerta anterior a la del entregable.
+    `SELECT n.id, n.name, n.path, n.node_kind, t.deadline::text AS deadline,
+            v.gate AS own_gate, v.weeks_before_gate AS own_weeks
      FROM wbs_node n
      LEFT JOIN task t ON t.node_id = n.id
+     LEFT JOIN node_delivery v ON v.node_id = n.id
      WHERE n.project_id = $1 AND n.deleted_at IS NULL
      ORDER BY n.path, n.id`,
     [projectId],
   )
 
+  // Qué documento entrega cada tarea, por las DOS vías. `node_document` es la
+  // declarada a mano y se muda a la entrega final al partir; `node_delivery`
+  // dice que la tarea es una versión concreta de un documento, y sin ella un
+  // borrador se quedaba fuera por «sin entregable» — que es justo la tarea a la
+  // que esto tiene que ponerle su fecha. El DISTINCT está porque la entrega
+  // final aparece por las dos y contarla dos veces la descartaría por
+  // «varios entregables».
   const entregas = await db.query<{ node_id: string; document_type_id: string }>(
-    `SELECT nd.node_id, nd.document_type_id
-     FROM node_document nd
-     JOIN wbs_node n ON n.id = nd.node_id AND n.project_id = $1 AND n.deleted_at IS NULL
-     JOIN document_type d ON d.id = nd.document_type_id AND d.deleted_at IS NULL
-     ORDER BY nd.node_id, nd.document_type_id`,
+    `SELECT DISTINCT node_id, document_type_id FROM (
+       SELECT nd.node_id, nd.document_type_id
+       FROM node_document nd
+       JOIN wbs_node n ON n.id = nd.node_id AND n.project_id = $1 AND n.deleted_at IS NULL
+       JOIN document_type d ON d.id = nd.document_type_id AND d.deleted_at IS NULL
+       UNION ALL
+       SELECT v.node_id, v.document_type_id
+       FROM node_delivery v
+       JOIN wbs_node n ON n.id = v.node_id AND n.project_id = $1 AND n.deleted_at IS NULL
+       JOIN document_type d ON d.id = v.document_type_id AND d.deleted_at IS NULL
+     ) AS todas
+     ORDER BY node_id, document_type_id`,
     [projectId],
   )
 
@@ -132,6 +153,9 @@ export async function readGateInputs(db: Queryable, projectId: string): Promise<
       path: row.path,
       kind: row.node_kind,
       deadline: row.deadline,
+      ...(row.own_gate === null
+        ? {}
+        : { ownGate: { gate: row.own_gate, weeksBeforeGate: row.own_weeks } }),
     })),
     deliveries: entregas.rows.map((row) => ({
       nodeId: row.node_id,
