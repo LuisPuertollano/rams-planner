@@ -126,6 +126,8 @@ export function findingText(t: Traductor, finding: DecibleComoHallazgo): string 
       )
     case 'hallazgo.GATE_EVIDENCE_MISSING':
       return t(clave, texto(p, 'puerta'), texto(p, 'documento'), texto(p, 'entregable'))
+    case 'hallazgo.GATE_QUERY_UNMET':
+      return t(clave, texto(p, 'consulta'), texto(p, 'puerta'), texto(p, 'nivel'), texto(p, 'pregunta'))
     case 'hallazgo.BUDGET_EXCEEDED':
       return t(clave, texto(p, 'task'), horas(p, 'planned'), horas(p, 'standard'))
     case 'hallazgo.TASK_UNASSIGNED':
