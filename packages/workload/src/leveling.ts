@@ -58,6 +58,18 @@ const WORKING_DAY = 480
  */
 interface CargaPorDia {
   minutos: number
+  /**
+   * El recurso y el día, ya partidos.
+   *
+   * La clave del índice es `recurso|día` y `firstConflict` los necesita por
+   * separado. Guardarlos aquí no es redundancia: es no hacer un `split` y dos
+   * concatenaciones por cada día y cada vuelta, que con 27 personas y cuatro
+   * años son millones de cadenas que el recolector luego tiene que barrer.
+   */
+  readonly resourceId: string
+  readonly date: string
+  /** La capacidad de esa persona ese día. No depende del plan, así que no cambia. */
+  readonly capacidad: number
   /** Minutos de cada asignación ese día: la nivelación mira la más grande. */
   readonly porAsignacion: Map<string, number>
 }
@@ -71,6 +83,7 @@ class IndiceDeCarga {
     private readonly compiled: Map<string, CompiledCalendar>,
     private readonly asignacionesPorNodo: ReadonlyMap<string, readonly PlanSnapshot['assignments'][number][]>,
     private readonly recursos: ReadonlyMap<string, PlanSnapshot['resources'][number]>,
+    private readonly capacidad: CapacityIndex,
   ) {}
 
   /** Reparte de cero. Una vez por nivelación. */
@@ -124,7 +137,13 @@ class IndiceDeCarga {
       const clave = `${celda.resourceId}|${celda.date}`
       let dia = this.porRecursoYDia.get(clave)
       if (dia === undefined) {
-        dia = { minutos: 0, porAsignacion: new Map<string, number>() }
+        dia = {
+          minutos: 0,
+          resourceId: celda.resourceId,
+          date: celda.date,
+          capacidad: this.capacidad.capacityOf(celda.resourceId, celda.date),
+          porAsignacion: new Map<string, number>(),
+        }
         this.porRecursoYDia.set(clave, dia)
       }
       dia.minutos += celda.plannedMinutes
@@ -185,7 +204,7 @@ export function levelPlan(snapshot: PlanSnapshot, options: LevelingOptions = {})
     asignacionesPorNodo.set(assignment.nodeId, bucket)
   }
   const recursosPorId = new Map(snapshot.resources.map((resource) => [resource.id, resource]))
-  const carga = new IndiceDeCarga(snapshot, compiled, asignacionesPorNodo, recursosPorId)
+  const carga = new IndiceDeCarga(snapshot, compiled, asignacionesPorNodo, recursosPorId, capacity)
   carga.build(schedule)
   /** Dónde está cada tarea ahora, para saber cuáles se mueven al retrasar una. */
   let tramos = tramosDe(schedule)
@@ -207,7 +226,7 @@ export function levelPlan(snapshot: PlanSnapshot, options: LevelingOptions = {})
   const tooBig = new Map<string, { first: string; last: string; days: number; worst: Conflict }>()
 
   while (iterations < maxIterations) {
-    const conflict = firstConflict(carga.dias, capacity, unresolvable)
+    const conflict = firstConflict(carga.dias, unresolvable)
     if (conflict === undefined) break
 
     // Si una sola asignación ya no cabe en la jornada de la persona, moverla de
@@ -301,7 +320,7 @@ export function levelPlan(snapshot: PlanSnapshot, options: LevelingOptions = {})
     iterations += 1
   }
 
-  const remaining = firstConflict(carga.dias, capacity, unresolvable)
+  const remaining = firstConflict(carga.dias, unresolvable)
   if (remaining !== undefined) {
     findings.push(
       impossible(remaining, nombreRecurso(remaining.resourceId), 'iteraciones-agotadas', {
@@ -408,43 +427,60 @@ interface Conflict {
 /** El primer día sobreasignado en orden cronológico: se resuelve de izquierda a derecha. */
 function firstConflict(
   dias: ReadonlyMap<string, CargaPorDia>,
-  capacidad: CapacityIndex,
   skip: ReadonlySet<string>,
 ): Conflict | undefined {
-  const conflicts: Omit<Conflict, 'blockEnd'>[] = []
-  for (const [key, bucket] of dias) {
-    if (skip.has(key)) continue
-    const [resourceId, date] = key.split('|') as [string, string]
-    const capacity = capacidad.capacityOf(resourceId, date as never)
-    if (bucket.minutos <= capacity) continue
-    conflicts.push({
-      resourceId,
-      date,
-      plannedMinutes: bucket.minutos,
-      capacityMinutes: capacity,
-      largestSingleMinutes: Math.max(...bucket.porAsignacion.values()),
-      assignmentIds: [...bucket.porAsignacion.keys()].sort(),
-    })
-  }
+  // Una sola pasada y sin construir nada que luego se tire.
+  //
+  // Antes esto montaba un objeto por cada día sobrecargado —con su
+  // `Math.max(...)` y su `[...keys()].sort()`— y ordenaba la lista entera para
+  // quedarse con el primero. Con 27 personas y cuatro años de horizonte son
+  // decenas de miles de días recorridos en cada una de las mil y pico vueltas,
+  // y el 90 % del trabajo se tiraba. Ahora se busca el mínimo con el mismo
+  // criterio —día y, en empate, recurso— y las cuentas caras se hacen una vez,
+  // sobre el que gana.
+  //
+  // El resultado es idéntico: coger el primero de una lista ordenada y buscar
+  // el mínimo con ese mismo orden son la misma cosa.
+  let mejor: CargaPorDia | undefined
+  // Los días sobrecargados de cada persona, sólo la fecha: hacen falta para
+  // saber hasta dónde llega el bloque de sobrecarga del que gane.
+  const diasPorRecurso = new Map<string, string[]>()
 
-  const ordered = conflicts.sort(
-    (left, right) => left.date.localeCompare(right.date) || left.resourceId.localeCompare(right.resourceId),
-  )
-  const first = ordered[0]
-  if (first === undefined) return undefined
+  for (const [key, bucket] of dias) {
+    if (bucket.minutos <= bucket.capacidad) continue
+    if (skip.has(key)) continue
+    const suyos = diasPorRecurso.get(bucket.resourceId)
+    if (suyos === undefined) diasPorRecurso.set(bucket.resourceId, [bucket.date])
+    else suyos.push(bucket.date)
+    if (
+      mejor === undefined ||
+      bucket.date < mejor.date ||
+      (bucket.date === mejor.date && bucket.resourceId < mejor.resourceId)
+    ) {
+      mejor = bucket
+    }
+  }
+  if (mejor === undefined) return undefined
 
   // El bloque de sobrecarga seguido del mismo recurso: empujar más allá del
   // bloque entero convierte decenas de iteraciones en una. Tres días naturales
   // de tolerancia para no cortar en un fin de semana.
-  const sameResource = ordered.filter((conflict) => conflict.resourceId === first.resourceId).map((c) => c.date)
-  let blockEnd = first.date
-  for (const date of sameResource) {
+  let blockEnd = mejor.date
+  for (const date of (diasPorRecurso.get(mejor.resourceId) ?? []).sort()) {
     if (date <= blockEnd) continue
     if (daysApart(blockEnd, date) > 3) break
     blockEnd = date
   }
 
-  return { ...first, blockEnd }
+  return {
+    resourceId: mejor.resourceId,
+    date: mejor.date,
+    plannedMinutes: mejor.minutos,
+    capacityMinutes: mejor.capacidad,
+    largestSingleMinutes: Math.max(...mejor.porAsignacion.values()),
+    assignmentIds: [...mejor.porAsignacion.keys()].sort(),
+    blockEnd,
+  }
 }
 
 /**
