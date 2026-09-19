@@ -29,6 +29,20 @@ export function ProjectPanel({ project, baselines, onClose, onChanged }: Props):
   const [priority, setPriority] = useState(String(project.priority))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /**
+   * Los cambios ya guardados, para que los selectores no vuelvan atrás.
+   *
+   * `project` es la foto del proyecto cuando se abrió el panel, y `onChanged`
+   * recarga el estado de la aplicación pero no cambia esa foto. Así que un
+   * `<select value={project.algo}>` se guardaba bien y **se veía volver al
+   * valor anterior**, que parece exactamente un fallo de guardado.
+   *
+   * Era de siempre y se notaba poco con el compromiso y el estado; con el modo
+   * de cálculo se nota mucho, porque debajo hay un texto que explica qué hace
+   * el modo elegido y quedaba contando lo contrario.
+   */
+  const [guardado, setGuardado] = useState<Partial<Project>>({})
+  const actual: Project = { ...project, ...guardado }
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => { if (event.key === 'Escape') onClose() }
@@ -46,7 +60,10 @@ export function ProjectPanel({ project, baselines, onClose, onChanged }: Props):
   }
 
   const save = (changes: Readonly<Record<string, string | number | boolean | null>>): void => {
-    run(async () => { await patchProject(project.id, changes) })
+    run(async () => {
+      await patchProject(project.id, changes)
+      setGuardado((previo) => ({ ...previo, ...changes }) as Partial<Project>)
+    })
   }
 
   return (
@@ -104,7 +121,7 @@ export function ProjectPanel({ project, baselines, onClose, onChanged }: Props):
                 disabled={busy}
                 onChange={(event) => {
                   setStatusStart(event.target.value)
-                  if (event.target.value !== '' && event.target.value !== project.statusStart) {
+                  if (event.target.value !== '' && event.target.value !== actual.statusStart) {
                     save({ statusStart: event.target.value })
                   }
                 }}
@@ -119,7 +136,7 @@ export function ProjectPanel({ project, baselines, onClose, onChanged }: Props):
               <span>{t('proyecto.nivel')}</span>
               <select
                 className="input"
-                value={project.commitment}
+                value={actual.commitment}
                 disabled={busy}
                 onChange={(event) => { save({ commitment: event.target.value }) }}
               >
@@ -130,6 +147,28 @@ export function ProjectPanel({ project, baselines, onClose, onChanged }: Props):
             </label>
           </div>
 
+          {/* Desde dónde se planifica. Va al lado del compromiso porque son las
+              dos cosas que dicen cómo se trata este proyecto, no qué contiene. */}
+          <div className="card">
+            <h3 className="card__title">{t('proyecto.modo')}</h3>
+            <p className="card__note">{t('proyecto.modoNota')}</p>
+            <label className="field" style={{ marginTop: 8, maxWidth: 300 }}>
+              <span>{t('proyecto.desdeDonde')}</span>
+              <select
+                className="input"
+                value={actual.scheduleMode}
+                disabled={busy}
+                onChange={(event) => { save({ scheduleMode: event.target.value }) }}
+              >
+                <option value="adelante">{t('proyecto.adelante')}</option>
+                <option value="atras">{t('proyecto.atras')}</option>
+              </select>
+            </label>
+            <p className="card__note" style={{ marginTop: 8 }}>
+              {actual.scheduleMode === 'atras' ? t('proyecto.atrasQue') : t('proyecto.adelanteQue')}
+            </p>
+          </div>
+
           <div className="card">
             <h3 className="card__title">{t('proyecto.estado')}</h3>
             <p className="card__note">{t('proyecto.estadoNota')}</p>
@@ -137,7 +176,7 @@ export function ProjectPanel({ project, baselines, onClose, onChanged }: Props):
               <span>{t('proyecto.queSeHace')}</span>
               <select
                 className="input"
-                value={project.status}
+                value={actual.status}
                 disabled={busy}
                 onChange={(event) => { save({ status: event.target.value }) }}
               >
@@ -156,7 +195,7 @@ export function ProjectPanel({ project, baselines, onClose, onChanged }: Props):
               <span>{t('proyecto.foto')}</span>
               <select
                 className="input"
-                value={project.currentBaselineId ?? ''}
+                value={actual.currentBaselineId ?? ''}
                 disabled={busy || baselines.length === 0}
                 onChange={(event) => {
                   save({ currentBaselineId: event.target.value === '' ? null : event.target.value })
@@ -219,7 +258,7 @@ export function ProjectPanel({ project, baselines, onClose, onChanged }: Props):
                     await duplicateProject(project.id, {
                       code: codigo.trim(),
                       name: nombre.trim(),
-                      statusStart: project.statusStart,
+                      statusStart: actual.statusStart,
                       asTemplate: true,
                     })
                   }, true)
@@ -239,7 +278,7 @@ export function ProjectPanel({ project, baselines, onClose, onChanged }: Props):
                   if (nombre === null || nombre.trim() === '') return
                   const codigo = window.prompt(t('proyecto.pideCodigo'), `${project.code}-2`)
                   if (codigo === null || codigo.trim() === '') return
-                  const inicio = window.prompt(t('proyecto.pideArranque'), project.statusStart)
+                  const inicio = window.prompt(t('proyecto.pideArranque'), actual.statusStart)
                   if (inicio === null || !/^\d{4}-\d{2}-\d{2}$/.test(inicio.trim())) return
                   run(async () => {
                     await duplicateProject(project.id, {
@@ -256,17 +295,17 @@ export function ProjectPanel({ project, baselines, onClose, onChanged }: Props):
                 className="button"
                 disabled={busy}
                 title={
-                  project.isTemplate ? t('proyecto.aProyectoTitulo') : t('proyecto.aPlantillaTitulo')
+                  actual.isTemplate ? t('proyecto.aProyectoTitulo') : t('proyecto.aPlantillaTitulo')
                 }
                 onClick={() => {
-                  const aPlantilla = !project.isTemplate
+                  const aPlantilla = !actual.isTemplate
                   const aviso = aPlantilla
                     ? t('proyecto.aPlantillaConfirma', project.code)
                     : t('proyecto.aProyectoConfirma', project.code)
                   if (window.confirm(aviso)) save({ isTemplate: aPlantilla })
                 }}
               >
-                {project.isTemplate ? t('proyecto.aProyecto') : t('proyecto.aPlantilla')}
+                {actual.isTemplate ? t('proyecto.aProyecto') : t('proyecto.aPlantilla')}
               </button>
             </div>
           </div>

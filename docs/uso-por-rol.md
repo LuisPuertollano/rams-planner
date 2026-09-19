@@ -100,13 +100,22 @@ aquí va el orden y el porqué:
    Se puede dejar para después, pero entonces no hay fechas objetivo.
 6. **Calcular**.
 
-### Las cuatro cosas que sólo tú puedes hacer
+### Las cinco cosas que sólo tú puedes hacer
 
 **Calcular.** Nada se recalcula solo. Tocas el plan, y el plan cambia cuando tú
 lo dices. Cada ejecución queda guardada entera y se puede volver a mirar.
 
 **Nivelar.** La herramienta propone mover tareas para deshacer sobrecargas.
 Propone: no escribe hasta que aceptas, y te dice qué movería y por qué.
+
+**Elegir desde qué lado se planifica.** En la ficha de cada proyecto. *Hacia
+delante* responde «¿cuándo termina esto si empiezo ya?»; *hacia atrás* ancla en
+las puertas de certificación y responde «¿cuándo tengo que empezar para
+llegar?», que en un proyecto RAMS es la pregunta de verdad. Hacia atrás, el
+margen deja de medir el retraso del proyecto y pasa a medir el de la
+certificación, y sale un aviso que dice cuántos días faltan y desde cuándo. Un
+proyecto sin fechas objetivo puestas no cambia al activarlo: primero las puertas,
+después el modo.
 
 **Crear una línea base.** Congela una ejecución para comparar contra ella más
 adelante. Una línea base **no se borra nunca**, ni siquiera por limpieza

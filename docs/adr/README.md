@@ -54,6 +54,7 @@ parece una mala idea, aquí está el razonamiento que había detrás.
 | [0047](0047-la-tarea-se-parte-en-sus-entregas.md) | La tarea se parte en las entregas que pide la Checkliste, y la asignación se copia a todas | P1, P2, P4, P6 |
 | [0048](0048-nivelar-sin-barrer-el-calendario-entero.md) | Nivelar sin recorrer el calendario entero en cada vuelta: ×2,18 con la misma salida bit a bit | P2, P5 |
 | [0049](0049-la-copia-de-seguridad-se-lee-sin-la-herramienta.md) | La copia de seguridad se lee sin la herramienta: un zip de CSV que se restaura y se audita con `unzip` | P1, P2, P7 |
+| [0050](0050-el-plan-se-calcula-hacia-atras-desde-la-puerta.md) | El plan se calcula hacia atrás, desde la puerta: un modo por proyecto y un hallazgo que dice cuándo habría que haber empezado | P2, P4, P6 |
 
 ## Decisiones tomadas por defecto
 

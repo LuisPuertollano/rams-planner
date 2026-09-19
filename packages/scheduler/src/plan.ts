@@ -6,7 +6,7 @@
  * puede volver a pasar por el motor años después y dar el mismo resultado.
  */
 
-import type { CalendarDate, Finding, ProjectStatus } from '@planner/domain'
+import type { CalendarDate, Finding, ProjectStatus, ScheduleMode } from '@planner/domain'
 import type { CalendarDefinition, Horizon, PlanInstant } from '@planner/calendar'
 
 export type TaskType = 'fixed_work' | 'fixed_duration' | 'fixed_units'
@@ -100,6 +100,18 @@ export interface ProjectDefinition {
   readonly statusStart: CalendarDate
   /** Menor es más prioritario. Desempate determinista en la nivelación. */
   readonly priority: number
+  /**
+   * Desde dónde se planifica este proyecto.
+   *
+   * `adelante` es lo de siempre: cada tarea a su fecha más temprana, y si no
+   * llega a su puerta, un hallazgo.
+   *
+   * `atras` es como piensa un proyecto RAMS: la fecha que manda es la de la
+   * puerta de certificación, y la pregunta no es «¿cuándo acabo?» sino
+   * «¿cuándo tengo que empezar para llegar?». Las tareas se van a su fecha más
+   * tardía y lo que sale es el margen que queda — o el que ya no queda.
+   */
+  readonly scheduleMode: ScheduleMode
 }
 
 export interface WbsNodeDefinition {
