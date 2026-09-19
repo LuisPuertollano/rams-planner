@@ -490,9 +490,9 @@ lista lo ves de un vistazo: «PGR 30 % › IGR 20 % › **CGR** 50 %», con la f
 en negrita y su parte al final. Si las previas se llevaran el 100 %, la columna
 te lo marca con ⚠ y un «0 %» que no deja lugar a dudas.
 
-Una cosa que todavía **no** hace, para que no la esperes: esto no mueve ninguna
-fecha. El plan sigue teniendo una tarea por entregable, con la fecha objetivo de
-su puerta final. Partir esa tarea en una por entrega es el paso siguiente.
+Declarar las entregas todavía no mueve ninguna fecha: el plan sigue teniendo una
+tarea por entregable. Lo que las mueve es el panel de **partir en entregas**,
+más abajo.
 
 Dos detalles que ahorran un viaje:
 
@@ -503,6 +503,41 @@ Dos detalles que ahorran un viaje:
 - **Un hito no lleva cadena.** No se crea ni se revisa: es un instante. Su
   esfuerzo —las horas de su propia reunión, si es una puerta de revisión— va en
   la columna `horas`, no en una casilla de la cadena.
+
+**Partir las tareas en las entregas que piden las puertas.** Este es el panel
+que convierte la Checkliste en plan. «Safety Case — 120 h», que hasta ahora era
+una tarea con la fecha de PES, pasa a ser un paquete con tres tareas
+encadenadas:
+
+```
+SC · preliminar   RD   15 %   18 h      →   objetivo 2026-05-01
+SC · as designed  RF   25 %   30 h      →   objetivo 2026-05-01
+SC                PES  60 %   72 h      →   objetivo 2026-06-26
+```
+
+Y eso es lo que hacía falta: **cada versión tiene ahora su propia fecha
+objetivo**, la de su puerta, no la del documento. El borrador que había que
+enseñar en RD deja de ser un compromiso que nadie tenía apuntado y pasa a ser
+una tarea con horas reservadas y una fecha.
+
+Tres cosas que conviene saber:
+
+- **El trabajo total no cambia.** Sale arriba y en grande, y si las dos cifras
+  no coinciden el botón de aplicar se queda apagado. La final se lleva lo que
+  las previas no se llevan.
+- **Quien estaba asignado sigue en todas.** Y esto es distinto de partir en
+  subactividades: allí quien crea no es quien revisa, y a los demás pasos no se
+  les asigna a nadie a propósito. Aquí el borrador y la versión final son el
+  mismo trabajo de la misma persona en dos momentos, así que la asignación se
+  **copia** a cada entrega.
+- **Va antes que partir en subactividades.** Primero las versiones del
+  documento, y luego cada versión en crear y revisar. Al revés no significa
+  nada: «crear el preliminar» y «crear el final» no son dos pasos de una
+  cadena, son dos entregas.
+
+Lo que no se toca sale con su motivo, como siempre: *su entregable no declara
+ninguna entrega previa*, *ya tiene horas fichadas*, *entrega dos documentos*,
+*las previas ya se llevan el 100 %*.
 
 **Partir las tareas en su cadena.** Debajo del catálogo hay un panel que hace
 con el plan lo que el catálogo declara: «Redactar el FMECA — 40 h» pasa a ser un

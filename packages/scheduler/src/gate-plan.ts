@@ -47,6 +47,12 @@ export interface GateTask {
   readonly kind: 'phase' | 'work_package' | 'task' | 'milestone'
   /** El objetivo declarado hoy, si alguien puso uno. */
   readonly deadline: string | null
+  /**
+   * La puerta de ESTA tarea, cuando es una entrega concreta de un documento
+   * (ADR-0047). Un borrador va a una puerta anterior a la del entregable, así
+   * que manda sobre la del catálogo. `null` en una tarea normal.
+   */
+  readonly ownGate?: { gate: string; weeksBeforeGate: number | null } | undefined
 }
 
 /** Qué entregable entrega cada tarea. */
@@ -216,7 +222,9 @@ export function planGateDeadlines(input: GatePlanInput): GatePlanResult {
 
     const documentTypeId = entregables[0] ?? ''
     const documento = porDocumento.get(documentTypeId)
-    const puerta = documento?.gate ?? null
+    // La tarea manda sobre el catálogo cuando es una entrega concreta: el
+    // preliminar del FMECA va a PGR aunque el FMECA vaya a CGR.
+    const puerta = tarea.ownGate?.gate ?? documento?.gate ?? null
     if (documento === undefined || puerta === null || puerta.trim() === '') {
       descarta('sin-puerta', null, null)
       continue
@@ -229,7 +237,7 @@ export function planGateDeadlines(input: GatePlanInput): GatePlanResult {
       continue
     }
 
-    const semanas = documento.weeksBeforeGate ?? 0
+    const semanas = (tarea.ownGate === undefined ? documento.weeksBeforeGate : tarea.ownGate.weeksBeforeGate) ?? 0
     const objetivo: CalendarDate = addDays(
       calendarDate(fechaPuerta),
       -(semanas * DIAS_POR_SEMANA),

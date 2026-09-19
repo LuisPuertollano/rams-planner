@@ -178,3 +178,40 @@ describe('la puerta da la fecha', () => {
     )
   })
 })
+
+describe('la puerta de una entrega concreta manda sobre la del catálogo', () => {
+  it('el borrador va a su puerta, no a la del entregable', () => {
+    // El FMECA va a CGR, pero su preliminar va a PGR: la tarea que ES ese
+    // preliminar tiene que recibir la fecha de PGR (ADR-0047).
+    const plan = planGateDeadlines(
+      entrada({
+        tasks: [tarea({ ownGate: { gate: 'PGR', weeksBeforeGate: 2 } })],
+        gates: [
+          { gate: 'CGR', date: '2028-05-14' },
+          { gate: 'PGR', date: '2027-03-19' },
+        ],
+      }),
+    )
+    expect(plan.set[0]?.gate).toBe('PGR')
+    // 2027-03-19 menos dos semanas.
+    expect(plan.set[0]?.deadline).toBe('2027-03-05')
+  })
+
+  it('sin puerta propia sigue mandando la del catálogo', () => {
+    const plan = planGateDeadlines(entrada())
+    expect(plan.set[0]?.gate).toBe('CGR')
+  })
+
+  it('una entrega sin semanas propias no hereda las del catálogo', () => {
+    // Son cosas distintas: las semanas del catálogo son las de la entrega
+    // final. Un borrador sin semanas va el día de SU puerta.
+    const plan = planGateDeadlines(
+      entrada({
+        tasks: [tarea({ ownGate: { gate: 'PGR', weeksBeforeGate: null } })],
+        gates: [{ gate: 'PGR', date: '2027-03-19' }],
+      }),
+    )
+    expect(plan.set[0]?.weeks).toBe(0)
+    expect(plan.set[0]?.deadline).toBe('2027-03-19')
+  })
+})

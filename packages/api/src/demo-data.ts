@@ -349,6 +349,36 @@ const DEMO_ACTIVITIES: readonly {
   { code: 'SRS', step: 'support', role: 'Ing. de sistemas', minutes: 360, signature: null },
 ]
 
+/**
+ * Lo que la Checkliste pide antes de la puerta del documento.
+ *
+ * Sin esto la función de partir en entregas estaría en el menú y no haría nada
+ * la primera vez que alguien la abre, que es la peor manera de presentar una
+ * función: parece rota. Los porcentajes suman menos de 100 en todos los casos
+ * —la versión final se queda con el resto— porque un documento que se entrega
+ * entero antes de su propia puerta no es una entrega previa, es un error.
+ */
+interface DemoDelivery {
+  readonly code: string
+  readonly gate: string
+  readonly maturity: string
+  readonly weeks: number
+  readonly shareBp: number
+}
+
+const DEMO_DELIVERIES: readonly DemoDelivery[] = [
+  // El Hazard Log se enseña abierto en la revisión preliminar: no está cerrado,
+  // pero que exista ya es la mitad del argumento.
+  { code: 'HL', gate: 'RP', maturity: 'preliminar', weeks: 2, shareBp: 2_500 },
+  // El FMECA preliminar sobre la arquitectura, antes de tener componentes.
+  { code: 'FMECA', gate: 'RP', maturity: 'preliminar', weeks: 3, shareBp: 2_000 },
+  // El RAM «as designed» sale del diseño; el de la puerta, de los ensayos.
+  { code: 'RAM', gate: 'RD', maturity: 'as designed', weeks: 3, shareBp: 3_000 },
+  // El Safety Case se pide tres veces, y por eso es el ejemplo de la pantalla.
+  { code: 'SC', gate: 'RD', maturity: 'preliminar', weeks: 2, shareBp: 1_500 },
+  { code: 'SC', gate: 'RF', maturity: 'as designed', weeks: 4, shareBp: 2_500 },
+]
+
 async function seedDocuments(db: Queryable): Promise<void> {
   for (const [index, doc] of DEMO_DOCUMENTS.entries()) {
     await db.query(
@@ -364,6 +394,21 @@ async function seedDocuments(db: Queryable): Promise<void> {
        WHERE a.code = $1 AND b.code = $2
        ON CONFLICT DO NOTHING`,
       [antes, despues],
+    )
+  }
+
+  // La posición va por documento, no por la lista entera: es el orden en que se
+  // piden las versiones de ESE documento.
+  const posicion = new Map<string, number>()
+  for (const entrega of DEMO_DELIVERIES) {
+    const orden = posicion.get(entrega.code) ?? 0
+    posicion.set(entrega.code, orden + 1)
+    await db.query(
+      `INSERT INTO document_gate
+          (document_type_id, position, gate, maturity, weeks_before_gate, share_bp)
+       SELECT d.id, $2, $3, $4, $5, $6 FROM document_type d WHERE d.code = $1
+       ON CONFLICT DO NOTHING`,
+      [entrega.code, orden, entrega.gate, entrega.maturity, entrega.weeks, entrega.shareBp],
     )
   }
 

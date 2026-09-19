@@ -39,6 +39,7 @@ import { LoginView } from './views/LoginView.js'
 import { DiffView } from './views/DiffView.js'
 import { ApplyMatrixPanel } from './views/ApplyMatrixPanel.js'
 import { GatesPanel } from './views/GatesPanel.js'
+import { SplitDeliveriesPanel } from './views/SplitDeliveriesPanel.js'
 import { SplitTasksPanel } from './views/SplitTasksPanel.js'
 import { DocumentsView } from './views/DocumentsView.js'
 import { GanttView } from './views/GanttView.js'
@@ -568,6 +569,14 @@ function Planner({
                   <GatesPanel
                     projects={state?.projects ?? []}
                     canApply={puede('plan.editar')}
+                    onApplied={recargar}
+                  />
+                )}
+                {(state?.projects ?? []).length === 0 ? null : (
+                  <SplitDeliveriesPanel
+                    projects={state?.projects ?? []}
+                    canApply={puede('plan.estructura')}
+                    locale={locale}
                     onApplied={recargar}
                   />
                 )}

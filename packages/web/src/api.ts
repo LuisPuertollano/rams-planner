@@ -1492,6 +1492,99 @@ export async function applyGates(
   return (await response.json()) as GatesApplied
 }
 
+// --- Partir el entregable en las entregas que pide la Checkliste ------------
+
+export type DeliverySkipReason =
+  | 'no-es-tarea'
+  | 'sin-entregable'
+  | 'varios-entregables'
+  | 'sin-entregas-previas'
+  | 'sin-tamano'
+  | 'con-horas-reales'
+  | 'ya-partida'
+  | 'es-un-trozo'
+  | 'reparto-completo'
+
+export interface ProposedDeliveryPiece {
+  readonly order: number
+  readonly gate: string
+  readonly maturity: string | null
+  readonly weeksBeforeGate: number | null
+  readonly minutes: number
+  readonly shareBp: number
+  readonly isFinal: boolean
+}
+
+export interface ProposedDeliverySplit {
+  readonly nodeId: string
+  readonly name: string
+  readonly path: string
+  readonly documentTypeId: string
+  readonly documentCode: string
+  readonly magnitude: 'trabajo' | 'duracion'
+  readonly deliveries: readonly ProposedDeliveryPiece[]
+  readonly chain: readonly (readonly [number, number])[]
+  readonly relinked: readonly { dependencyId: string; side: string; toOrder: number }[]
+  readonly copiedResourceIds: readonly string[]
+}
+
+export interface SkippedDeliverySplit {
+  readonly nodeId: string
+  readonly name: string
+  readonly path: string
+  readonly reason: DeliverySkipReason
+}
+
+/**
+ * Las cuentas de antes y después. `minutesAfter` tiene que ser igual a
+ * `minutesBefore`: declarar una Checkliste no puede cambiar lo que cuesta un
+ * proyecto, y la pantalla lo enseña para no tener que fiarse.
+ */
+export interface DeliveryTotals {
+  readonly tasksBefore: number
+  readonly tasksAfter: number
+  readonly minutesBefore: number
+  readonly minutesAfter: number
+}
+
+export interface DeliveryPlan {
+  readonly split: readonly ProposedDeliverySplit[]
+  readonly skipped: readonly SkippedDeliverySplit[]
+  readonly totals: DeliveryTotals
+  readonly documents: readonly DocumentType[]
+}
+
+export interface DeliveryApplied {
+  readonly result: {
+    readonly tasksSplit: number
+    readonly deliveriesCreated: number
+    readonly chainLinks: number
+    readonly relinked: number
+    readonly assignmentsCopied: number
+    readonly skipped: readonly SkippedDeliverySplit[]
+    readonly totals: DeliveryTotals
+  }
+  readonly run: CalculationSummary
+}
+
+export async function fetchDeliveryPlan(projectId: string): Promise<DeliveryPlan> {
+  return get<DeliveryPlan>(`/api/projects/${projectId}/deliveries/plan`)
+}
+
+/** Parte las tareas que no estén excluidas, y recalcula. */
+export async function applyDeliveries(
+  projectId: string,
+  exclude: readonly string[],
+): Promise<DeliveryApplied> {
+  const response = await fetch(`/api/projects/${projectId}/deliveries/apply`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ exclude }),
+  })
+  if (!response.ok) throw await comoError(response, 'No se pudieron partir las tareas en sus entregas')
+  return (await response.json()) as DeliveryApplied
+}
+
 export async function fetchMatrixPlan(projectId: string): Promise<MatrixPlan> {
   return get<MatrixPlan>(`/api/projects/${projectId}/documents/plan`)
 }
