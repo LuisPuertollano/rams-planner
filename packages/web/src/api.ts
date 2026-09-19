@@ -1664,10 +1664,18 @@ export type NivelDeConsulta = 'M' | 'HR' | 'R' | 'C'
 
 export type EstadoDeConsulta =
   | 'cumple'
+  | 'vigente-de-antes'
   | 'no-cumple'
   | 'sin-saber'
   | 'la-contesta-una-persona'
   | 'puerta-sin-fechar'
+
+/** De qué puerta sale la respuesta, que no siempre es la de la consulta. */
+export interface EvidenciaDeConsulta {
+  readonly gate: string
+  readonly current: boolean
+  readonly cell: GateEvidence
+}
 
 export interface ConsultaResuelta {
   readonly queryId: string
@@ -1678,13 +1686,14 @@ export interface ConsultaResuelta {
   readonly level: NivelDeConsulta
   readonly proofRequest: string | null
   readonly state: EstadoDeConsulta
-  readonly evidence: readonly GateEvidence[]
+  readonly evidence: readonly EvidenciaDeConsulta[]
   readonly missing: readonly string[]
 }
 
 export interface TotalesDeConsultas {
   readonly consultas: number
   readonly cumplen: number
+  readonly vigentesDeAntes: number
   readonly noCumplen: number
   readonly sinSaber: number
   readonly deUnaPersona: number

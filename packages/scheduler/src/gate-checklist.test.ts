@@ -66,6 +66,7 @@ describe('answerGateChecklist', () => {
     const fila = resultado.gates[0]?.queries[0]
     expect(fila?.state).toBe('cumple')
     expect(fila?.evidence).toHaveLength(1)
+    expect(fila?.evidence[0]?.current).toBe(true)
     expect(resultado.findings).toEqual([])
   })
 
@@ -204,6 +205,134 @@ describe('answerGateChecklist', () => {
       }),
     )
     expect(resultado.gates[0]?.queries[0]?.state).toBe('cumple')
+  })
+
+  it('la versión vigente puede venir de una puerta ANTERIOR, y eso no es un fallo', () => {
+    // El caso real: en IQR la Checkliste pregunta si el Hazard Log sigue al
+    // día, y el Hazard Log se entrega en CGR. Buscar sólo en la puerta de la
+    // consulta decía «no está en el plan» de un documento ya terminado.
+    const resultado = answerGateChecklist({
+      queries: [
+        consulta({
+          gates: [{ gate: 'IQR', level: 'M', proofRequest: null }],
+          documents: [{ documentTypeId: FMECA, maturity: null }],
+        }),
+      ],
+      readiness: [
+        {
+          ...puertaResuelta([entrega({ maturity: null, state: 'a-tiempo' })]),
+          gate: 'CGR',
+          date: '2026-09-30',
+        },
+      ],
+      gates: [
+        { gate: 'CGR', date: '2026-09-30' },
+        { gate: 'IQR', date: '2027-03-15' },
+      ],
+    })
+    const fila = resultado.gates.find((puerta) => puerta.gate === 'IQR')?.queries[0]
+    expect(fila?.state).toBe('vigente-de-antes')
+    expect(fila?.missing).toEqual([])
+    expect(fila?.evidence[0]?.gate).toBe('CGR')
+    expect(fila?.evidence[0]?.current).toBe(false)
+    // No es un fallo, así que no genera hallazgo.
+    expect(resultado.findings).toEqual([])
+  })
+
+  it('una entrega POSTERIOR a la puerta no vale como evidencia en ella', () => {
+    // Lo contrario del caso anterior, y es el que no se puede aflojar: en PGR
+    // no se puede enseñar algo que se entrega en CGR.
+    const resultado = answerGateChecklist({
+      queries: [
+        consulta({
+          gates: [{ gate: 'PGR', level: 'M', proofRequest: null }],
+          documents: [{ documentTypeId: FMECA, maturity: null }],
+        }),
+      ],
+      readiness: [
+        {
+          ...puertaResuelta([entrega({ maturity: null })]),
+          gate: 'CGR',
+          date: '2026-09-30',
+        },
+      ],
+      gates: [
+        { gate: 'PGR', date: '2026-05-15' },
+        { gate: 'CGR', date: '2026-09-30' },
+      ],
+    })
+    const fila = resultado.gates.find((puerta) => puerta.gate === 'PGR')?.queries[0]
+    expect(fila?.state).toBe('no-cumple')
+    expect(fila?.missing).toEqual([FMECA])
+  })
+
+  it('cuando la consulta declara madurez, una final anterior no tapa el preliminar que falta', () => {
+    const resultado = answerGateChecklist({
+      queries: [
+        consulta({
+          gates: [{ gate: 'CGR', level: 'M', proofRequest: null }],
+          documents: [{ documentTypeId: FMECA, maturity: 'preliminar' }],
+        }),
+      ],
+      readiness: [
+        {
+          ...puertaResuelta([entrega({ maturity: null })]),
+          gate: 'PGR',
+          date: '2026-05-15',
+        },
+      ],
+      gates: [
+        { gate: 'PGR', date: '2026-05-15' },
+        { gate: 'CGR', date: '2026-09-30' },
+      ],
+    })
+    expect(resultado.gates.find((p) => p.gate === 'CGR')?.queries[0]?.state).toBe('no-cumple')
+  })
+
+  it('entre dos versiones anteriores manda la más reciente', () => {
+    const resultado = answerGateChecklist({
+      queries: [
+        consulta({
+          gates: [{ gate: 'IQR', level: 'M', proofRequest: null }],
+          documents: [{ documentTypeId: FMECA, maturity: null }],
+        }),
+      ],
+      readiness: [
+        {
+          ...puertaResuelta([entrega({ maturity: null, taskName: 'la vieja' })]),
+          gate: 'IGR',
+          date: '2026-02-10',
+        },
+        {
+          ...puertaResuelta([entrega({ maturity: null, taskName: 'la buena' })]),
+          gate: 'CGR',
+          date: '2026-09-30',
+        },
+      ],
+      gates: [
+        { gate: 'IGR', date: '2026-02-10' },
+        { gate: 'CGR', date: '2026-09-30' },
+        { gate: 'IQR', date: '2027-03-15' },
+      ],
+    })
+    const fila = resultado.gates.find((puerta) => puerta.gate === 'IQR')?.queries[0]
+    expect(fila?.evidence[0]?.cell.taskName).toBe('la buena')
+  })
+
+  it('una puerta sin fecha no entra en el orden: no puede ser «la anterior» de nadie', () => {
+    const resultado = answerGateChecklist({
+      queries: [
+        consulta({
+          gates: [{ gate: 'CGR', level: 'M', proofRequest: null }],
+          documents: [{ documentTypeId: FMECA, maturity: null }],
+        }),
+      ],
+      readiness: [
+        { ...puertaResuelta([entrega({ maturity: null })]), gate: 'SGR', date: null },
+      ],
+      gates: [{ gate: 'CGR', date: '2026-09-30' }],
+    })
+    expect(resultado.gates[0]?.queries[0]?.state).toBe('no-cumple')
   })
 
   it('la misma entrada da exactamente la misma salida (P2)', () => {

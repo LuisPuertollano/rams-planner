@@ -335,6 +335,7 @@ export const de: Diccionario = {
   'checklist.col.estado': 'Stand',
   'checklist.col.entregables': 'Genannte Lieferobjekte',
   'checklist.estado.cumple': 'erfüllt',
+  'checklist.estado.vigente-de-antes': 'gültig, aus einem früheren Tor',
   'checklist.estado.no-cumple': 'nicht erfüllt',
   'checklist.estado.sin-saber': 'noch nicht bekannt',
   'checklist.estado.la-contesta-una-persona': 'beantwortet ein Mensch',

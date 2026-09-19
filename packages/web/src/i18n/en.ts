@@ -333,6 +333,7 @@ export const en: Diccionario = {
   'checklist.col.estado': 'State',
   'checklist.col.entregables': 'Deliverables it names',
   'checklist.estado.cumple': 'met',
+  'checklist.estado.vigente-de-antes': 'current, from an earlier gate',
   'checklist.estado.no-cumple': 'not met',
   'checklist.estado.sin-saber': 'not known yet',
   'checklist.estado.la-contesta-una-persona': 'answered by a person',
