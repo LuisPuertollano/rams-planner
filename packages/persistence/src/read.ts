@@ -192,6 +192,15 @@ export interface TaskRow {
   readonly path: string
   readonly scheduledStart: string | null
   readonly scheduledFinish: string | null
+  /**
+   * El fin más tardío que todavía no retrasa nada.
+   *
+   * Sale para que el cronograma pueda dibujar la holgura **en el mismo espacio
+   * que las barras**. La holgura en minutos laborables no se puede convertir a
+   * días de calendario sin el calendario de la tarea, así que dibujarla desde
+   * `total_slack_minutes` sería una aproximación; desde esta fecha es exacta.
+   */
+  readonly lateFinish: string | null
   readonly durationMinutes: number | null
   readonly workMinutes: number | null
   readonly totalSlackMinutes: number | null
@@ -221,6 +230,7 @@ export async function readTasks(db: Queryable, runId: string): Promise<readonly 
     path: string
     scheduled_start: Date | null
     scheduled_finish: Date | null
+    late_finish: Date | null
     duration_minutes: number | null
     work_minutes: number | null
     total_slack_minutes: number | null
@@ -237,7 +247,8 @@ export async function readTasks(db: Queryable, runId: string): Promise<readonly 
     span_to: string | null
   }>(
     `SELECT n.id AS node_id, n.project_id, n.parent_id, n.node_kind, n.code, n.name, n.path,
-            r.scheduled_start, r.scheduled_finish, r.duration_minutes, r.work_minutes,
+            r.scheduled_start, r.scheduled_finish, r.late_finish,
+            r.duration_minutes, r.work_minutes,
             r.total_slack_minutes, r.is_critical, r.percent_complete_bp,
             t.constraint_kind, t.deadline::text, t.task_type,
             t.duration_minutes AS declared_duration_minutes,
@@ -265,6 +276,7 @@ export async function readTasks(db: Queryable, runId: string): Promise<readonly 
     path: row.path,
     scheduledStart: row.scheduled_start?.toISOString() ?? null,
     scheduledFinish: row.scheduled_finish?.toISOString() ?? null,
+    lateFinish: row.late_finish?.toISOString() ?? null,
     durationMinutes: row.duration_minutes,
     workMinutes: row.work_minutes,
     totalSlackMinutes: row.total_slack_minutes,

@@ -89,6 +89,8 @@ export interface TaskRow {
   readonly path: string
   readonly scheduledStart: string | null
   readonly scheduledFinish: string | null
+  /** El fin más tardío que no retrasa nada: la holgura, en fechas. */
+  readonly lateFinish: string | null
   readonly durationMinutes: number | null
   readonly workMinutes: number | null
   readonly totalSlackMinutes: number | null

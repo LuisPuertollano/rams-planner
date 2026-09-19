@@ -22,7 +22,8 @@ const tarea = (nodeId: string, projectId: string, finish: string | null, kind = 
   nodeId, projectId, parentId: null, kind, code: null, name: nodeId, path: nodeId,
   scheduledStart: null, scheduledFinish: finish, durationMinutes: null, workMinutes: 480,
   totalSlackMinutes: null, isCritical: null, percentCompleteBp: 0, constraintKind: null,
-  deadline: null, taskType: null, assignees: [], spanFrom: null, spanTo: null, declaredDurationMinutes: null,
+  deadline: null, taskType: null, assignees: [], spanFrom: null, spanTo: null, lateFinish: null,
+  declaredDurationMinutes: null,
   declaredWorkMinutes: null, declaredPercentCompleteBp: null,
 })
 
