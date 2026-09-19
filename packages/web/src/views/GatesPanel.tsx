@@ -10,6 +10,7 @@ import {
   type ProjectGate,
 } from '../api.js'
 import { errorText } from '../errors.js'
+import { GateReadinessPanel } from './GateReadinessPanel.js'
 import { useT, type Diccionario } from '../i18n/index.js'
 
 interface Props {
@@ -47,6 +48,8 @@ export function GatesPanel({ projects, canApply, onApplied }: Props): React.JSX.
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hecho, setHecho] = useState<string | null>(null)
+  /** Sube al aplicar objetivos: así la preparación no se queda con cifras viejas. */
+  const [version, setVersion] = useState(0)
 
   useEffect(() => {
     if (projectId === '') return
@@ -99,6 +102,7 @@ export function GatesPanel({ projects, canApply, onApplied }: Props): React.JSX.
           t('puertas.hecho', resultado.result.deadlinesSet, resultado.result.deadlinesChanged),
         )
         setPlan(null)
+        setVersion((previo) => previo + 1)
         onApplied()
       })
       .catch((cause: unknown) => { setError(errorText(t, cause, 'error.local.puertasAplicar')) })
@@ -206,6 +210,8 @@ export function GatesPanel({ projects, canApply, onApplied }: Props): React.JSX.
           </button>
         </div>
       )}
+
+      <GateReadinessPanel projectId={projectId} version={version} />
 
       {plan === null ? null : (
         <>

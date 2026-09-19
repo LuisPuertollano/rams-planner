@@ -1591,6 +1591,73 @@ export async function applyGates(
   return (await response.json()) as GatesApplied
 }
 
+// --- Cómo llega el proyecto a cada puerta (ADR-0056) ------------------------
+
+export type GateEvidenceState =
+  | 'a-tiempo'
+  | 'tarde'
+  | 'sin-fecha'
+  | 'sin-partir'
+  | 'sin-fecha-de-puerta'
+
+export interface GateEvidence {
+  readonly documentTypeId: string
+  readonly documentCode: string
+  readonly documentName: string
+  readonly maturity: string | null
+  readonly state: GateEvidenceState
+  readonly dueOn: string | null
+  readonly weeks: number | null
+  readonly nodeId: string | null
+  readonly taskName: string | null
+  readonly finish: string | null
+  readonly daysLate: number | null
+  readonly percentCompleteBp: number | null
+}
+
+export interface GateReadinessTotals {
+  readonly esperadas: number
+  readonly aTiempo: number
+  readonly tarde: number
+  readonly sinPartir: number
+  readonly sinFecha: number
+  readonly sinFechaDePuerta: number
+}
+
+export interface GateReadinessRow {
+  readonly gate: string
+  readonly date: string | null
+  readonly evidence: readonly GateEvidence[]
+  readonly totals: GateReadinessTotals
+}
+
+/**
+ * El hallazgo tal cual lo devuelve el motor, sin pasar por la base: no lleva
+ * `entityName` porque no hay ninguna ejecución guardada que lo resuelva. Basta
+ * para `findingText`, que construye la frase desde `code` y `payload`.
+ */
+export interface GateReadinessFinding {
+  readonly severity: 'blocking' | 'error' | 'warning' | 'info'
+  readonly code: string
+  readonly entityType: string
+  readonly entityId: string
+  readonly occursOn?: string
+  readonly message: string
+  readonly payload?: Readonly<Record<string, string | number | boolean | null>>
+}
+
+/** `runId` es `null` cuando todavía no hay ninguna ejecución de la que hablar. */
+export interface GateReadiness {
+  readonly runId: string | null
+  readonly gates: readonly GateReadinessRow[]
+  readonly findings: readonly GateReadinessFinding[]
+  readonly totals: GateReadinessTotals | null
+}
+
+export async function fetchGateReadiness(projectId: string): Promise<GateReadiness> {
+  return get<GateReadiness>(`/api/projects/${projectId}/gates/readiness`)
+}
+
 // --- Partir el entregable en las entregas que pide la Checkliste ------------
 
 export type DeliverySkipReason =
