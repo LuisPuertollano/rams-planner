@@ -316,6 +316,9 @@ export const en: Diccionario = {
   'puertas.anadir': 'Add gate',
   'puertas.guardar': 'Save gates',
   'puertas.faltanFechas': 'The catalogue asks for these gates and this project has not dated them: %s. Write them above and preview again.',
+  'checklist.importado': '%s quer(y/ies) loaded: %s new, %s updated, %s gate cell(s) and %s link(s) to the catalogue.',
+  'checklist.importado.puertas': 'Gates the sheet names: %s. Check them against the ones your projects declare.',
+  'checklist.importado.personas': '%s quer(y/ies) name no deliverable: a person answers those.',
   'checklist.titulo': 'The gate Checkliste, answered by the plan',
   'checklist.explica': 'Queries that name a deliverable are answered by the plan: it already knows whether it is scheduled, in which version and whether it reaches the gate. The ones that name none are answered by a person, and knowing which before walking into the room is half the work done.',
   'checklist.sinHoja': 'No Checkliste has been loaded. It is imported as CSV from Data → Imports, one row per (query, gate) pair.',
@@ -403,6 +406,7 @@ export const en: Diccionario = {
   // --- The panel that explains which file is needed --------------------------
   'importar.titulo': 'Import from a CSV',
   'importar.cerrar': 'Close',
+  'importar.otro': 'Load another file',
   'importar.reglas': 'Before filling anything in',
   'importar.columnas': 'The columns',
   'importar.columnasNota': 'Extra columns are ignored, and the ones that are not needed can be missing or empty. The order of the columns does not matter: the header name is what counts.',

@@ -318,6 +318,9 @@ export const fr: Diccionario = {
   'puertas.anadir': 'Ajouter un jalon',
   'puertas.guardar': 'Enregistrer les jalons',
   'puertas.faltanFechas': 'Le catalogue demande ces jalons et ce projet ne les a pas datés : %s. Écrivez-les ci-dessus et prévisualisez à nouveau.',
+  'checklist.importado': '%s requête(s) chargée(s) : %s nouvelle(s), %s mise(s) à jour, %s case(s) de porte et %s lien(s) avec le catalogue.',
+  'checklist.importado.puertas': 'Portes que la feuille nomme : %s. Vérifie-les face à celles que tes projets déclarent.',
+  'checklist.importado.personas': '%s requête(s) ne nomment aucun livrable : c’est une personne qui y répond.',
   'checklist.titulo': 'La Checkliste de la porte, répondue par le plan',
   'checklist.explica': 'Les requêtes qui nomment un livrable, le plan y répond : il sait déjà s’il est planifié, dans quelle version et s’il arrive à la porte. Celles qui n’en nomment aucun, c’est une personne qui y répond, et le savoir avant d’entrer dans la salle, c’est la moitié du travail.',
   'checklist.sinHoja': 'Aucune Checkliste n’est chargée. Elle s’importe en CSV depuis Données → Imports, une ligne par paire (requête, porte).',
@@ -405,6 +408,7 @@ export const fr: Diccionario = {
   // --- Le panneau qui explique quel fichier il faut --------------------------
   'importar.titulo': 'Importer depuis un CSV',
   'importar.cerrar': 'Fermer',
+  'importar.otro': 'Charger un autre fichier',
   'importar.reglas': 'Avant de remplir quoi que ce soit',
   'importar.columnas': 'Les colonnes',
   'importar.columnasNota': 'Les colonnes en trop sont ignorées, et celles qui ne sont pas nécessaires peuvent manquer ou être vides. L’ordre des colonnes n’a pas d’importance : c’est le nom de l’en-tête qui compte.',

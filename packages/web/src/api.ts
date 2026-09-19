@@ -935,10 +935,45 @@ export interface ImportSpec {
   readonly ejemplos: readonly (readonly string[])[]
 }
 
-export async function fetchImportSpec(
-  tipo: 'plan' | 'actuals' | 'monthly' | 'splits' | 'documents' | 'team',
-): Promise<ImportSpec> {
+export async function fetchImportSpec(tipo: TipoDeCsv): Promise<ImportSpec> {
   return get<ImportSpec>(`/api/import/${tipo}/formato`)
+}
+
+/**
+ * Las importaciones que existen. Vive aquí y no en el diálogo porque la usan
+ * los dos lados —qué contrato se pide y qué panel se pinta— y una copia en
+ * cada sitio es cómo se llega a que un tipo nuevo se cargue con el importador
+ * de otro.
+ */
+export type TipoDeCsv =
+  | 'plan'
+  | 'actuals'
+  | 'monthly'
+  | 'splits'
+  | 'documents'
+  | 'team'
+  | 'checklist'
+
+export interface ChecklistImported {
+  readonly queries: number
+  readonly created: number
+  readonly updated: number
+  readonly gates: number
+  readonly links: number
+  readonly gateNames: readonly string[]
+  readonly humanOnly: number
+  readonly warnings: readonly string[]
+}
+
+/** Carga la Checkliste de revisión. No recalcula: es catálogo, no plan. */
+export async function importChecklistCsv(text: string): Promise<ChecklistImported> {
+  const response = await fetch('/api/gates/checklist/import', {
+    method: 'POST',
+    headers: { 'content-type': 'text/csv' },
+    body: text,
+  })
+  if (!response.ok) throw await comoError(response, 'No se pudo importar la Checkliste')
+  return (await response.json()) as ChecklistImported
 }
 
 export interface PlanImported {

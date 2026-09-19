@@ -319,6 +319,9 @@ export const es = {
   'puertas.anadir': 'Añadir puerta',
   'puertas.guardar': 'Guardar puertas',
   'puertas.faltanFechas': 'El catálogo pide estas puertas y este proyecto no las ha fechado: %s. Escríbelas arriba y vuelve a previsualizar.',
+  'checklist.importado': '%s consulta(s) cargadas: %s nueva(s), %s actualizada(s), %s casilla(s) de puerta y %s enganche(s) con el catálogo.',
+  'checklist.importado.puertas': 'Puertas que nombra la hoja: %s. Compruébalas contra las que declaran tus proyectos.',
+  'checklist.importado.personas': '%s consulta(s) no nombran ningún entregable: las contesta una persona.',
   'checklist.titulo': 'La Checkliste de la puerta, contestada por el plan',
   'checklist.explica': 'Las consultas que nombran un entregable las contesta el plan: ya sabe si está planificado, en qué versión y si llega a la puerta. Las que no lo nombran las contesta una persona, y saber cuáles son antes de entrar en la sala es medio trabajo hecho.',
   'checklist.sinHoja': 'No hay ninguna Checkliste cargada. Se importa por CSV desde Datos → Importaciones, una fila por cada par (consulta, puerta).',
@@ -406,6 +409,7 @@ export const es = {
   // --- El panel que explica qué fichero hace falta ---------------------------
   'importar.titulo': 'Importar desde un CSV',
   'importar.cerrar': 'Cerrar',
+  'importar.otro': 'Cargar otro fichero',
   'importar.reglas': 'Antes de rellenar nada',
   'importar.columnas': 'Las columnas',
   'importar.columnasNota': 'Las columnas que sobren se ignoran, y las que no hacen falta pueden faltar o venir vacías. El orden de las columnas da igual: manda el nombre de la cabecera.',
