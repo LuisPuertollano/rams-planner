@@ -19,6 +19,7 @@
     "@planner/calendar": "workspace:*",
     "@planner/domain": "workspace:*",
     "@planner/explain": "workspace:*",
+    "@planner/report": "workspace:*",
     "@planner/scheduler": "workspace:*",
     "@planner/workload": "workspace:*",
     "pg": "^8.13.1"

@@ -35,9 +35,12 @@ import { EN_TODA_LA_HERRAMIENTA, PERMISSION_BY_CODE, RECORTADO, desde, porNodo }
 import { columnaSensible, onlyVisible, visibleProjects } from './visibility.js'
 import { toCsv } from './csv.js'
 import { calculate, defaultScenarioId } from './engine.js'
-import { ACTUALS_SPEC, PLAN_SPEC, plantillaCsv, type ImportSpec } from './import-specs.js'
+import {
+  ACTUALS_SPEC, MONTHLY_SPEC, SPLITS_SPEC, PLAN_SPEC, plantillaCsv, type ImportSpec,
+} from './import-specs.js'
 import { ImportError, importPlanCsv } from './import-plan.js'
 import { importActualsCsv } from './import-actuals.js'
+import { importMonthlyActualsCsv, importSplitsCsv } from './import-monthly.js'
 
 const bucketSchema = z.enum(['day', 'week', 'month', 'quarter']).default('month')
 
@@ -325,6 +328,48 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
 
 
   /**
+   * Las horas del mes, como las da el sistema de fichaje.
+   *
+   * Es la mitad de abajo de la misma historia que `/api/import/actuals`, y la
+   * que se parece a la realidad de la mayoría: SAP CATS sabe «Ana imputó 38,5 h
+   * al proyecto CBTC en abril» y ahí se acaba el dato. La tarea la pone la
+   * declaración, que entra por la ruta de al lado.
+   *
+   * Tampoco recalcula, por lo mismo: lo que ya pasó no cambia cuándo puede
+   * pasar el resto.
+   */
+  app.post('/api/import/monthly', { config: { permission: 'reales.registrar' } }, async (request, reply) => {
+    const text = typeof request.body === 'string' ? request.body : ''
+    if (text.trim() === '') return fallar(reply, 400, 'CSV_VACIO', 'El cuerpo debe ser el CSV en texto plano.')
+    try {
+      return await withTransaction(pool, (db) => importMonthlyActualsCsv(db, text), {
+        comment: 'importación de horas reales por mes desde CSV',
+      })
+    } catch (error) {
+      if (error instanceof ImportError) {
+        return fallar(reply, 422, 'CSV_INVALIDO', error.message, { detalle: error.message, rows: error.rows })
+      }
+      throw error
+    }
+  })
+
+  /** La declaración: de mis horas de ese mes, qué parte fue a cada tarea. */
+  app.post('/api/import/splits', { config: { permission: 'reales.registrar' } }, async (request, reply) => {
+    const text = typeof request.body === 'string' ? request.body : ''
+    if (text.trim() === '') return fallar(reply, 400, 'CSV_VACIO', 'El cuerpo debe ser el CSV en texto plano.')
+    try {
+      return await withTransaction(pool, (db) => importSplitsCsv(db, text), {
+        comment: 'importación del reparto de horas reales desde CSV',
+      })
+    } catch (error) {
+      if (error instanceof ImportError) {
+        return fallar(reply, 422, 'CSV_INVALIDO', error.message, { detalle: error.message, rows: error.rows })
+      }
+      throw error
+    }
+  })
+
+  /**
    * Qué fichero espera cada importación: la plantilla y, aparte, el contrato
    * en JSON para que la pantalla pueda enseñarlo sin llevar su propia copia.
    *
@@ -343,6 +388,8 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
   }
   servirFormato(PLAN_SPEC, 'importar')
   servirFormato(ACTUALS_SPEC, 'reales.registrar')
+  servirFormato(MONTHLY_SPEC, 'reales.registrar')
+  servirFormato(SPLITS_SPEC, 'reales.registrar')
 
   /** Exportación de la carga. El fichero lleva el runId: sigue siendo auditable fuera. */
   app.get('/api/runs/:runId/export.csv', { config: { permission: 'exportar' } }, async (request, reply) => {

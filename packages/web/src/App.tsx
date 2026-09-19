@@ -51,6 +51,7 @@ import { MatrixView } from './views/MatrixView.js'
 import { PanelView } from './views/PanelView.js'
 import { PlanView } from './views/PlanView.js'
 import { RebalanceView } from './views/RebalanceView.js'
+import { ReconcileView } from './views/ReconcileView.js'
 import { ReportView } from './views/ReportView.js'
 import { SkillsView } from './views/SkillsView.js'
 import { ResourcesView } from './views/ResourcesView.js'
@@ -603,6 +604,11 @@ function Planner({
               <ImportsView puede={puede} onPlanImportado={recargar} />
             ) : vista === 'informes' ? (
               <ReportView projects={state?.projects ?? []} />
+            ) : vista === 'conciliar' ? (
+              <ReconcileView
+                puedeImportar={puede('reales.registrar')}
+                onImportar={(tipo) => { setImportando(tipo) }}
+              />
             ) : vista === 'registro' ? (
               <HistoryView projects={state?.projects ?? []} />
             ) : vista === 'competencias' ? (

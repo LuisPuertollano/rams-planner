@@ -19,7 +19,7 @@ type ClaveDeNota = Extract<keyof Diccionario, `nota.${string}`>
 export type VistaId =
   | 'hoy'
   | 'plan' | 'cronograma'
-  | 'panel' | 'carga' | 'saturacion' | 'reparto' | 'informes'
+  | 'panel' | 'carga' | 'saturacion' | 'reparto' | 'informes' | 'conciliar'
   | 'equipo' | 'calendario' | 'competencias'
   | 'documentos' | 'importaciones'
   | 'comparar' | 'registro' | 'admin'
@@ -140,6 +140,17 @@ export const GRUPOS: readonly Grupo[] = [
         hint: 'tab.informes.pista',
         nota: 'nota.derivado',
         permission: ['informes.ver'],
+        sinCifras: true,
+      },
+      // La conciliación va detrás del informe porque se llega a ella DESDE el
+      // informe: se mira una cifra de gasto que no cuadra y se viene aquí a ver
+      // por qué. Pide su propia ruta y no depende de la ejecución cargada.
+      {
+        id: 'conciliar',
+        label: 'tab.conciliar',
+        hint: 'tab.conciliar.pista',
+        nota: 'nota.derivado',
+        permission: ['reales.ver'],
         sinCifras: true,
       },
     ],

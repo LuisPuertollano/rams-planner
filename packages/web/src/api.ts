@@ -933,7 +933,9 @@ export interface ImportSpec {
   readonly ejemplos: readonly (readonly string[])[]
 }
 
-export async function fetchImportSpec(tipo: 'plan' | 'actuals' | 'documents' | 'team'): Promise<ImportSpec> {
+export async function fetchImportSpec(
+  tipo: 'plan' | 'actuals' | 'monthly' | 'splits' | 'documents' | 'team',
+): Promise<ImportSpec> {
   return get<ImportSpec>(`/api/import/${tipo}/formato`)
 }
 
@@ -978,6 +980,82 @@ export async function importActualsCsv(text: string): Promise<ActualsImported> {
   })
   if (!response.ok) throw await comoError(response, 'No se pudieron cargar las horas')
   return (await response.json()) as ActualsImported
+}
+
+/** Las horas del mes, como las da el sistema de fichaje. Sin tarea. */
+export interface MonthlyImported {
+  readonly rows: number
+  readonly saved: number
+  readonly minutes: number
+  readonly projects: number
+  readonly people: number
+  readonly from: string
+  readonly to: string
+}
+
+export async function importMonthlyCsv(text: string): Promise<MonthlyImported> {
+  const response = await fetch('/api/import/monthly', {
+    method: 'POST',
+    headers: { 'content-type': 'text/csv' },
+    body: text,
+  })
+  if (!response.ok) throw await comoError(response, 'No se pudieron cargar las horas del mes')
+  return (await response.json()) as MonthlyImported
+}
+
+/** La declaración del reparto: de mis horas de ese mes, qué parte fue a cada tarea. */
+export interface SplitsImported {
+  readonly rows: number
+  readonly saved: number
+  readonly months: number
+  /** Los meses que no suman 100 %: se guardan, pero no se reparten. */
+  readonly notHundred: readonly string[]
+}
+
+export async function importSplitsCsv(text: string): Promise<SplitsImported> {
+  const response = await fetch('/api/import/splits', {
+    method: 'POST',
+    headers: { 'content-type': 'text/csv' },
+    body: text,
+  })
+  if (!response.ok) throw await comoError(response, 'No se pudo cargar el reparto')
+  return (await response.json()) as SplitsImported
+}
+
+/** Por qué un mes no llegó a las tareas. Los cuatro tienen arreglos distintos. */
+export type MotivoDescuadre = 'sin-declarar' | 'no-suma-cien' | 'sin-horas' | 'dos-caminos'
+
+export interface CasillaConciliacion {
+  readonly resourceId: string
+  readonly period: string
+  readonly minutes: number
+  readonly allocated: number
+  readonly motivo: MotivoDescuadre | null
+  readonly proyectosConProblema: number
+}
+
+export interface DescuadreRow {
+  readonly resourceId: string
+  readonly resourceName: string
+  readonly projectId: string
+  readonly projectCode: string
+  readonly period: string
+  readonly motivo: MotivoDescuadre
+  readonly minutes: number
+  readonly declaredBp: number
+}
+
+export interface Conciliacion {
+  readonly period: { readonly from: string; readonly to: string }
+  readonly minutesIn: number
+  readonly minutesAllocated: number
+  readonly matriz: readonly CasillaConciliacion[]
+  readonly descuadres: readonly DescuadreRow[]
+  readonly people: readonly { readonly id: string; readonly displayName: string }[]
+}
+
+export async function fetchReconciliation(from: string, to: string): Promise<Conciliacion> {
+  return get<Conciliacion>(`/api/reconciliation?from=${from}&to=${to}`)
 }
 
 // ---------------------------------------------------------------------------

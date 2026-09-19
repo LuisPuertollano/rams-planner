@@ -1,9 +1,13 @@
 import {
   importActualsCsv,
+  importMonthlyCsv,
+  importSplitsCsv,
   importDocumentsCsv,
   importPlanCsv,
   importTeamCsv,
   type ActualsImported,
+  type MonthlyImported,
+  type SplitsImported,
   type DocumentsImported,
   type PlanImported,
   type TeamImported,
@@ -12,8 +16,8 @@ import { hours, shortDate } from '../format.js'
 import { useT } from '../i18n/index.js'
 import { ImportPanel } from './ImportPanel.js'
 
-/** Las cuatro cosas que se pueden cargar desde un CSV. */
-export type TipoDeImportacion = 'plan' | 'actuals' | 'documents' | 'team'
+/** Las seis cosas que se pueden cargar desde un CSV. */
+export type TipoDeImportacion = 'plan' | 'actuals' | 'monthly' | 'splits' | 'documents' | 'team'
 
 interface Props {
   readonly tipo: TipoDeImportacion
@@ -91,6 +95,41 @@ export function ImportDialog({ tipo, onClose, onImported, exportarUrl }: Props):
           )
         }
         avisos={(r) => r.warnings}
+      />
+    )
+  }
+
+  if (tipo === 'monthly') {
+    // Tampoco recalcula: son horas, no plan.
+    return (
+      <ImportPanel<MonthlyImported>
+        tipo="monthly"
+        onClose={onClose}
+        importar={importMonthlyCsv}
+        onImported={onImported}
+        exportarUrl={exportarUrl}
+        resumen={(r) =>
+          t('mensual.resultado', hours(r.minutes, 0, locale), r.rows, r.saved, r.projects, r.people, r.from, r.to)
+        }
+        // El aviso que hay que dar siempre, porque es la mitad que falta: estas
+        // horas no llegan a ninguna tarea hasta que alguien declare el reparto.
+        avisos={() => [t('mensual.faltaElReparto')]}
+      />
+    )
+  }
+
+  if (tipo === 'splits') {
+    return (
+      <ImportPanel<SplitsImported>
+        tipo="splits"
+        onClose={onClose}
+        importar={importSplitsCsv}
+        onImported={onImported}
+        exportarUrl={exportarUrl}
+        resumen={(r) => t('reparto.resultado', r.rows, r.saved, r.months)}
+        avisos={(r) =>
+          r.notHundred.length === 0 ? [] : [t('reparto.noSuman', r.notHundred.length)]
+        }
       />
     )
   }

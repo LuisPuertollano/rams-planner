@@ -90,9 +90,22 @@ describe.each(IMPORT_SPECS.map((spec) => [spec.tipo, spec] as const))('la planti
   })
 })
 
+/**
+ * La ficha de una importación, por su tipo.
+ *
+ * Por el tipo y no por su posición en `IMPORT_SPECS`: con el índice, añadir una
+ * importación en medio de la lista rompía esta prueba diciendo «al fichero le
+ * faltan columnas», que es exactamente lo contrario de lo que había pasado.
+ */
+const specDel = (tipo: string): ImportSpec => {
+  const ficha = IMPORT_SPECS.find((candidata) => candidata.tipo === tipo)
+  if (ficha === undefined) throw new Error(`No hay ninguna importación «${tipo}»`)
+  return ficha
+}
+
 describe('los ejemplos pasan el importador de verdad', () => {
   it('el parte de horas', () => {
-    const filas = parseActualsCsv(descomentaLosEjemplos(plantillaCsv(IMPORT_SPECS[1] as ImportSpec)))
+    const filas = parseActualsCsv(descomentaLosEjemplos(plantillaCsv(specDel('actuals'))))
     expect(filas).toHaveLength(3)
     expect(filas[0]?.minutes).toBe(450)
     // La tercera fila repite día y tarea de la segunda a propósito: es el caso
@@ -102,7 +115,7 @@ describe('los ejemplos pasan el importador de verdad', () => {
   })
 
   it('el catálogo de entregables', () => {
-    const filas = parseDocumentsCsv(descomentaLosEjemplos(plantillaCsv(IMPORT_SPECS[2] as ImportSpec)))
+    const filas = parseDocumentsCsv(descomentaLosEjemplos(plantillaCsv(specDel('documents'))))
     expect(filas.map((f) => f.code)).toEqual(['S-HAZLOG', 'S-SAP', 'S-FMECA', 'MST-IQA'])
     expect(filas[2]?.esperaA).toEqual(['S-HAZLOG', 'S-SAP'])
     // El hito con horas, que es la regla que el dato real corrigió.
