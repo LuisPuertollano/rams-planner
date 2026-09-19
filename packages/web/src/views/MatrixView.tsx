@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import type { LoadCell, Project, Resource, UtilizationCell } from '../api.js'
-import { euros, hours, monthLabel, percent, utilizationColor } from '../format.js'
+import { euros, hours, percent, periodLabel, utilizationColor } from '../format.js'
 import { useT } from '../i18n/index.js'
-import { activePeriods } from '../periods.js'
+import { agrupar, claveDeCarga, periodosActivos, sumaCarga, sumaSaturacion, type Escala } from '../periods.js'
+import { SelectorDeEscala } from '../components/SelectorDeEscala.js'
 
 interface Props {
   readonly resources: readonly Resource[]
@@ -37,8 +38,9 @@ export function MatrixView({
   runId,
   costsHidden,
 }: Props): React.JSX.Element {
-  const { t } = useT()
+  const { t, locale } = useT()
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
+  const [escala, setEscala] = useState<Escala>('mes')
   const [unidad, setUnidad] = useState<Unidad>('horas')
   const enEuros = unidad === 'euros' && !costsHidden
 
@@ -52,24 +54,33 @@ export function MatrixView({
     [enEuros],
   )
 
+  // Las celdas llegan por mes y se juntan aquí. Todo lo que viene después
+  // trabaja sobre `celdas` y `saturacion`, así que la escala no se cuela en
+  // ninguna cuenta de más abajo.
+  const celdas = useMemo(() => agrupar(load, escala, claveDeCarga, sumaCarga), [load, escala])
+  const saturacion = useMemo(
+    () => agrupar(utilization, escala, (cell) => cell.resourceId, sumaSaturacion),
+    [utilization, escala],
+  )
+
   const periods = useMemo(
-    () => activePeriods(load.filter((cell) => cell.plannedMinutes > 0).map((cell) => cell.period)),
-    [load],
+    () => periodosActivos(load.filter((cell) => cell.plannedMinutes > 0).map((cell) => cell.period), escala),
+    [load, escala],
   )
 
   const byResourcePeriod = useMemo(
-    () => index(load, (cell) => `${cell.resourceId}|${cell.period}`, valorDe),
-    [load, valorDe],
+    () => index(celdas, (cell) => `${cell.resourceId}|${cell.period}`, valorDe),
+    [celdas, valorDe],
   )
   const byResourceProjectPeriod = useMemo(
-    () => index(load, (cell) => `${cell.resourceId}|${cell.projectId}|${cell.period}`, valorDe),
-    [load, valorDe],
+    () => index(celdas, (cell) => `${cell.resourceId}|${cell.projectId}|${cell.period}`, valorDe),
+    [celdas, valorDe],
   )
   const utilByKey = useMemo(() => {
     const map = new Map<string, UtilizationCell>()
-    for (const cell of utilization) map.set(`${cell.resourceId}|${cell.period}`, cell)
+    for (const cell of saturacion) map.set(`${cell.resourceId}|${cell.period}`, cell)
     return map
-  }, [utilization])
+  }, [saturacion])
 
   const projectsOf = useMemo(() => {
     const map = new Map<string, Set<string>>()
@@ -107,6 +118,7 @@ export function MatrixView({
 
   return (
     <>
+      <SelectorDeEscala valor={escala} onCambiar={setEscala} />
       <div className="toolbar">
         <span className="faint">{t('carga.medirEn')}</span>
         <button
@@ -139,7 +151,7 @@ export function MatrixView({
         <tr>
           <th>{t('col.recurso')}</th>
           {periods.map((period) => (
-            <th key={period}>{monthLabel(period)}</th>
+            <th key={period}>{periodLabel(period, locale, t('escala.letraTrimestre'))}</th>
           ))}
           <th>{t('col.total')}</th>
         </tr>

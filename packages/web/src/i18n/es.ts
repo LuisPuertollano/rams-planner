@@ -85,7 +85,7 @@ export const es = {
 
   // --- Pestañas --------------------------------------------------------------
   'tab.carga': 'Carga',
-  'tab.carga.pista': 'Cuántas horas tiene comprometida cada persona, cada mes, en cada proyecto',
+  'tab.carga.pista': 'Cuántas horas tiene comprometida cada persona, en cada proyecto, en la escala que elijas',
   'tab.saturacion': 'Saturación',
   'tab.saturacion.pista': 'Quién se pasa de capacidad, cuándo y por cuánto',
   'tab.plan': 'Plan',
@@ -549,7 +549,7 @@ export const es = {
   'informe.sinPersonas': 'Sin permiso para ver la carga: este informe llega sin el reparto por persona. No es que nadie vaya pasado.',
   'informe.sinReales': 'Sin permiso para ver las horas reales: este informe llega sólo con lo planificado. No es que nadie haya fichado.',
   'informe.seccion.resumen': 'En corto',
-  'informe.seccion.meses': 'Mes a mes',
+  'informe.seccion.meses': 'Periodo a periodo',
   'informe.nota.capacidad': 'La capacidad es la de las personas que trabajan en los proyectos elegidos, no la del equipo entero.',
   'informe.seccion.proyectos': 'Por proyecto',
   'informe.seccion.personas': 'Por persona',
@@ -1106,7 +1106,12 @@ export const es = {
   'reparto.aplicar': 'Aplicar',
   'reparto.aplicarTitulo': 'Mueve la asignación y recalcula el plan',
   // --- Columnas del informe --------------------------------------------------
-  'col.mes': 'Mes',
+  'col.mes': 'Periodo',
+  'escala.titulo': 'Escala:',
+  'escala.mes': 'Mes',
+  'escala.trimestre': 'Trimestre',
+  'escala.anio': 'Año',
+  'escala.letraTrimestre': 'T',
   'col.comprometido': 'Comprometido',
   'col.capacidad': 'Capacidad',
   'col.saturacion': 'Saturación',

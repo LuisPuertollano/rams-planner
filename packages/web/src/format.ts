@@ -71,6 +71,22 @@ export function monthLabel(period: string, locale = localeActivo): string {
   return `${Number.isNaN(index) ? (month ?? '') : mesCorto(locale, index)} ${(year ?? '').slice(2)}`
 }
 
+/**
+ * Cómo se lee un periodo, sea de la escala que sea.
+ *
+ * El trimestre llega como «2026-T2» porque así lo escribe PostgreSQL y así se
+ * exporta; la T es de «trimestre» y en las otras tres lenguas no significa
+ * nada, así que la letra se traduce al enseñarla y la clave se deja en paz.
+ */
+export function periodLabel(period: string, locale = localeActivo, letraTrimestre = 'T'): string {
+  if (/^\d{4}$/.test(period)) return period
+  const [year, resto] = period.split('-')
+  if (resto?.startsWith('T') === true) {
+    return `${letraTrimestre}${resto.slice(1)} ${(year ?? '').slice(2)}`
+  }
+  return monthLabel(period, locale)
+}
+
 export function days(minutes: number | null, locale = localeActivo): string {
   if (minutes === null || minutes === 0) return '—'
   return `${(minutes / 480).toLocaleString(locale, {
