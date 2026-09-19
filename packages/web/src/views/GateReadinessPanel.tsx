@@ -18,8 +18,19 @@ interface Props {
 const estadoDe = (estado: GateEvidenceState): keyof Diccionario =>
   `puertas.estado.${estado}` as keyof Diccionario
 
-/** Sólo dos estados piden acción; los otros tres son información. */
-const MAL: ReadonlySet<GateEvidenceState> = new Set<GateEvidenceState>(['tarde', 'sin-partir'])
+/**
+ * El tono de cada estado. Dos piden acción, uno avisa y dos son información.
+ *
+ * El color no va solo: la etiqueta lleva punto Y texto, y el punto del neutro
+ * es hueco. Quien no distinga el rojo del verde sigue leyendo la palabra.
+ */
+const TONO: Readonly<Record<GateEvidenceState, string>> = {
+  'a-tiempo': 'chip chip--bien',
+  tarde: 'chip chip--mal',
+  'sin-partir': 'chip chip--mal',
+  'sin-fecha': 'chip chip--neutro',
+  'sin-fecha-de-puerta': 'chip chip--aviso',
+}
 
 /**
  * Cómo llega el proyecto a cada una de sus puertas (ADR-0056).
@@ -92,9 +103,11 @@ export function GateReadinessPanel({ projectId, version }: Props): React.JSX.Ele
         )}
       </td>
       <td>{fila.maturity ?? <span className="faint">{t('puertas.preparacion.final')}</span>}</td>
-      <td className={MAL.has(fila.state) ? 'bad' : 'faint'}>
-        {t(estadoDe(fila.state))}
-        {fila.daysLate === null ? null : ` · ${t('puertas.preparacion.dias', fila.daysLate)}`}
+      <td>
+        <span className={TONO[fila.state]}>
+          {t(estadoDe(fila.state))}
+          {fila.daysLate === null ? null : ` · ${t('puertas.preparacion.dias', fila.daysLate)}`}
+        </span>
       </td>
       <td className="faint">
         {fila.dueOn === null

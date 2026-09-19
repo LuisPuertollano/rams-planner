@@ -16,17 +16,22 @@ interface Props {
 export function SelectorDeEscala({ valor, onCambiar }: Props): React.JSX.Element {
   const { t } = useT()
   return (
-    <div className="toolbar" style={{ marginBottom: 8 }}>
+    <div className="toolbar">
       <span className="faint">{t('escala.titulo')}</span>
-      {ESCALAS.map((escala) => (
-        <button
-          key={escala}
-          className={valor === escala ? 'button button--primary' : 'button'}
-          onClick={() => { onCambiar(escala) }}
-        >
-          {t(`escala.${escala}` as 'escala.mes')}
-        </button>
-      ))}
+      {/* Tres opciones excluyentes son un control segmentado, no tres botones
+          sueltos de los que uno va pintado: la forma ya dice que eliges una. */}
+      <div className="segmentado" role="group" aria-label={t('escala.titulo')}>
+        {ESCALAS.map((escala) => (
+          <button
+            key={escala}
+            className="segmentado__opcion"
+            aria-pressed={valor === escala}
+            onClick={() => { onCambiar(escala) }}
+          >
+            {t(`escala.${escala}` as 'escala.mes')}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
