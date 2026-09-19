@@ -349,6 +349,10 @@ function Planner({
         <a
           className="menu__item"
           role="menuitem"
+          // El mes es la escala de la exportación porque es el dato fino: un
+          // año se suma desde los meses en la hoja de cálculo, y de un año no
+          // se pueden sacar los meses. La pantalla de Carga sí deja mirarlo
+          // por trimestre o por año.
           href={`/api/runs/${state.run?.id ?? ''}/export.csv?bucket=month`}
           title={t('boton.exportarTitulo')}
           onClick={cerrar}

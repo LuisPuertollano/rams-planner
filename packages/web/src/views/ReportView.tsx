@@ -7,8 +7,10 @@ import {
   type ReportRisk,
 } from '../api.js'
 import { findingText, severityLabel } from '../findings.js'
-import { days, euros, fullDate, hours, monthLabel, percent, shortDate, utilizationClass } from '../format.js'
+import { days, euros, fullDate, hours, monthLabel, percent, periodLabel, shortDate, utilizationClass } from '../format.js'
 import { useT, type Diccionario } from '../i18n/index.js'
+import { agrupar, type Escala } from '../periods.js'
+import { SelectorDeEscala } from '../components/SelectorDeEscala.js'
 import { errorText } from '../errors.js'
 
 interface Props {
@@ -40,6 +42,31 @@ export function ReportView({ projects }: Props): React.JSX.Element {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copiado, setCopiado] = useState(false)
+  const [escala, setEscala] = useState<Escala>('mes')
+
+  /**
+   * Las filas del periodo, agrupadas en la escala elegida.
+   *
+   * La tabla del informe llegaba siempre por mes, y con un plan de seis años
+   * son setenta y dos filas que nadie compara. Un año es la suma de sus meses,
+   * así que se agrupa aquí; la saturación NO se suma, se recalcula.
+   */
+  const filas = useMemo(
+    () =>
+      agrupar(informe?.months ?? [], escala, () => 'todo', (acumulado, mes) => {
+        const trabajo = acumulado.plannedMinutes + mes.plannedMinutes
+        const capacidad = acumulado.capacityMinutes + mes.capacityMinutes
+        return {
+          ...acumulado,
+          plannedMinutes: trabajo,
+          actualMinutes: acumulado.actualMinutes + mes.actualMinutes,
+          capacityMinutes: capacidad,
+          costCents: acumulado.costCents + mes.costCents,
+          utilizationBp: capacidad === 0 ? null : Math.round((trabajo * 10_000) / capacidad),
+        }
+      }),
+    [informe, escala],
+  )
 
   const aplicarAtajo = (atajo: Atajo): void => {
     const hoy = new Date()
@@ -198,6 +225,7 @@ export function ReportView({ projects }: Props): React.JSX.Element {
           {informe.months.length === 0 ? null : (
             <section>
               <h3>{t('informe.seccion.meses')}</h3>
+              <SelectorDeEscala valor={escala} onCambiar={setEscala} />
               <p className="faint" style={{ margin: '0 0 8px', maxWidth: '96ch' }}>
                 {t('informe.nota.capacidad')}
               </p>
@@ -213,9 +241,9 @@ export function ReportView({ projects }: Props): React.JSX.Element {
                   </tr>
                 </thead>
                 <tbody>
-                  {informe.months.map((mes) => (
+                  {filas.map((mes) => (
                     <tr key={mes.period}>
-                      <td>{monthLabel(mes.period)}</td>
+                      <td>{periodLabel(mes.period, locale, t('escala.letraTrimestre'))}</td>
                       <td>{horas(mes.plannedMinutes)}</td>
                       {informe.actualsHidden ? null : <td>{horas(mes.actualMinutes)}</td>}
                       <td>{informe.peopleHidden ? '—' : horas(mes.capacityMinutes)}</td>

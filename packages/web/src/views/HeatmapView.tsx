@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import type { Resource, UtilizationCell } from '../api.js'
-import { hours, monthLabel, percent, utilizationColor } from '../format.js'
+import { hours, percent, periodLabel, utilizationColor } from '../format.js'
 import { useT, type Diccionario } from '../i18n/index.js'
-import { activePeriods } from '../periods.js'
+import { agrupar, periodosActivos, sumaSaturacion, type Escala } from '../periods.js'
+import { SelectorDeEscala } from '../components/SelectorDeEscala.js'
 
 interface Props {
   readonly resources: readonly Resource[]
@@ -26,18 +27,26 @@ const TRAMOS: readonly (readonly [string, keyof Diccionario])[] = [
  * importa aquí.
  */
 export function HeatmapView({ resources, utilization }: Props): React.JSX.Element {
-  const { t } = useT()
+  const { t, locale } = useT()
   const [selected, setSelected] = useState<UtilizationCell | null>(null)
+  const [escala, setEscala] = useState<Escala>('mes')
+
+  // La saturación de un año NO es la media de las de sus meses: es el trabajo
+  // del año entre la capacidad del año. La cuenta la pone `sumaSaturacion`.
+  const celdas = useMemo(
+    () => agrupar(utilization, escala, (cell) => cell.resourceId, sumaSaturacion),
+    [utilization, escala],
+  )
 
   const periods = useMemo(
-    () => activePeriods(utilization.filter((cell) => cell.plannedMinutes > 0).map((cell) => cell.period)),
-    [utilization],
+    () => periodosActivos(utilization.filter((cell) => cell.plannedMinutes > 0).map((cell) => cell.period), escala),
+    [utilization, escala],
   )
   const byKey = useMemo(() => {
     const map = new Map<string, UtilizationCell>()
-    for (const cell of utilization) map.set(`${cell.resourceId}|${cell.period}`, cell)
+    for (const cell of celdas) map.set(`${cell.resourceId}|${cell.period}`, cell)
     return map
-  }, [utilization])
+  }, [celdas])
 
   if (periods.length === 0) {
     return <div className="empty"><h3>{t('saturacion.vacio')}</h3></div>
@@ -45,12 +54,13 @@ export function HeatmapView({ resources, utilization }: Props): React.JSX.Elemen
 
   return (
     <>
+      <SelectorDeEscala valor={escala} onCambiar={setEscala} />
       <table className="grid">
         <thead>
           <tr>
             <th>{t('col.recurso')}</th>
             {periods.map((period) => (
-              <th key={period}>{monthLabel(period)}</th>
+              <th key={period}>{periodLabel(period, locale, t('escala.letraTrimestre'))}</th>
             ))}
           </tr>
         </thead>
@@ -71,7 +81,7 @@ export function HeatmapView({ resources, utilization }: Props): React.JSX.Elemen
                         color: isEmpty ? 'var(--text-faint)' : undefined,
                       }}
                       onClick={() => { setSelected(cell ?? null) }}
-                      title={`${resource.displayName} · ${monthLabel(period)}: ${hours(cell?.plannedMinutes ?? 0)} h de ${hours(cell?.capacityMinutes ?? 0)} h`}
+                      title={`${resource.displayName} · ${periodLabel(period, locale, t('escala.letraTrimestre'))}: ${hours(cell?.plannedMinutes ?? 0)} h de ${hours(cell?.capacityMinutes ?? 0)} h`}
                     >
                       {isEmpty ? '·' : percent(bp)}
                     </button>
@@ -100,7 +110,7 @@ export function HeatmapView({ resources, utilization }: Props): React.JSX.Elemen
             {t(
               'saturacion.detalle',
               resources.find((r) => r.id === selected.resourceId)?.displayName ?? '',
-              monthLabel(selected.period),
+              periodLabel(selected.period, locale, t('escala.letraTrimestre')),
               hours(selected.plannedMinutes, 1),
               hours(selected.capacityMinutes, 1),
               percent(selected.utilizationBp),
