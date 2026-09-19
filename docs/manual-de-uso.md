@@ -719,7 +719,7 @@ medias contaría una historia falsa.
 
 ### Administración
 
-Sólo la ven quienes administran. Son dos cosas:
+Sólo la ven quienes administran. Son tres cosas:
 
 **La hoja de permisos.** Una tabla con todas las funciones de la herramienta en
 las filas, agrupadas por la pantalla a la que pertenecen, y los roles en las
@@ -766,6 +766,43 @@ abre la herramienta y sólo encuentra su proyecto, en la carga, en el plan, en l
 hallazgos y en lo que exporte. La única excepción es la saturación del equipo,
 que pide ver la carga en toda la herramienta — la ocupación de una persona
 calculada con un solo proyecto no es su ocupación, es un número que engaña.
+
+**La copia de seguridad.** Un zip con la base entera en ficheros CSV: el plan,
+el equipo, los calendarios, el catálogo, las horas fichadas, los roles y el
+historial.
+
+Lo que lo hace distinto de un volcado de la base de datos es que **se abre sin
+la herramienta**. Dentro hay una CSV por tabla, un `LEEME.txt` que explica qué
+es cada fichero y qué no está, y un `sha256sums.txt` con el que demostrar que
+nadie lo ha tocado:
+
+```
+unzip copia.zip -d auditoria
+sha256sum -c auditoria/sha256sums.txt
+```
+
+Eso importa dentro de cinco años, que es justo cuando hace falta una copia: para
+entonces puede que este Docker ya no arranque, y un fichero binario que sólo
+lee PostgreSQL no es una copia de seguridad, es un fichero que dice que había
+datos.
+
+Lo que calcula el motor **no va dentro** —son cientos de miles de filas que se
+rehacen en segundos—, y en su lugar va la **huella** del último cálculo. Ese es
+el procedimiento para comprobar una copia sin fiarte de nadie: restaura,
+recalcula, y si sale la misma huella la vuelta fue fiel hasta el último dato.
+
+Restaurar es la otra mitad, y es la única operación de la herramienta que **no
+tiene deshacer**: borra todo lo que hay y lo sustituye. Por eso hay tres frenos
+—comprobar el fichero primero, escribir una palabra a mano y confirmar— y por
+eso el permiso no lo trae ningún rol de serie. Dos cosas más que saber:
+
+- **Las cuentas vuelven sin contraseña** y hay que ponerles una nueva. Un zip de
+  copia acaba en un disco compartido, y ahí no puede haber con qué entrar.
+- **El historial no se restaura.** Es append-only: se copia como evidencia, no
+  se reescribe. Lo que sí queda es el rastro de la propia restauración.
+
+Y ponla en un cron, que es lo que la convierte en una copia de seguridad de
+verdad: `node packages/api/dist/cli.js copia copia.zip`.
 
 ---
 

@@ -254,8 +254,33 @@ Tu trabajo no es planificar: es que los demás puedan.
 - **El historial de ejecuciones** — se guarda entero y se puede reproducir. No
   ocupa lo que parece: dos ejecuciones con la misma capacidad comparten su
   bloque, así que recalcular sin tocar un calendario cuesta una fila.
-- **Las copias de seguridad** — [`operacion.md`](operacion.md). Es lo único de
-  esta lista que, si falla, no tiene arreglo después.
+- **Las copias de seguridad** — es lo único de esta lista que, si falla, no
+  tiene arreglo después. Abajo, con detalle.
+
+### La copia de seguridad
+
+**Registro › Administración › Copia de seguridad.** La mitad de arriba es un
+enlace y no puede romper nada; la de abajo **borra la base entera**.
+
+Lo que baja es un zip con una CSV por tabla, un `LEEME.txt` que explica qué hay
+dentro y un `sha256sums.txt`. Eso es lo que lo hace distinto de un volcado de
+PostgreSQL: **se abre sin la herramienta**. Dentro de cinco años, cuando ya no
+tengas este Docker montado, sigue siendo legible con Excel o con `grep`.
+
+Tres cosas que conviene saber antes de necesitarlo:
+
+- **Lo que calcula el motor no va dentro**, porque se rehace en segundos. Lo que
+  sí va es la **huella** del último cálculo. Después de restaurar, recalcula: si
+  sale la misma huella, la vuelta fue fiel hasta el último dato. Es la forma de
+  comprobar una copia sin fiarte de nadie, ni de mí.
+- **Las contraseñas no salen**, y eso significa que después de restaurar hay que
+  ponerlas de nuevo. No es un olvido: un zip de copia acaba en un disco
+  compartido.
+- **Restaurar no tiene deshacer.** Hay tres frenos —comprobar el fichero,
+  escribir una palabra a mano y confirmar— y ninguno sobra.
+
+Y ponla en un cron: `node packages/api/dist/cli.js copia copia.zip`. Una copia
+que hay que acordarse de sacar no es una copia de seguridad.
 
 ### Lo que NO deberías hacer
 
@@ -283,8 +308,10 @@ Los de arranque de cada rol. La hoja de permisos manda sobre esto.
 | **Ver costes** | | | ✓ |
 | **Editar tarifas** | | | ✓ |
 | Gestionar usuarios y roles | | | |
+| **Sacar y restaurar copias de seguridad** | | | |
 
-La última fila está vacía a propósito: **usuarios y roles son sólo de la
-superadministración** en el reparto de arranque. Se puede delegar desde la hoja
-de permisos, y conviene pensárselo antes: quien puede repartir roles puede darse
-a sí mismo todo lo demás.
+Las dos últimas filas están vacías a propósito: **usuarios y roles, y las copias
+de seguridad, son sólo de la superadministración** en el reparto de arranque. Se
+pueden delegar desde la hoja de permisos, y conviene pensárselo antes: quien
+puede repartir roles puede darse a sí mismo todo lo demás, y quien puede sacar
+una copia se lleva el equipo con sus tarifas en un fichero.

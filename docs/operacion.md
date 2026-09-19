@@ -108,18 +108,63 @@ ejecutarlo después de cada actualización.
 Todo el estado está en PostgreSQL. No hay ficheros al margen: ni adjuntos, ni
 caché, ni índices aparte.
 
-```bash
-# Copia
-docker compose exec -T db pg_dump -U planner -Fc planner > planner-$(date +%F).dump
+### La copia de la herramienta (la que se lee sin la herramienta)
 
-# Restauración sobre una base vacía
-docker compose exec -T db pg_restore -U planner -d planner --clean --if-exists < planner-2026-09-16.dump
+```bash
+# Sacarla
+docker compose exec -T app node packages/api/dist/cli.js copia - > copia-$(date +%F).zip
+
+# Meterla (BORRA lo que haya)
+docker compose exec -T app node packages/api/dist/cli.js restaurar /tmp/copia.zip --si-estoy-seguro
 ```
 
-Qué contiene la copia, y por qué importa: **los datos declarados, todos los
-cálculos hechos, las líneas base y el historial completo de cambios**. Restaurar
-una copia devuelve la herramienta al estado exacto, con las explicaciones de
-cada número incluidas.
+También desde la pantalla: **Registro › Administración › Copia de seguridad**,
+con los permisos `copia.exportar` y `copia.restaurar`, que **no los trae ningún
+rol de serie**.
+
+Dentro del zip hay una CSV por tabla, un `LEEME.txt` que explica qué es cada
+cosa y un `sha256sums.txt`. Eso es lo que la hace distinta de un `pg_dump`:
+
+```bash
+unzip copia-2026-09-19.zip -d auditoria && cd auditoria
+sha256sum -c sha256sums.txt          # que nadie la ha tocado
+cat LEEME.txt                        # qué hay dentro y qué no
+libreoffice tablas/wbs_node.csv      # o Excel, o grep, o lo que haya
+```
+
+**Qué NO lleva, y por qué:**
+
+- **Lo que calcula el motor** (`task_result`, `assignment_timephased`,
+  `finding`, `derivation`, `capacity_cell`). Se rehace en segundos. Lo que sí
+  lleva es la **huella de entrada** del último cálculo: restaura, recalcula, y
+  si sale la misma huella la copia era fiel hasta el último dato. Está escrita
+  en el `LEEME.txt` y la CLI la imprime al terminar.
+- **Las contraseñas.** Las cuentas vuelven sin contraseña y hay que ponerles
+  una nueva con `cambiar-clave`. Un zip de copia acaba en un disco compartido.
+- **Las sesiones abiertas.** No son un dato: son una llave.
+
+**Dos cosas que hay que saber antes de usarlo:**
+
+- **El historial no se restaura.** `change_event` es append-only y restaurarlo
+  sería reescribir la historia. Se copia como evidencia y se queda donde está.
+- **Cada restauración engorda el historial unos 11 MB**, porque una
+  restauración *es* un cambio y queda registrada fila a fila, toda con el mismo
+  comentario. Si vas a ensayar restauraciones a menudo, cuéntalo.
+
+Medido sobre la cartera real (34 proyectos, 6 222 tareas, 172 467 filas):
+sacarla 2,3 s y 2,3 MB; restaurarla 10,7 s sobre una base vacía y 53,8 s sobre
+una llena.
+
+### El volcado de PostgreSQL (el de toda la vida)
+
+Sigue siendo válido y no lo sustituye ninguno de los dos al otro: el volcado
+restaura más deprisa y más exacto; el zip se puede leer dentro de cinco años sin
+arrancar nada.
+
+```bash
+docker compose exec -T db pg_dump -U planner -Fc planner > planner-$(date +%F).dump
+docker compose exec -T db pg_restore -U planner -d planner --clean --if-exists < planner-2026-09-16.dump
+```
 
 Los cálculos se pueden regenerar (`pnpm db:calculate`), pero **no se deben**
 regenerar para ahorrar espacio: una línea base es un cálculo congelado, y borrar
@@ -191,6 +236,20 @@ distintos significarían que el motor ha dejado de ser determinista. Es una
 alarma barata.
 
 ---
+
+### `copia` y `restaurar`
+
+```bash
+node packages/api/dist/cli.js copia [fichero.zip|-]   # «-» saca el zip por la salida estándar
+node packages/api/dist/cli.js restaurar <fichero.zip> --si-estoy-seguro
+```
+
+Existen en la CLI y no sólo en la pantalla por una razón concreta: **una copia
+que hay que acordarse de sacar no es una copia de seguridad**. Ponla en un cron.
+
+`restaurar` exige `--si-estoy-seguro` escrito a mano. Desde la pantalla hay un
+«¿seguro?»; aquí no hay a quién preguntar y una flecha arriba se pulsa sin
+mirar.
 
 ## 7. Usuarios, roles y permisos
 

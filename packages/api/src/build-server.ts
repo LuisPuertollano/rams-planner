@@ -15,6 +15,7 @@ import Fastify, { type FastifyInstance } from 'fastify'
 import { type Pool } from '@planner/persistence'
 import { registerAdminRoutes } from './admin-routes.js'
 import { registerAuthRoutes } from './auth-routes.js'
+import { registerBackupRoutes } from './backup-routes.js'
 import { registerDocumentRoutes } from './document-routes.js'
 import { describeZodError, fallar } from './errors.js'
 import { registerMatrixRoutes } from './matrix-routes.js'
@@ -49,6 +50,7 @@ export function registerAllRoutes(app: FastifyInstance, pool: Pool): void {
   registerSubactivityRoutes(app, pool)
   registerGateRoutes(app, pool)
   registerDeliveryRoutes(app, pool)
+  registerBackupRoutes(app, pool)
   registerRebalanceRoutes(app, pool)
   registerReportRoutes(app, pool)
 }
@@ -73,6 +75,12 @@ export async function buildServer(pool: Pool, options: BuildOptions = {}): Promi
   await app.register(cors, { origin: true })
   // El CSV entra como texto plano: es lo que manda un formulario de fichero.
   app.addContentTypeParser(['text/csv', 'text/plain'], { parseAs: 'string' }, (_request, body, done) => {
+    done(null, body)
+  })
+
+  // La copia de seguridad llega como zip, y un zip es binario: si Fastify lo
+  // pasa por un parser de texto, un byte 0x00 lo parte y el fichero llega roto.
+  app.addContentTypeParser('application/zip', { parseAs: 'buffer' }, (_request, body, done) => {
     done(null, body)
   })
 

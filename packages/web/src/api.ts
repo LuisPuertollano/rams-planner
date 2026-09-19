@@ -275,6 +275,8 @@ export async function fetchDiff(baseRunId: string, targetRunId: string): Promise
 export interface CalculationSummary {
   readonly runId: string
   readonly durationMs: number
+  /** Cuántas tareas entraron. No la manda todo el que devuelve una ejecución. */
+  readonly tasks?: number
   readonly leveledTasks?: number
   readonly converged?: boolean
 }
@@ -1780,4 +1782,42 @@ export async function fetchReport(
   // Sin proyectos, el servidor manda todos los que se puedan ver.
   if (projectIds.length > 0) consulta.set('projects', projectIds.join(','))
   return get<Report>(`/api/report?${consulta.toString()}`)
+}
+
+// --- La copia de seguridad ---------------------------------------------------
+
+export interface CopiaComprobada {
+  readonly esquema: string
+  readonly tablas: readonly { tabla: string; filas: number }[]
+}
+
+export interface CopiaRestaurada {
+  readonly tablas: number
+  readonly filas: number
+  readonly saltadas: readonly { tabla: string; motivo: string }[]
+  readonly run: CalculationSummary
+}
+
+/**
+ * Manda el zip tal cual, sin envolverlo en un formulario.
+ *
+ * Un `multipart/form-data` añadiría un parser más en el servidor para no
+ * ganar nada: aquí sólo viaja un fichero y ya sabemos cuál es.
+ */
+async function mandarZip<T>(path: string, zip: File): Promise<T> {
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/zip', accept: 'application/json' },
+    body: zip,
+  })
+  if (!response.ok) throw await comoError(response, response.statusText)
+  return response.json() as Promise<T>
+}
+
+export async function comprobarCopia(zip: File): Promise<CopiaComprobada> {
+  return mandarZip<CopiaComprobada>('/api/copia/comprobar', zip)
+}
+
+export async function restaurarCopia(zip: File): Promise<CopiaRestaurada> {
+  return mandarZip<CopiaRestaurada>('/api/copia/restaurar', zip)
 }

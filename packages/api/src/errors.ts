@@ -30,6 +30,13 @@ export const ERROR_CODES = [
   'CREDENCIALES_INVALIDAS',
   'CLAVE_ACTUAL_INCORRECTA',
   'CLAVE_SIN_CAMBIO',
+  // --- Copia de seguridad ---------------------------------------------------
+  'COPIA_VACIA',
+  'COPIA_NO_ES_ZIP',
+  'COPIA_SIN_MANIFIESTO',
+  'COPIA_TOCADA',
+  'COPIA_INCOMPLETA',
+  'COPIA_OTRO_ESQUEMA',
   // --- Administración -------------------------------------------------------
   'FUNCIONES_DESCONOCIDAS',
   'ROL_NO_EXISTE',
