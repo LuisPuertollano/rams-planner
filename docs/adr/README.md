@@ -53,6 +53,7 @@ parece una mala idea, aquí está el razonamiento que había detrás.
 | [0046](0046-la-checkliste-pide-borradores.md) | La Checkliste pide el mismo documento varias veces, y cada vez más maduro | P1, P2, P6 |
 | [0047](0047-la-tarea-se-parte-en-sus-entregas.md) | La tarea se parte en las entregas que pide la Checkliste, y la asignación se copia a todas | P1, P2, P4, P6 |
 | [0048](0048-nivelar-sin-barrer-el-calendario-entero.md) | Nivelar sin recorrer el calendario entero en cada vuelta: ×2,18 con la misma salida bit a bit | P2, P5 |
+| [0049](0049-la-copia-de-seguridad-se-lee-sin-la-herramienta.md) | La copia de seguridad se lee sin la herramienta: un zip de CSV que se restaura y se audita con `unzip` | P1, P2, P7 |
 
 ## Decisiones tomadas por defecto
 

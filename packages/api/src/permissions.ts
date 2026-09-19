@@ -411,6 +411,26 @@ export const PERMISSIONS: readonly PermissionDefinition[] = [
 
   // --- Administración -------------------------------------------------------
   {
+    code: 'copia.exportar',
+    scope: 'global',
+    screen: 'Administración',
+    label: 'Sacar una copia de seguridad',
+    detail:
+      'Descargar la base entera en un zip de CSV. Lleva TODO: el equipo con sus ' +
+      'tarifas, las horas fichadas y los correos de las cuentas. Las contraseñas no.',
+    enforcedIn: ['GET /api/copia'],
+  },
+  {
+    code: 'copia.restaurar',
+    scope: 'global',
+    screen: 'Administración',
+    label: 'Restaurar una copia de seguridad',
+    detail:
+      'Sustituir la base entera por la de un zip. BORRA todo lo que haya. Es la ' +
+      'función más destructiva de la herramienta y no la trae ningún rol de serie.',
+    enforcedIn: ['POST /api/copia/comprobar', 'POST /api/copia/restaurar'],
+  },
+  {
     code: 'usuarios.gestionar',
     scope: 'global',
     screen: 'Administración',

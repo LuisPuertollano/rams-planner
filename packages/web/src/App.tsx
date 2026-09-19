@@ -34,6 +34,7 @@ import { PasswordPanel } from './components/PasswordPanel.js'
 import { ProjectPanel } from './components/ProjectPanel.js'
 import { WhyPanel } from './components/WhyPanel.js'
 import { AdminView } from './views/AdminView.js'
+import { BackupPanel } from './views/BackupPanel.js'
 import { CalendarView } from './views/CalendarView.js'
 import { LoginView } from './views/LoginView.js'
 import { DiffView } from './views/DiffView.js'
@@ -554,7 +555,16 @@ function Planner({
           </div>
           <div className="panel__body panel__body--flush">
             {vista === 'admin' ? (
-              <AdminView projects={state?.projects ?? []} currentUserId={me.user?.id ?? null} />
+              <>
+                <AdminView projects={state?.projects ?? []} currentUserId={me.user?.id ?? null} />
+                {!puede('copia.exportar') && !puede('copia.restaurar') ? null : (
+                  <BackupPanel
+                    puedeExportar={puede('copia.exportar')}
+                    puedeRestaurar={puede('copia.restaurar')}
+                    onRestaurado={recargar}
+                  />
+                )}
+              </>
             ) : vista === 'documentos' ? (
               <>
                 <DocumentsView canEdit={puede('documentos.gestionar')} />
