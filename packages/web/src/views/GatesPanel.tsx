@@ -11,6 +11,7 @@ import {
 } from '../api.js'
 import { errorText } from '../errors.js'
 import { GateReadinessPanel } from './GateReadinessPanel.js'
+import { GateChecklistPanel } from './GateChecklistPanel.js'
 import { useT, type Diccionario } from '../i18n/index.js'
 
 interface Props {
@@ -212,6 +213,8 @@ export function GatesPanel({ projects, canApply, onApplied }: Props): React.JSX.
       )}
 
       <GateReadinessPanel projectId={projectId} version={version} />
+
+      <GateChecklistPanel projectId={projectId} version={version} />
 
       {plan === null ? null : (
         <>

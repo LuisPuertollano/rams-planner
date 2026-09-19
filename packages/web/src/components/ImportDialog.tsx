@@ -17,7 +17,14 @@ import { useT } from '../i18n/index.js'
 import { ImportPanel } from './ImportPanel.js'
 
 /** Las seis cosas que se pueden cargar desde un CSV. */
-export type TipoDeImportacion = 'plan' | 'actuals' | 'monthly' | 'splits' | 'documents' | 'team'
+export type TipoDeImportacion =
+  | 'plan'
+  | 'actuals'
+  | 'monthly'
+  | 'splits'
+  | 'documents'
+  | 'team'
+  | 'checklist'
 
 interface Props {
   readonly tipo: TipoDeImportacion

@@ -255,8 +255,43 @@ export const TEAM_SPEC: ImportSpec = {
   ],
 }
 
+export const CHECKLIST_SPEC: ImportSpec = {
+  tipo: 'checklist',
+  titulo: 'La Checkliste de revisión de puerta',
+  resumen:
+    'El cuestionario que se pasa en cada puerta: una fila por CASILLA, es decir por cada par ' +
+    '(consulta, puerta). Las consultas que nombran un entregable las contesta el plan solo.',
+  reglas: [
+    'Las líneas que empiezan por # son comentarios: no se importan.',
+    'Una fila por (consulta, puerta). Una consulta que se pregunta en cinco puertas trae cinco filas.',
+    'El código manda dentro de su disciplina: las filas del mismo código son la MISMA consulta.',
+    'Las puertas y los entregables de una consulta son la lista COMPLETA: lo que no venga, se borra.',
+    'El orden de las filas es el orden del cuestionario, y es el que se lee en la pantalla.',
+    'El nivel es M, HR, R o C. Una M que no se cumple suspende la puerta; las demás avisan.',
+    'La casilla «entregables» vacía significa que esa consulta la contesta una persona, y eso es la mitad de ellas.',
+    'Un entregable que no está en el catálogo no rechaza el fichero: se avisa y se carga el resto.',
+    'La puerta se escribe igual que en las puertas del proyecto: es por ahí por donde casan.',
+  ],
+  columnas: [
+    { nombre: 'disciplina', obligatoria: false, que: 'safety, ram… Sin nada, safety.', ejemplo: 'safety' },
+    { nombre: 'codigo', obligatoria: true, que: 'El identificador de la consulta en la hoja.', ejemplo: '3.5' },
+    { nombre: 'capitulo', obligatoria: false, que: 'El capítulo al que pertenece.', ejemplo: '3' },
+    { nombre: 'capitulo_nombre', obligatoria: false, que: 'Cómo se llama ese capítulo.', ejemplo: 'Safety Demonstration & Closure' },
+    { nombre: 'pregunta', obligatoria: false, que: 'La consulta. Basta escribirla en una de sus filas.', ejemplo: '¿Está emitido o actualizado el FMECA orgánico?' },
+    { nombre: 'puerta', obligatoria: true, que: 'En qué puerta se hace esta pregunta.', ejemplo: 'CGR' },
+    { nombre: 'nivel', obligatoria: true, que: 'M, HR, R o C: con cuánta fuerza se exige AHÍ.', ejemplo: 'M' },
+    { nombre: 'prueba', obligatoria: false, que: 'Qué hay que enseñar en esa puerta para darla por buena.', ejemplo: 'Final version to be provided.' },
+    { nombre: 'entregables', obligatoria: false, que: 'Códigos del catálogo separados por comas, como CODIGO o CODIGO@madurez.', ejemplo: 'S-FMECA@preliminar' },
+  ],
+  ejemplos: [
+    ['safety', '3.5', '3', 'Safety Demonstration & Closure', '¿Está emitido o actualizado el FMECA orgánico?', 'IGR', 'R', 'Initial version to be provided.', 'S-FMECA@preliminar'],
+    ['safety', '3.5', '3', 'Safety Demonstration & Closure', '', 'CGR', 'M', 'Final version to be provided.', 'S-FMECA'],
+    ['safety', '0.2', '0', 'Overall Progress', '¿La carga de trabajo de seguridad va en línea con el presupuesto?', 'CGR', 'HR', '', ''],
+  ],
+}
+
 export const IMPORT_SPECS: readonly ImportSpec[] = [
-  PLAN_SPEC, ACTUALS_SPEC, MONTHLY_SPEC, SPLITS_SPEC, DOCUMENTS_SPEC, TEAM_SPEC,
+  PLAN_SPEC, ACTUALS_SPEC, MONTHLY_SPEC, SPLITS_SPEC, DOCUMENTS_SPEC, TEAM_SPEC, CHECKLIST_SPEC,
 ]
 
 // ---------------------------------------------------------------------------

@@ -1658,6 +1658,59 @@ export async function fetchGateReadiness(projectId: string): Promise<GateReadine
   return get<GateReadiness>(`/api/projects/${projectId}/gates/readiness`)
 }
 
+// --- La Checkliste de la puerta, contestada por el plan (ADR-0058) ---------
+
+export type NivelDeConsulta = 'M' | 'HR' | 'R' | 'C'
+
+export type EstadoDeConsulta =
+  | 'cumple'
+  | 'no-cumple'
+  | 'sin-saber'
+  | 'la-contesta-una-persona'
+  | 'puerta-sin-fechar'
+
+export interface ConsultaResuelta {
+  readonly queryId: string
+  readonly chapter: string
+  readonly chapterName: string | null
+  readonly code: string
+  readonly question: string
+  readonly level: NivelDeConsulta
+  readonly proofRequest: string | null
+  readonly state: EstadoDeConsulta
+  readonly evidence: readonly GateEvidence[]
+  readonly missing: readonly string[]
+}
+
+export interface TotalesDeConsultas {
+  readonly consultas: number
+  readonly cumplen: number
+  readonly noCumplen: number
+  readonly sinSaber: number
+  readonly deUnaPersona: number
+  readonly obligatoriasQueFallan: number
+}
+
+export interface PuertaConChecklist {
+  readonly gate: string
+  readonly date: string | null
+  readonly queries: readonly ConsultaResuelta[]
+  readonly totals: TotalesDeConsultas
+}
+
+export interface GateChecklist {
+  readonly runId: string | null
+  readonly gates: readonly PuertaConChecklist[]
+  readonly findings: readonly GateReadinessFinding[]
+  readonly totals: TotalesDeConsultas | null
+  /** Qué hojas hay cargadas. Vacío significa que nadie ha importado ninguna. */
+  readonly disciplines: readonly { discipline: string; queries: number }[]
+}
+
+export async function fetchGateChecklist(projectId: string): Promise<GateChecklist> {
+  return get<GateChecklist>(`/api/projects/${projectId}/gates/checklist`)
+}
+
 // --- Partir el entregable en las entregas que pide la Checkliste ------------
 
 export type DeliverySkipReason =

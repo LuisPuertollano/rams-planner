@@ -54,6 +54,12 @@ const FICHAS: readonly Ficha[] = [
     que: (t) => t('importaciones.documentos.que'),
     exportarUrl: '/api/documents/export.csv',
   },
+  {
+    tipo: 'checklist',
+    permiso: 'documentos.gestionar',
+    titulo: (t) => t('importaciones.checklist.titulo'),
+    que: (t) => t('importaciones.checklist.que'),
+  },
 ]
 
 /**

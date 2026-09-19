@@ -18,6 +18,8 @@ import {
   latestRun,
   readDocumentTypes,
   readGateInputs,
+  readGateQueries,
+  readGateQueryDisciplines,
   readGateReadinessInputs,
   readProjectGates,
   setProjectGates,
@@ -25,10 +27,14 @@ import {
   type Pool,
 } from '@planner/persistence'
 import {
+  answerGateChecklist,
   assessGateReadiness,
   planGateDeadlines,
   type GatePlanResult,
 } from '@planner/scheduler'
+import { importChecklistCsv } from './import-checklist.js'
+import { ImportError } from './import-plan.js'
+import { fallar } from './errors.js'
 import { desde, enProyecto } from './permissions.js'
 import { calculate, defaultScenarioId } from './engine.js'
 
@@ -126,6 +132,77 @@ export function registerGateRoutes(app: FastifyInstance, pool: Pool): void {
         const entrada = await readGateReadinessInputs(db, projectId, ejecucion)
         return { runId: ejecucion, ...assessGateReadiness(entrada) }
       })
+    },
+  )
+
+
+  /**
+   * La Checkliste de la puerta, contestada con lo que el plan ya sabe (ADR-0058).
+   *
+   * Se apoya en la misma ejecución que la preparación de la puerta: primero se
+   * resuelve qué entrega llega y cuál no, y sobre eso se contestan las
+   * consultas que nombran un entregable. Las que no lo nombran salen marcadas
+   * como lo que son —las que contesta una persona—, que es la mitad de la hoja
+   * y es la información que convierte una lista de 51 en una de 24.
+   */
+  app.get(
+    '/api/projects/:projectId/gates/checklist',
+    { config: { permission: 'plan.ver', project: desde(enProyecto()) } },
+    async (request) => {
+      const { projectId } = z.object({ projectId: z.string().uuid() }).parse(request.params)
+      const { runId, discipline } = z
+        .object({
+          runId: z.string().uuid().optional(),
+          discipline: z.string().trim().min(1).max(60).optional(),
+        })
+        .parse(request.query ?? {})
+
+      return withTransaction(pool, async (db) => {
+        const ejecucion = runId ?? (await latestRun(db))?.id
+        const disciplinas = await readGateQueryDisciplines(db)
+        if (ejecucion === undefined) {
+          return { runId: null, gates: [], findings: [], totals: null, disciplines: disciplinas }
+        }
+        const readiness = assessGateReadiness(
+          await readGateReadinessInputs(db, projectId, ejecucion),
+        )
+        const resuelto = answerGateChecklist({
+          queries: await readGateQueries(db, discipline),
+          readiness: readiness.gates,
+          gates: await readProjectGates(db, projectId),
+        })
+        return { runId: ejecucion, ...resuelto, disciplines: disciplinas }
+      })
+    },
+  )
+
+  /**
+   * Cargar la Checkliste desde un CSV.
+   *
+   * Es catálogo del departamento, como el de entregables, así que va con el
+   * mismo permiso y no con el de un proyecto: la hoja es la misma para todos.
+   */
+  app.post(
+    '/api/gates/checklist/import',
+    { config: { permission: 'documentos.gestionar' } },
+    async (request, reply) => {
+      const text = typeof request.body === 'string' ? request.body : ''
+      if (text.trim() === '') {
+        return fallar(reply, 400, 'CSV_VACIO', 'El cuerpo debe ser el CSV en texto plano.')
+      }
+      try {
+        return await withTransaction(pool, (db) => importChecklistCsv(db, text), {
+          comment: 'importación de la Checkliste de revisión desde CSV',
+        })
+      } catch (error) {
+        if (error instanceof ImportError) {
+          return fallar(reply, 422, 'CSV_INVALIDO', error.message, {
+            detalle: error.message,
+            rows: error.rows,
+          })
+        }
+        throw error
+      }
     },
   )
 
