@@ -336,6 +336,7 @@ export const es = {
   'checklist.col.estado': 'Estado',
   'checklist.col.entregables': 'Entregables que nombra',
   'checklist.estado.cumple': 'cumple',
+  'checklist.estado.vigente-de-antes': 'vigente, de una puerta anterior',
   'checklist.estado.no-cumple': 'no cumple',
   'checklist.estado.sin-saber': 'sin saber todavía',
   'checklist.estado.la-contesta-una-persona': 'la contesta una persona',

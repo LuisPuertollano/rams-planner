@@ -69,8 +69,13 @@ export interface GateQuery {
 /**
  * En qué estado llega una consulta a su puerta.
  *
- * - `cumple`: nombra entregables y **todos** llegan a tiempo. La respuesta ya
- *   está, con su fecha.
+ * - `cumple`: nombra entregables, todos se entregan **en esta misma puerta** y
+ *   todos llegan a tiempo. La respuesta ya está, con su fecha.
+ * - `vigente-de-antes`: la versión vigente aquí se entregó en una puerta
+ *   anterior y llegó a tiempo. No es un fallo —en IQR se pregunta si el Hazard
+ *   Log sigue al día, y el Hazard Log se entregó en CGR— pero tampoco es lo
+ *   mismo que «recién entregado»: si sigue vigente lo dice una persona, y por
+ *   eso se distingue en vez de decir «cumple» y dar una tranquilidad falsa.
  * - `no-cumple`: nombra entregables y alguno llega tarde o no está en el plan.
  * - `sin-saber`: nombra entregables y el plan no da fecha de alguno todavía.
  * - `la-contesta-una-persona`: no nombra ningún entregable. No es un problema:
@@ -81,10 +86,24 @@ export interface GateQuery {
  */
 export type EstadoDeConsulta =
   | 'cumple'
+  | 'vigente-de-antes'
   | 'no-cumple'
   | 'sin-saber'
   | 'la-contesta-una-persona'
   | 'puerta-sin-fechar'
+
+/**
+ * De dónde sale la respuesta.
+ *
+ * `gate` no siempre es la puerta de la consulta: un documento entregado en CGR
+ * sigue siendo la versión vigente cuando en IQR preguntan si está al día.
+ */
+export interface EvidenciaDeConsulta {
+  readonly gate: string
+  /** `false` cuando la versión vigente viene de una puerta anterior. */
+  readonly current: boolean
+  readonly cell: GateEvidence
+}
 
 export interface ConsultaResuelta {
   readonly queryId: string
@@ -96,7 +115,7 @@ export interface ConsultaResuelta {
   readonly proofRequest: string | null
   readonly state: EstadoDeConsulta
   /** Las entregas que contestan la consulta, con su estado ya resuelto. */
-  readonly evidence: readonly GateEvidence[]
+  readonly evidence: readonly EvidenciaDeConsulta[]
   /** Entregables que la consulta nombra y el proyecto no entrega. */
   readonly missing: readonly string[]
 }
@@ -111,6 +130,8 @@ export interface PuertaResuelta {
 export interface TotalesDeConsultas {
   readonly consultas: number
   readonly cumplen: number
+  /** Cumplen con una versión entregada en una puerta anterior. */
+  readonly vigentesDeAntes: number
   readonly noCumplen: number
   readonly sinSaber: number
   readonly deUnaPersona: number
@@ -135,6 +156,7 @@ export interface GateChecklistInput {
 const CERO: TotalesDeConsultas = {
   consultas: 0,
   cumplen: 0,
+  vigentesDeAntes: 0,
   noCumplen: 0,
   sinSaber: 0,
   deUnaPersona: 0,
@@ -150,6 +172,7 @@ function suma(
   return {
     consultas: totales.consultas + 1,
     cumplen: totales.cumplen + (estado === 'cumple' ? 1 : 0),
+    vigentesDeAntes: totales.vigentesDeAntes + (estado === 'vigente-de-antes' ? 1 : 0),
     noCumplen: totales.noCumplen + (falla ? 1 : 0),
     sinSaber: totales.sinSaber + (estado === 'sin-saber' ? 1 : 0),
     deUnaPersona: totales.deUnaPersona + (estado === 'la-contesta-una-persona' ? 1 : 0),
@@ -161,6 +184,7 @@ function junta(izquierda: TotalesDeConsultas, derecha: TotalesDeConsultas): Tota
   return {
     consultas: izquierda.consultas + derecha.consultas,
     cumplen: izquierda.cumplen + derecha.cumplen,
+    vigentesDeAntes: izquierda.vigentesDeAntes + derecha.vigentesDeAntes,
     noCumplen: izquierda.noCumplen + derecha.noCumplen,
     sinSaber: izquierda.sinSaber + derecha.sinSaber,
     deUnaPersona: izquierda.deUnaPersona + derecha.deUnaPersona,
@@ -198,14 +222,49 @@ export function answerGateChecklist(input: GateChecklistInput): GateChecklistRes
   const fechaDePuerta = new Map<string, string>()
   for (const puerta of input.gates) fechaDePuerta.set(normalizeGate(puerta.gate), puerta.date)
 
-  // Las entregas ya resueltas, indexadas por puerta y por (documento, madurez).
-  const porPuerta = new Map<string, Map<string, GateEvidence>>()
+  // Las entregas ya resueltas, por documento y ordenadas por la fecha de su
+  // puerta. El orden es lo que permite contestar «cuál es la versión vigente
+  // AQUÍ», que es la pregunta que hace la Checkliste.
+  const entregasDe = new Map<string, { gate: string; date: string; cell: GateEvidence }[]>()
   for (const fila of input.readiness) {
-    const indice = new Map<string, GateEvidence>()
+    // Una puerta sin fecha no se puede ordenar, y por tanto no puede decir si
+    // va antes o después de otra: no entra en la búsqueda de la vigente.
+    if (fila.date === null) continue
     for (const celda of fila.evidence) {
-      indice.set(claveDeEntrega(celda.documentTypeId, celda.maturity), celda)
+      const ya = entregasDe.get(celda.documentTypeId) ?? []
+      ya.push({ gate: fila.gate, date: fila.date, cell: celda })
+      entregasDe.set(celda.documentTypeId, ya)
     }
-    porPuerta.set(normalizeGate(fila.gate), indice)
+  }
+  for (const lista of entregasDe.values()) {
+    lista.sort((izquierda, derecha) => izquierda.date.localeCompare(derecha.date))
+  }
+
+  /**
+   * La versión vigente de un documento en una puerta.
+   *
+   * **La última entrega cuya puerta cae en ésta o antes.** Es la corrección que
+   * pedía el dato real: en IQR la Checkliste pregunta si el Hazard Log sigue al
+   * día, y el Hazard Log se entrega en CGR. Buscar sólo en la puerta de la
+   * consulta decía «no está en el plan» de un documento entregado y terminado
+   * meses antes — un falso negativo en un tercio de las filas.
+   *
+   * Cuando la consulta declara una madurez, manda: pedir el preliminar y que el
+   * plan sólo tenga la final no es «vigente», es que falta el preliminar.
+   */
+  const vigenteEn = (
+    documentTypeId: string,
+    maturity: string | null,
+    fechaDeLaPuerta: string,
+  ): { gate: string; cell: GateEvidence } | undefined => {
+    const candidatas = (entregasDe.get(documentTypeId) ?? []).filter(
+      (entrega) =>
+        entrega.date <= fechaDeLaPuerta &&
+        (maturity === null ||
+          claveDeEntrega(documentTypeId, entrega.cell.maturity) ===
+            claveDeEntrega(documentTypeId, maturity)),
+    )
+    return candidatas[candidatas.length - 1]
   }
 
   // Las consultas, agrupadas por la puerta en la que se preguntan.
@@ -221,14 +280,21 @@ export function answerGateChecklist(input: GateChecklistInput): GateChecklistRes
     for (const enPuerta of consulta.gates) {
       const clave = normalizeGate(enPuerta.gate)
       const fecha = fechaDePuerta.get(clave) ?? null
-      const entregas = porPuerta.get(clave)
 
-      const evidence: GateEvidence[] = []
+      const evidence: EvidenciaDeConsulta[] = []
       const missing: string[] = []
-      for (const nombrado of consulta.documents) {
-        const celda = entregas?.get(claveDeEntrega(nombrado.documentTypeId, nombrado.maturity))
-        if (celda === undefined) missing.push(nombrado.documentTypeId)
-        else evidence.push(celda)
+      if (fecha !== null) {
+        for (const nombrado of consulta.documents) {
+          const encontrada = vigenteEn(nombrado.documentTypeId, nombrado.maturity, fecha)
+          if (encontrada === undefined) missing.push(nombrado.documentTypeId)
+          else {
+            evidence.push({
+              gate: encontrada.gate,
+              current: normalizeGate(encontrada.gate) === clave,
+              cell: encontrada.cell,
+            })
+          }
+        }
       }
 
       const estado: EstadoDeConsulta =
@@ -236,11 +302,16 @@ export function answerGateChecklist(input: GateChecklistInput): GateChecklistRes
           ? 'puerta-sin-fechar'
           : consulta.documents.length === 0
             ? 'la-contesta-una-persona'
-            : missing.length > 0 || evidence.some((celda) => celda.state === 'tarde' || celda.state === 'sin-partir')
+            : missing.length > 0 ||
+                evidence.some(
+                  (fuente) => fuente.cell.state === 'tarde' || fuente.cell.state === 'sin-partir',
+                )
               ? 'no-cumple'
-              : evidence.some((celda) => celda.state !== 'a-tiempo')
+              : evidence.some((fuente) => fuente.cell.state !== 'a-tiempo')
                 ? 'sin-saber'
-                : 'cumple'
+                : evidence.every((fuente) => fuente.current)
+                  ? 'cumple'
+                  : 'vigente-de-antes'
 
       const fila: ConsultaResuelta = {
         queryId: consulta.id,

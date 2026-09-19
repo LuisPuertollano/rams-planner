@@ -335,6 +335,7 @@ export const fr: Diccionario = {
   'checklist.col.estado': 'État',
   'checklist.col.entregables': 'Livrables nommés',
   'checklist.estado.cumple': 'satisfaite',
+  'checklist.estado.vigente-de-antes': 'en vigueur, d’une porte antérieure',
   'checklist.estado.no-cumple': 'non satisfaite',
   'checklist.estado.sin-saber': 'pas encore connu',
   'checklist.estado.la-contesta-una-persona': 'répondue par une personne',

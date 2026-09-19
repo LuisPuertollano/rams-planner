@@ -26,6 +26,10 @@ const estadoDe = (estado: EstadoDeConsulta): keyof Diccionario =>
  */
 const TONO: Readonly<Record<EstadoDeConsulta, string>> = {
   cumple: 'chip chip--bien',
+  // Vigente de antes NO es un fallo, pero tampoco es «recién entregado»: el
+  // punto hueco dice que la respuesta existe y que su antigüedad la juzga
+  // una persona.
+  'vigente-de-antes': 'chip chip--neutro',
   'no-cumple': 'chip chip--mal',
   'sin-saber': 'chip chip--neutro',
   'la-contesta-una-persona': 'chip chip--neutro',
@@ -127,7 +131,14 @@ export function GateChecklistPanel({ projectId, version }: Props): React.JSX.Ele
         {consulta.evidence.length === 0
           ? '—'
           : consulta.evidence
-              .map((celda) => `${celda.documentCode}${celda.maturity === null ? '' : ` · ${celda.maturity}`}`)
+              .map(
+                (fuente) =>
+                  `${fuente.cell.documentCode}` +
+                  `${fuente.cell.maturity === null ? '' : ` · ${fuente.cell.maturity}`}` +
+                  // De dónde sale, cuando no sale de esta puerta. Sin esto, la
+                  // fila dice «cumple» sin decir que la prueba es de hace un año.
+                  `${fuente.current ? '' : ` (${fuente.gate})`}`,
+              )
               .join(', ')}
       </td>
     </tr>
