@@ -38,7 +38,7 @@ describe('el diálogo de importación', () => {
   it('cada tipo tiene su rama, y la rama pinta SU tipo', async () => {
     const fuente = await readFile(FUENTE, 'utf8')
     for (const tipo of await tiposDeclarados()) {
-      const rama = new RegExp(`case '${tipo}': \\{([\\s\\S]*?)\\n  \\}`, 'u').exec(fuente)
+      const rama = new RegExp(`case '${tipo}': \\{([\\s\\S]*?)\\n {2}\\}`, 'u').exec(fuente)
       expect(rama, `falta la rama de «${tipo}»`).not.toBeNull()
       // Lo que se le pasa al panel decide el contrato que se pide, la plantilla
       // que se descarga y el endpoint. Si no coincide con la rama, la pantalla
@@ -51,7 +51,7 @@ describe('el diálogo de importación', () => {
 
   it('ninguna rama pinta el tipo de otra', async () => {
     const fuente = await readFile(FUENTE, 'utf8')
-    const ramas = [...fuente.matchAll(/case '([a-z]+)': \{([\s\S]*?)\n  \}/gu)]
+    const ramas = [...fuente.matchAll(/case '([a-z]+)': \{([\s\S]*?)\n {2}\}/gu)]
     for (const [, tipo, cuerpo] of ramas) {
       const pintados = [...(cuerpo ?? '').matchAll(/tipo="([a-z]+)"/g)].map((x) => x[1])
       expect(pintados, `la rama de «${String(tipo)}» pinta ${pintados.join(', ')}`).toEqual([tipo])
