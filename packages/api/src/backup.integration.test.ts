@@ -23,6 +23,9 @@ import { calculate, defaultScenarioId } from './engine.js'
 const url = process.env['DATABASE_URL']
 const pool = url === undefined ? null : createPool(url)
 const INSTANTE = new Date('2026-09-20T12:00:00Z')
+// Los códigos llevan sufijo: estas pruebas corren contra una base que no se
+// vacía entre veces, y un código fijo choca consigo mismo a la segunda.
+const SUFIJO = `${String(Date.now())}-${String(Math.trunc(Math.random() * 1e6))}`
 
 afterAll(async () => { await pool?.end() })
 
@@ -105,7 +108,7 @@ describeSiHayBase('la copia de seguridad', () => {
         const { rows } = await db.query<{ id: string }>(
           `INSERT INTO project (code, name, status, status_start)
            VALUES ($1, $2, 'activo', DATE '2026-01-01') RETURNING id`,
-          [`RARO-${String(indice)}`, nombre],
+          [`RARO-${SUFIJO}-${String(indice)}`, nombre],
         )
         puestos.push(rows[0]?.id ?? '')
       }
@@ -185,6 +188,34 @@ describeSiHayBase('la copia de seguridad', () => {
     await expect(
       withTransaction(pool, (db) => abrirCopia(db, coja)),
     ).rejects.toThrow(/nombra|faltan/)
+  })
+
+  it('un fichero colado sin suma declarada no entra', async () => {
+    if (pool === null) return
+    // El hueco que esto tapa: bastaba añadir un CSV al zip y nombrarlo en el
+    // manifiesto sin ponerle suma para que entrase sin comprobar. Una copia
+    // existe para poder demostrar que nadie la tocó; media comprobación no
+    // demuestra nada.
+    const copia = await withTransaction(pool, (db) => exportarCopia(db, { instante: INSTANTE }))
+    const dentro = new Map(leerZip(copia.zip))
+    dentro.set('tablas/colado.csv', Buffer.from('\uFEFFid\r\n', 'utf8'))
+    const colada = crearZip([...dentro].map(([path, data]) => ({ path, data })), INSTANTE)
+    await expect(
+      withTransaction(pool, (db) => abrirCopia(db, colada)),
+    ).rejects.toThrow(/suma declarada/)
+  })
+
+  it('una copia sin LEEME no entra, porque ahí va la versión del esquema', async () => {
+    if (pool === null) return
+    // Sin esto, un zip con manifiesto y sin LEEME se saltaba la comprobación de
+    // versión entera: una copia de otro esquema entraba sin decir nada y dejaba
+    // la base mal de una forma que no se ve.
+    const copia = await withTransaction(pool, (db) => exportarCopia(db, { instante: INSTANTE }))
+    const dentro = [...leerZip(copia.zip)].filter(([ruta]) => ruta !== 'LEEME.txt')
+    const muda = crearZip(dentro.map(([path, data]) => ({ path, data })), INSTANTE)
+    await expect(
+      withTransaction(pool, (db) => abrirCopia(db, muda)),
+    ).rejects.toThrow(/LEEME/)
   })
 
   it('lo que no es una copia se rechaza sin tocar nada', async () => {

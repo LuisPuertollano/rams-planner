@@ -231,28 +231,53 @@ export async function abrirCopia(db: Queryable, zip: Buffer): Promise<CopiaLeida
 
   // Las sumas se comprueban aquí, no al restaurar: un fichero cambiado tiene
   // que detenerlo todo antes de que se borre la primera fila.
+  //
+  // Y **todo fichero que se vaya a leer tiene que traer suma declarada**. Con
+  // comprobar sólo las que aparecen en la lista quedaba un hueco: bastaba
+  // añadir un CSV al zip, nombrarlo en el manifiesto y no ponerle suma para que
+  // entrase sin comprobar. Una copia existe para poder demostrar que nadie la
+  // tocó; media comprobación no demuestra nada.
   const sumasDeclaradas = new Map<string, string>()
   for (const linea of (entradas.get(FICHERO_SUMAS)?.toString('utf8') ?? '').split('\n')) {
     const corte = linea.indexOf('  ')
     if (corte > 0) sumasDeclaradas.set(linea.slice(corte + 2).trim(), linea.slice(0, corte).trim())
   }
+  if (sumasDeclaradas.size === 0) {
+    throw new CopiaInvalida(`El zip no trae ${FICHERO_SUMAS}`, 'COPIA_SIN_MANIFIESTO')
+  }
   for (const [ruta, contenido] of entradas) {
+    if (ruta === FICHERO_SUMAS) continue // no puede sumarse a sí mismo
     const esperada = sumasDeclaradas.get(ruta)
-    if (esperada !== undefined && esperada !== suma(contenido)) {
+    if (esperada === undefined) {
+      throw new CopiaInvalida(`«${ruta}» no trae suma declarada`, 'COPIA_TOCADA', ruta)
+    }
+    if (esperada !== suma(contenido)) {
       throw new CopiaInvalida(`«${ruta}» no cuadra con su suma`, 'COPIA_TOCADA', ruta)
     }
   }
 
+  // La versión del esquema va en el LEEME, así que el LEEME es obligatorio.
+  // Sin esto, un zip con manifiesto y sin LEEME se saltaba la comprobación de
+  // versión entera y entraba una copia de otro esquema sin decir nada.
+  const leemeDeLaCopia = entradas.get(FICHERO_LEEME)
+  if (leemeDeLaCopia === undefined) {
+    throw new CopiaInvalida(`El zip no trae ${FICHERO_LEEME}`, 'COPIA_SIN_MANIFIESTO')
+  }
+  const esquemaCopia = leerEsquemaDelLeeme(leemeDeLaCopia.toString('utf8'))
+  if (esquemaCopia === '') {
+    throw new CopiaInvalida(
+      'La copia no dice con qué versión del esquema se sacó', 'COPIA_OTRO_ESQUEMA',
+    )
+  }
   const esquemaAhora = await versionDelEsquema(db)
-  const filasManifiesto = parseCsv(manifiesto.toString('utf8'), 'literal')
-  const esquemaCopia = leerEsquemaDelLeeme(entradas.get(FICHERO_LEEME)?.toString('utf8') ?? '')
-  if (esquemaCopia !== '' && esquemaCopia !== esquemaAhora) {
+  if (esquemaCopia !== esquemaAhora) {
     throw new CopiaInvalida(
       'La copia se sacó con otra versión del esquema',
       'COPIA_OTRO_ESQUEMA',
       `copia ${esquemaCopia}, base ${esquemaAhora}`,
     )
   }
+  const filasManifiesto = parseCsv(manifiesto.toString('utf8'), 'literal')
 
   const datos = new Map<string, readonly Readonly<Record<string, string>>[]>()
   for (const fila of filasManifiesto) {
