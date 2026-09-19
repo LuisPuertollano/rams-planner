@@ -50,6 +50,7 @@ parece una mala idea, aquí está el razonamiento que había detrás.
 | [0043](0043-el-equipo-entra-por-csv.md) | El equipo entra por CSV, y el fichero decide qué permiso hace falta | P1, P2, P6 |
 | [0044](0044-la-plantilla-entra-entera-por-el-csv.md) | La plantilla entra entera por el CSV, con sus entregables y su cadena | P1, P2, P6 |
 | [0045](0045-nivelar-sin-rehacer-el-reparto-entero.md) | Nivelar sin rehacer el reparto entero: de 366 s a 34 s con el mismo resultado | P2, P5 |
+| [0046](0046-la-checkliste-pide-borradores.md) | La Checkliste pide el mismo documento varias veces, y cada vez más maduro | P1, P2, P6 |
 
 ## Decisiones tomadas por defecto
 

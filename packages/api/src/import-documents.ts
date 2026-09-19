@@ -34,12 +34,14 @@ import {
   checkSignatureCycle,
   type ActivitySignatureRef,
   type DocumentActivity,
+  type PreviousDelivery,
   type Signature,
 } from '@planner/domain'
 import {
   createDocumentType,
   readDocumentTypes,
   setActivities,
+  setDeliveries,
   setPredecessors,
   setSignatures,
   updateDocumentType,
@@ -83,6 +85,11 @@ interface FilaLeida extends DocumentTypeFields {
    * que `esperaA` y que las firmas.
    */
   readonly subactividades: readonly DocumentActivity[] | null
+  /**
+   * Las entregas previas que declara la fila. `null` cuando el fichero no trae
+   * la columna: entonces no dice nada de la Checkliste y no se toca.
+   */
+  readonly entregas: readonly PreviousDelivery[] | null
 }
 
 /** Las cinco casillas del ciclo, y a qué paso va cada una. */
@@ -129,7 +136,63 @@ export interface DocumentsSummary {
   readonly signatures: number
   /** Cuántas subactividades se escribieron. Cero también cuando el fichero no habla de la cadena. */
   readonly activities: number
+  /** Cuántas entregas previas se escribieron. Cero también cuando el fichero no habla de ellas. */
+  readonly deliveries: number
   readonly warnings: readonly string[]
+}
+
+/**
+ * Las entregas previas de una fila: `PGR:preliminar:30:4|IGR:as designed:20:6`.
+ *
+ * Cuatro trozos —puerta, cómo la llama la Checkliste, qué porcentaje del
+ * esfuerzo cuesta y cuántas semanas antes— y los dos últimos opcionales.
+ *
+ * Una columna con lista, y no cinco columnas como la cadena de subactividades,
+ * porque aquí el número **no está acotado**: la cadena tiene cinco casillas y
+ * punto, y una Checkliste puede pedir una versión preliminar o cuatro. Es el
+ * mismo trato que `espera_a`, por la misma razón.
+ */
+function leerEntregas(
+  texto: string | undefined,
+  line: number,
+  problemas: string[],
+): readonly PreviousDelivery[] | null {
+  if (texto === undefined) return null
+  const trozos = texto
+    .split('|')
+    .map((trozo) => trozo.trim())
+    .filter((trozo) => trozo !== '')
+
+  const entregas: PreviousDelivery[] = []
+  for (const [indice, trozo] of trozos.entries()) {
+    const partes = trozo.split(':').map((parte) => parte.trim())
+    const gate = partes[0] ?? ''
+    if (gate === '') {
+      problemas.push(`Fila ${String(line)}: «${trozo}» no dice a qué puerta va la entrega previa`)
+      continue
+    }
+    const porcentaje = partes.length > 2 ? leerNumero(partes[2], 'entregas_previas', line, problemas) : null
+    if (porcentaje === null || porcentaje <= 0 || porcentaje >= 100) {
+      problemas.push(
+        `Fila ${String(line)}: «${trozo}» tiene que decir qué PORCENTAJE del esfuerzo cuesta, entre 1 y 99. ` +
+          'Se escribe «PGR:preliminar:30», porque lo que no se llevan las previas es lo que cuesta la final.',
+      )
+      continue
+    }
+    const semanas = partes.length > 3 && partes[3] !== ''
+      ? leerEntero(partes[3], 'entregas_previas', line, problemas)
+      : null
+    entregas.push({
+      position: indice + 1,
+      gate,
+      // Sin nombre, «preliminar»: es como la llaman casi todas, y obligar a
+      // escribirlo en cada fila sería ruido.
+      maturity: partes[1] === undefined || partes[1] === '' ? 'preliminar' : partes[1],
+      weeksBeforeGate: semanas,
+      shareBp: Math.round(porcentaje * 100),
+    })
+  }
+  return entregas
 }
 
 /** Lee y valida el fichero. No toca la base. */
@@ -183,6 +246,7 @@ export function parseDocumentsCsv(text: string): readonly FilaLeida[] {
     const esperaTexto = fila['espera_a']
     const firmas = leerFirmas(fila, columnas)
     const subactividades = leerSubactividades(fila, columnas, line, problemas)
+    const entregas = leerEntregas(fila['entregas_previas'], line, problemas)
     leidas.push({
       line,
       code,
@@ -200,6 +264,7 @@ export function parseDocumentsCsv(text: string): readonly FilaLeida[] {
       esperaA: esperaTexto === undefined ? null : listaDeCodigos(esperaTexto),
       firmas,
       subactividades,
+      entregas,
     })
   }
 
@@ -218,6 +283,7 @@ export async function importDocumentsCsv(db: Queryable, text: string): Promise<D
   let updated = 0
   let signatures = 0
   let activities = 0
+  let deliveries = 0
   const sinMinutos: string[] = []
   for (const fila of filas) {
     // `line` y `esperaA` son del fichero, no de la ficha: la primera es para
@@ -254,6 +320,10 @@ export async function importDocumentsCsv(db: Queryable, text: string): Promise<D
     // La cadena, DESPUÉS de las firmas y por una razón que el esquema impone:
     // una subactividad apunta a la firma que descarga con una clave ajena, así
     // que la firma tiene que existir antes.
+    if (id !== undefined && fila.entregas !== null) {
+      await setDeliveries(db, id, fila.entregas)
+      deliveries += fila.entregas.length
+    }
     if (id !== undefined && fila.subactividades !== null) {
       await setActivities(db, id, fila.subactividades)
       activities += fila.subactividades.length
@@ -308,6 +378,7 @@ export async function importDocumentsCsv(db: Queryable, text: string): Promise<D
     links,
     signatures,
     activities,
+    deliveries,
     warnings: [
       ...avisos(filas, aristas),
       // Una cadena sin minutos entra, pero no sirve para partir una tarea: el

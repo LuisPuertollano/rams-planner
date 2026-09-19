@@ -45,6 +45,7 @@ describe('el catálogo de documentos que llega en un CSV', () => {
       standardMinutes: 27_000,
       taskCode: 'PWTDF-D800',
       subactividades: null,
+      entregas: null,
       sortKey: 10,
       esperaA: ['S-HAZLOG'],
       // Sin ninguna de las cinco columnas de firma, el fichero no habla del
@@ -247,5 +248,44 @@ describe('la cadena de subactividades que llega en el CSV', () => {
   it('los niveles no son rondas: puede haber revisión 2 sin revisión 1', () => {
     const [fila] = parseDocumentsCsv(conCadena('S-FMECA;FMECA;Ing. RAMS:30;;Jefe RAMS:2;;;;'))
     expect(fila?.subactividades?.map((a) => a.step)).toEqual(['create', 'review_2'])
+  })
+})
+
+const CON_ENTREGAS = 'codigo;nombre;puerta;entregas_previas'
+const conEntregas = (...filas: readonly string[]): string => [CON_ENTREGAS, ...filas].join('\n')
+
+describe('las entregas previas que pide la Checkliste', () => {
+  it('lee puerta, madurez, porcentaje y semanas', () => {
+    const [fila] = parseDocumentsCsv(
+      conEntregas('S-FMECA;FMECA;CGR;PGR:preliminar:30:4|IGR:as designed:20:6'),
+    )
+    expect(fila?.entregas).toEqual([
+      { position: 1, gate: 'PGR', maturity: 'preliminar', weeksBeforeGate: 4, shareBp: 3_000 },
+      { position: 2, gate: 'IGR', maturity: 'as designed', weeksBeforeGate: 6, shareBp: 2_000 },
+    ])
+  })
+
+  it('sin nombre de madurez la llama «preliminar», que es como la llaman casi todas', () => {
+    const [fila] = parseDocumentsCsv(conEntregas('S-FMECA;FMECA;CGR;PGR::30'))
+    expect(fila?.entregas?.[0]?.maturity).toBe('preliminar')
+    expect(fila?.entregas?.[0]?.weeksBeforeGate).toBeNull()
+  })
+
+  it('sin porcentaje no entra: es la mitad del dato', () => {
+    // Lo que no se llevan las previas es lo que cuesta la final. Sin el
+    // porcentaje no hay reparto, y una entrega sin reparto no dice nada.
+    expect(falla(conEntregas('S-FMECA;FMECA;CGR;PGR:preliminar')).rows.join(' ')).toContain('PORCENTAJE')
+  })
+
+  it('un porcentaje de 100 o más no entra: no dejaría nada para la final', () => {
+    expect(falla(conEntregas('S-FMECA;FMECA;CGR;PGR:preliminar:100')).rows.join(' ')).toContain('entre 1 y 99')
+    expect(falla(conEntregas('S-FMECA;FMECA;CGR;PGR:preliminar:0')).rows.join(' ')).toContain('entre 1 y 99')
+  })
+
+  it('la columna ausente no dice nada de la Checkliste y no la toca', () => {
+    const [sinColumna] = parseDocumentsCsv(fichero('S-FMECA;FMECA;documento;;;;;;;'))
+    expect(sinColumna?.entregas).toBeNull()
+    const [vacia] = parseDocumentsCsv(conEntregas('S-FMECA;FMECA;CGR;'))
+    expect(vacia?.entregas).toEqual([])
   })
 })

@@ -471,6 +471,29 @@ Ese tercer trozo opcional dice **qué firma descarga** esa subactividad, con el
 nombre de su propia columna. Y el CSV que exportas trae ya todo eso dentro, así
 que la mejor plantilla para tu catálogo es tu propio catálogo exportado.
 
+**Y si tu Checkliste pide el documento varias veces**, eso también cabe. La
+columna `entregas_previas` dice en qué puertas anteriores lo piden en borrador:
+
+```
+entregas_previas = PGR:preliminar:30:4|IGR:as designed:20:6
+```
+
+Cuatro trozos por entrega —la puerta, cómo la llama tu Checkliste, qué
+**porcentaje** del esfuerzo cuesta y cuántas semanas antes—, y los dos últimos
+se pueden omitir. La entrega **final** sigue en la columna `puerta`: aquí sólo
+van las anteriores.
+
+El porcentaje es la clave y conviene entenderlo bien: es **parte** del esfuerzo
+del documento, no esfuerzo extra. Si declaras un preliminar al 30 %, la entrega
+final pasa a costar el 70 % — el total que pusiste en `horas` no se mueve. En la
+lista lo ves de un vistazo: «PGR 30 % › IGR 20 % › **CGR** 50 %», con la final
+en negrita y su parte al final. Si las previas se llevaran el 100 %, la columna
+te lo marca con ⚠ y un «0 %» que no deja lugar a dudas.
+
+Una cosa que todavía **no** hace, para que no la esperes: esto no mueve ninguna
+fecha. El plan sigue teniendo una tarea por entregable, con la fecha objetivo de
+su puerta final. Partir esa tarea en una por entrega es el paso siguiente.
+
 Dos detalles que ahorran un viaje:
 
 - **Las horas son opcionales, pero sin ellas no se puede partir.** Partir una

@@ -86,7 +86,9 @@ aquí va el orden y el porqué:
 3. **Documentos** — el catálogo de entregables y la matriz de precedencias.
    Se declara **una vez** y vale para todos los proyectos. Si lo tienes en una
    hoja, entra por CSV con su cadena de subactividades incluida: cinco columnas,
-   `rol:horas` en cada una.
+   `rol:horas` en cada una. Y si tu Checkliste pide algunos documentos en
+   borrador en puertas anteriores, eso va en `entregas_previas`: el porcentaje
+   de cada una es **parte** del esfuerzo del documento, no esfuerzo extra.
 3.bis **Tu plantilla**, si la tienes. El CSV de plan con un «sí» en la columna
    `plantilla` crea el molde de tu departamento —fases, tareas, duraciones y
    dependencias— sin personas. Y la columna `entregable` lo ata al catálogo, que

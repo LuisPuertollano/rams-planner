@@ -12,12 +12,14 @@ import {
   type ActivityEffort,
   type ActivityProblem,
   type ActivityStep,
+  type DeliveryProblem,
   type DocumentActivity,
   type DocumentCatalogue,
   type DocumentFields,
   type DocumentKind,
   type DocumentSignature,
   type DocumentType,
+  type PreviousDelivery,
   type Signature,
   type SignatureProblem,
 } from '../api.js'
@@ -170,6 +172,28 @@ export function DocumentsView({ canEdit }: Props): React.JSX.Element {
   const problemasDeActividad = useMemo(() => {
     const mapa = new Map<string, ActivityProblem[]>()
     for (const problema of catalogo?.activityProblems ?? []) {
+      const lista = mapa.get(problema.documentTypeId) ?? []
+      lista.push(problema)
+      mapa.set(problema.documentTypeId, lista)
+    }
+    return mapa
+  }, [catalogo])
+
+  /** Las entregas previas que pide la Checkliste, por entregable. */
+  const entregasDe = useMemo(() => {
+    const mapa = new Map<string, PreviousDelivery[]>()
+    for (const entrega of catalogo?.deliveries ?? []) {
+      const lista = mapa.get(entrega.documentTypeId) ?? []
+      lista.push(entrega)
+      mapa.set(entrega.documentTypeId, lista)
+    }
+    return mapa
+  }, [catalogo])
+
+  /** Lo que está mal en esas entregas. Lo calcula el servidor, como el resto. */
+  const problemasDeEntrega = useMemo(() => {
+    const mapa = new Map<string, DeliveryProblem[]>()
+    for (const problema of catalogo?.deliveryProblems ?? []) {
       const lista = mapa.get(problema.documentTypeId) ?? []
       lista.push(problema)
       mapa.set(problema.documentTypeId, lista)
@@ -353,6 +377,8 @@ export function DocumentsView({ canEdit }: Props): React.JSX.Element {
           actividadesDe={actividadesDe}
           problemasDeActividad={problemasDeActividad}
           esfuerzoDe={esfuerzoDe}
+          entregasDe={entregasDe}
+          problemasDeEntrega={problemasDeEntrega}
           codigoDe={codigoDe}
           canEdit={canEdit}
           busy={busy}
@@ -394,6 +420,7 @@ export function DocumentsView({ canEdit }: Props): React.JSX.Element {
  */
 function Lista({
   visibles, esperaA, firmasDe, problemasDe, actividadesDe, problemasDeActividad, esfuerzoDe,
+  entregasDe, problemasDeEntrega,
   codigoDe, canEdit, busy, abierto, locale, t, onAbrir, onQuitar,
 }: {
   readonly visibles: readonly DocumentType[]
@@ -403,6 +430,8 @@ function Lista({
   readonly actividadesDe: ReadonlyMap<string, readonly DocumentActivity[]>
   readonly problemasDeActividad: ReadonlyMap<string, readonly ActivityProblem[]>
   readonly esfuerzoDe: ReadonlyMap<string, ActivityEffort>
+  readonly entregasDe: ReadonlyMap<string, readonly PreviousDelivery[]>
+  readonly problemasDeEntrega: ReadonlyMap<string, readonly DeliveryProblem[]>
   readonly codigoDe: ReadonlyMap<string, string>
   readonly canEdit: boolean
   readonly busy: boolean
@@ -429,6 +458,7 @@ function Lista({
           <th>{t('documentos.col.esperaA')}</th>
           <th title={t('documentos.col.firmaTitulo')}>{t('documentos.col.firma')}</th>
           <th title={t('documentos.col.cadenaTitulo')}>{t('documentos.col.cadena')}</th>
+          <th title={t('documentos.col.entregasTitulo')}>{t('documentos.col.entregas')}</th>
           <th>{t('documentos.col.enTareas')}</th>
           {!canEdit ? null : <th />}
         </tr>
@@ -476,6 +506,14 @@ function Lista({
                   t={t}
                 />
               </td>
+              <td>
+                <Entregas
+                  entregas={entregasDe.get(documento.id) ?? []}
+                  problemas={problemasDeEntrega.get(documento.id) ?? []}
+                  puertaFinal={documento.gate}
+                  t={t}
+                />
+              </td>
               <td>{documento.usedInTasks === 0 ? '—' : documento.usedInTasks}</td>
               {!canEdit ? null : (
                 <td>
@@ -494,6 +532,45 @@ function Lista({
         })}
       </tbody>
     </table>
+  )
+}
+
+/**
+ * Las entregas previas de un entregable, de la más temprana a la final.
+ *
+ * Se enseñan como una cadena de puertas —«PGR 30 % › IGR 20 % › CGR 50 %»—
+ * porque lo que hay que ver de un vistazo es dos cosas: en cuántos sitios lo
+ * piden, y que los porcentajes suman el documento entero. La última es la
+ * final, y su parte es lo que las previas no se llevan.
+ */
+function Entregas({
+  entregas, problemas, puertaFinal, t,
+}: {
+  readonly entregas: readonly PreviousDelivery[]
+  readonly problemas: readonly DeliveryProblem[]
+  readonly puertaFinal: string | null
+  readonly t: Traductor
+}): React.JSX.Element {
+  if (entregas.length === 0) return <span className="faint">—</span>
+
+  const previas = [...entregas].sort((a, b) => a.position - b.position)
+  const repartido = previas.reduce((suma, entrega) => suma + entrega.shareBp, 0)
+  const aviso = problemas
+    .map((problema) => t(`entrega.${problema.code}` as keyof Diccionario, ...Object.values(problema.payload)))
+    .join(' ')
+
+  return (
+    <span title={aviso === '' ? undefined : aviso}>
+      {aviso === '' ? null : <span className="warn">⚠ </span>}
+      {previas.map((entrega) => (
+        <span key={entrega.position}>
+          {entrega.gate} <span className="faint">{Math.round(entrega.shareBp / 100)} %</span>
+          {' › '}
+        </span>
+      ))}
+      <b>{puertaFinal ?? '—'}</b>{' '}
+      <span className="faint">{Math.max(0, 100 - Math.round(repartido / 100))} %</span>
+    </span>
   )
 }
 
