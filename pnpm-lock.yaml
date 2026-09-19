@@ -100,6 +100,9 @@ importers:
       '@planner/explain':
         specifier: workspace:*
         version: link:../explain
+      '@planner/report':
+        specifier: workspace:*
+        version: link:../report
       '@planner/scheduler':
         specifier: workspace:*
         version: link:../scheduler

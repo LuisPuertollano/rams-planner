@@ -17,6 +17,9 @@
       "path": "../explain/tsconfig.build.json"
     },
     {
+      "path": "../report/tsconfig.build.json"
+    },
+    {
       "path": "../scheduler/tsconfig.build.json"
     },
     {

@@ -232,7 +232,54 @@ export async function seedDemoData(db: Queryable): Promise<boolean> {
   const ramsFieldId = await seedFieldDefinitions(db)
   await seedProjects(db, ramsFieldId)
   await seedDocuments(db)
+  await seedMonthlyActuals(db)
   return true
+}
+
+/**
+ * Horas reales que entran por mes, con su reparto y con sus descuadres.
+ *
+ * Los descuadres están puestos a propósito, uno de cada clase. La pantalla de
+ * conciliación vacía no enseña nada, y lo que hay que entender de ella es
+ * justamente lo que pasa cuando algo **no** cuadra: es la situación normal el
+ * día que alguien conecta el export de su sistema de fichaje.
+ *
+ *   Marc, marzo y abril   cuadra: 100 % declarado, las horas caen en sus tareas
+ *   Ana, marzo            sin declarar: las horas están y no llegan a nada
+ *   Ana, abril            declara el 70 %: no se aplica NADA, y se dice
+ *   Jan, marzo            declara un mes en el que no fichó: mes equivocado
+ */
+async function seedMonthlyActuals(db: Queryable): Promise<void> {
+  // (recurso, proyecto, mes, horas)
+  const meses: readonly (readonly [number, number, string, number])[] = [
+    [2, 1, '2026-03', 62], [2, 1, '2026-04', 58],
+    [1, 1, '2026-03', 40], [1, 1, '2026-04', 45],
+  ]
+  for (const [recurso, proyecto, mes, horas] of meses) {
+    await db.query(
+      `INSERT INTO actual_month (resource_id, project_id, period, minutes, external_ref)
+       VALUES ($1, $2, $3::date, $4, $5)`,
+      [uuid(1, recurso), uuid(2, proyecto), `${mes}-01`, horas * 60, `CATS-${mes}`],
+    )
+  }
+
+  // (recurso, proyecto, mes, tarea, porcentaje)
+  const reparto: readonly (readonly [number, number, string, number, number])[] = [
+    [2, 1, '2026-03', 101, 40], [2, 1, '2026-03', 108, 60],
+    [2, 1, '2026-04', 108, 100],
+    // Ana declara el 70 % de abril: el 30 % restante no está, así que abril
+    // entero se queda fuera. Es el caso que más se repite en la realidad.
+    [1, 1, '2026-04', 105, 70],
+    // Y un mes que Jan no fichó: declaración sin horas detrás.
+    [6, 1, '2026-03', 111, 100],
+  ]
+  for (const [recurso, proyecto, mes, tarea, porcentaje] of reparto) {
+    await db.query(
+      `INSERT INTO actual_split (resource_id, project_id, period, node_id, share_bp)
+       VALUES ($1, $2, $3::date, $4, $5)`,
+      [uuid(1, recurso), uuid(2, proyecto), `${mes}-01`, uuid(4, tarea), porcentaje * 100],
+    )
+  }
 }
 
 /**

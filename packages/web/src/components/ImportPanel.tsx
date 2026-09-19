@@ -5,7 +5,7 @@ import { existeClave, useT } from '../i18n/index.js'
 
 interface Props<R> {
   /** Qué importación es. Decide el contrato que se pide y la plantilla. */
-  readonly tipo: 'plan' | 'actuals' | 'documents' | 'team'
+  readonly tipo: 'plan' | 'actuals' | 'monthly' | 'splits' | 'documents' | 'team'
   readonly onClose: () => void
   readonly importar: (texto: string) => Promise<R>
   /** La frase de «ha ido bien», con las cifras de esa importación. */

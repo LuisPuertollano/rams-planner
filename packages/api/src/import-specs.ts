@@ -113,6 +113,60 @@ export const ACTUALS_SPEC: ImportSpec = {
   ],
 }
 
+export const MONTHLY_SPEC: ImportSpec = {
+  tipo: 'monthly',
+  titulo: 'Las horas del mes, como las da el fichaje',
+  resumen:
+    'Una fila por persona, proyecto y mes. Es lo que SAP CATS —o cualquier otro— sabe de verdad: ' +
+    'la tarea NO viene en el dato. Para que estas horas lleguen a una tarea hace falta además la ' +
+    'declaración del reparto.',
+  reglas: [
+    'Las líneas que empiezan por # son comentarios: no se importan.',
+    'Nada se crea: el proyecto y la persona tienen que existir ya.',
+    'Una fila ES el total de ese mes, no un apunte: volver a cargar marzo deja marzo como diga el fichero, no el doble.',
+    'Sin la declaración del reparto, estas horas no llegan a ninguna tarea: salen en la conciliación como «sin declarar».',
+    'Un mes que ya tiene parte de horas diario por tarea no se reparte: contaría el trabajo dos veces, y la conciliación lo dice.',
+  ],
+  columnas: [
+    { nombre: 'proyecto', obligatoria: true, que: 'Código del proyecto, tal y como está en la herramienta.', ejemplo: 'CBTC-L3' },
+    { nombre: 'persona', obligatoria: true, que: 'Nombre o código de quien imputó. Tiene que estar en el equipo.', ejemplo: 'Ana Müller' },
+    { nombre: 'mes', obligatoria: true, que: 'El mes, AAAA-MM. No lleva día porque el dato no lo trae.', ejemplo: '2026-04' },
+    { nombre: 'horas', obligatoria: true, que: 'Horas de esa persona en ese proyecto y ese mes. Coma o punto decimal.', ejemplo: '38,5' },
+    { nombre: 'referencia', obligatoria: false, que: 'El identificador del export de origen, para rastrear la fila.', ejemplo: 'CATS-2026-04' },
+  ],
+  ejemplos: [
+    ['CBTC-L3', 'Ana Müller', '2026-04', '38,5', 'CATS-2026-04'],
+    ['CBTC-L3', 'Marc Iglesias', '2026-04', '12', ''],
+  ],
+}
+
+export const SPLITS_SPEC: ImportSpec = {
+  tipo: 'splits',
+  titulo: 'El reparto declarado de esas horas',
+  resumen:
+    'La otra mitad: «de mis horas de abril en CBTC, el 60 % fue al FMECA y el 40 % al Hazard Log». ' +
+    'Es lo único que sabe en qué se fueron las horas, porque el sistema de fichaje no lo sabe.',
+  reglas: [
+    'Las líneas que empiezan por # son comentarios: no se importan.',
+    'La declaración de un mes se REEMPLAZA entera: lo que no venga en el fichero, se borra.',
+    'Los porcentajes de un mismo (persona, proyecto, mes) tienen que sumar 100.',
+    'Un mes que no suma 100 se guarda igual, pero NO se reparte: el reparto es proporcional, así que una declaración del 60 % le daría a esa tarea las horas ENTERAS del mes.',
+    'La tarea tiene que existir y ser tarea o hito: una fase es el resumen de sus hijas y no dice en qué se fue el trabajo.',
+  ],
+  columnas: [
+    { nombre: 'proyecto', obligatoria: true, que: 'Código del proyecto.', ejemplo: 'CBTC-L3' },
+    { nombre: 'persona', obligatoria: true, que: 'Nombre o código de quien declara.', ejemplo: 'Ana Müller' },
+    { nombre: 'mes', obligatoria: true, que: 'El mes al que se refiere, AAAA-MM.', ejemplo: '2026-04' },
+    { nombre: 'tarea', obligatoria: true, que: 'Nombre exacto de la tarea dentro de ese proyecto.', ejemplo: 'Análisis funcional FMECA' },
+    { nombre: 'porcentaje', obligatoria: true, que: 'Qué parte de las horas de ese mes fue a esa tarea. Entre 0 y 100.', ejemplo: '60' },
+    { nombre: 'nota', obligatoria: false, que: 'Por qué, cuando el reparto necesita explicación.', ejemplo: 'Dos semanas de campaña de ensayos' },
+  ],
+  ejemplos: [
+    ['CBTC-L3', 'Ana Müller', '2026-04', 'Análisis funcional FMECA', '60', ''],
+    ['CBTC-L3', 'Ana Müller', '2026-04', 'Hazard Log inicial', '40', ''],
+  ],
+}
+
 export const DOCUMENTS_SPEC: ImportSpec = {
   tipo: 'documents',
   titulo: 'El catálogo de entregables y su matriz',
@@ -201,7 +255,9 @@ export const TEAM_SPEC: ImportSpec = {
   ],
 }
 
-export const IMPORT_SPECS: readonly ImportSpec[] = [PLAN_SPEC, ACTUALS_SPEC, DOCUMENTS_SPEC, TEAM_SPEC]
+export const IMPORT_SPECS: readonly ImportSpec[] = [
+  PLAN_SPEC, ACTUALS_SPEC, MONTHLY_SPEC, SPLITS_SPEC, DOCUMENTS_SPEC, TEAM_SPEC,
+]
 
 // ---------------------------------------------------------------------------
 

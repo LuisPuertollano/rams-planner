@@ -805,3 +805,14 @@ a.button { text-decoration: none; display: inline-block; }
   .toolbar, nav, .tab, .button, .input { display: none !important; }
   .informe section { page-break-inside: avoid; }
 }
+
+/* Una casilla de conciliación pintada con un color de gravedad.
+   Los colores de gravedad son OSCUROS en el tema claro y CLAROS en el oscuro,
+   así que la tinta no puede ser la misma en los dos: blanco sobre el ámbar del
+   tema oscuro da 2:1 y no se lee. Se invierte con el tema, como el color de
+   fondo que la lleva. */
+.heat--motivo { color: #fff; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .heat--motivo { color: #111; }
+}
+:root[data-theme="dark"] .heat--motivo { color: #111; }

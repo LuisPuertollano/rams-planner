@@ -15,7 +15,7 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import {
   latestRun,
-  readActualsInPeriod,
+  readAllActualsInPeriod,
   readCapacityInPeriod,
   readFindings,
   readLoadInPeriod,
@@ -153,7 +153,7 @@ export function registerReportRoutes(app: FastifyInstance, pool: Pool): void {
         load: carga,
         // Sin el permiso no llega la lista, no llega a cero: el informe dice
         // «no puedes verlas» en vez de dar por hecho que no hay ninguna.
-        actuals: verReales ? await readActualsInPeriod(db, from, to) : [],
+        actuals: verReales ? await readAllActualsInPeriod(db, from, to) : [],
         capacity: verCarga ? await readCapacityInPeriod(db, run.id, from, to) : [],
         resources: verCarga
           ? (await readResources(db)).map((recurso) => ({

@@ -141,7 +141,7 @@ export const PERMISSIONS: readonly PermissionDefinition[] = [
     detail: 'Las horas comprometidas por persona, mes y proyecto, y quién se pasa de capacidad.',
     // El informe lleva el reparto por persona dentro. Sin este permiso llega
     // sin esa parte, y lo dice en vez de enseñar ceros.
-    enforcedIn: ['GET /api/report'],
+    enforcedIn: ['GET /api/report', 'GET /api/reconciliation'],
   },
   {
     code: 'costes.ver',
