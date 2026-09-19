@@ -12,7 +12,10 @@ import {
   unassign,
   unlink,
   setNodeDocument,
+  updateTask,
+  fetchProjectGates,
   type DocumentCatalogue,
+  type ProjectGate,
   type PlanStructure,
   type Resource,
   type SkillMatrix,
@@ -56,16 +59,21 @@ export function EditPanel({ task, tasks, resources, onClose, onChanged }: Props)
   // El catálogo de documentos, para poder marcar cuál entrega esta tarea. Si
   // no llega —porque falta el permiso— la tarjeta no se enseña.
   const [documentos, setDocumentos] = useState<DocumentCatalogue | null>(null)
+  // Las puertas de ESTE proyecto: son las únicas anclas que la tarea puede
+  // nombrar, así que se ofrecen en vez de dejar escribir cualquier cosa.
+  const [puertas, setPuertas] = useState<readonly ProjectGate[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [name, setName] = useState(task.name)
 
   const reload = async (): Promise<void> => {
-    const [siguiente, matriz, catalogo] = await Promise.all([
+    const [siguiente, matriz, catalogo, gates] = await Promise.all([
       fetchStructure(),
       fetchSkills(),
       fetchDocuments().catch(() => null),
+      fetchProjectGates(task.projectId).catch(() => []),
     ])
+    setPuertas(gates)
     setDocumentos(catalogo)
     setStructure(siguiente)
     setSkills(matriz)
@@ -294,6 +302,15 @@ export function EditPanel({ task, tasks, resources, onClose, onChanged }: Props)
                 )}
               </div>
 
+              <VentanaCard
+                task={task}
+                puertas={puertas}
+                busy={busy}
+                onGuardar={(desde, hasta) => {
+                  run(async () => { await updateTask(task.nodeId, { spanFrom: desde, spanTo: hasta }) })
+                }}
+              />
+
               <div className="card">
                 <h3 className="card__title">{t('editar.dependeDe')}</h3>
                 <p className="card__note">{t('editar.dependeDeNota')}</p>
@@ -504,5 +521,82 @@ function AddDependency({
         {t('editar.enlazar')}
       </button>
     </form>
+  )
+}
+
+/**
+ * La ventana de una tarea continua.
+ *
+ * Hay trabajo que no termina un día: la gestión del proyecto, el seguimiento
+ * mensual, el soporte durante la garantía. Eso no se declara en días, se
+ * declara diciendo **entre qué dos puertas ocurre**, y el motor lo reparte por
+ * toda la fase en vez de apilarlo al principio.
+ *
+ * Las dos anclas se guardan de una vez, y por eso hay un botón en vez de un
+ * `onBlur` por campo: media ventana la rechaza la base, y con razón.
+ */
+function VentanaCard({
+  task,
+  puertas,
+  busy,
+  onGuardar,
+}: {
+  readonly task: TaskRow
+  readonly puertas: readonly ProjectGate[]
+  readonly busy: boolean
+  readonly onGuardar: (desde: string | null, hasta: string | null) => void
+}): React.JSX.Element {
+  const { t } = useT()
+  const [desde, setDesde] = useState(task.spanFrom ?? '')
+  const [hasta, setHasta] = useState(task.spanTo ?? '')
+
+  useEffect(() => {
+    setDesde(task.spanFrom ?? '')
+    setHasta(task.spanTo ?? '')
+  }, [task.nodeId, task.spanFrom, task.spanTo])
+
+  const declarada = task.spanFrom !== null && task.spanTo !== null
+  const aMedias = (desde.trim() === '') !== (hasta.trim() === '')
+  const sinCambios = desde === (task.spanFrom ?? '') && hasta === (task.spanTo ?? '')
+
+  return (
+    <div className="card">
+      <h3 className="card__title">{t('editar.ventana')}</h3>
+      <p className="card__note">{t('editar.ventanaNota')}</p>
+      {puertas.length > 0 ? null : (
+        <div className="warn-banner" style={{ marginBottom: 8 }}>{t('editar.ventanaSinPuertas')}</div>
+      )}
+      <div className="toolbar">
+        <label className="field"><span>{t('editar.ventanaDesde')}</span>
+          <select className="input" value={desde} disabled={busy} onChange={(e) => { setDesde(e.target.value) }}>
+            <option value="">{t('editar.ventanaNinguna')}</option>
+            <option value="arranque">{t('editar.ventanaArranque')}</option>
+            {puertas.map((puerta) => (
+              <option key={puerta.gate} value={puerta.gate}>{puerta.gate} · {puerta.date}</option>
+            ))}
+          </select>
+        </label>
+        <label className="field"><span>{t('editar.ventanaHasta')}</span>
+          <select className="input" value={hasta} disabled={busy} onChange={(e) => { setHasta(e.target.value) }}>
+            <option value="">{t('editar.ventanaNinguna')}</option>
+            {puertas.map((puerta) => (
+              <option key={puerta.gate} value={puerta.gate}>{puerta.gate} · {puerta.date}</option>
+            ))}
+          </select>
+        </label>
+        <button
+          className="button button--primary"
+          disabled={busy || aMedias || sinCambios}
+          onClick={() => {
+            onGuardar(desde.trim() === '' ? null : desde.trim(), hasta.trim() === '' ? null : hasta.trim())
+          }}
+        >
+          {t('boton.guardar')}
+        </button>
+      </div>
+      {aMedias ? <p className="card__note">{t('editar.ventanaAMedias')}</p> : null}
+      {/* Lo que hay que entender antes de ponerla, y no después. */}
+      {declarada ? <p className="card__note">{t('editar.ventanaPuesta')}</p> : null}
+    </div>
   )
 }

@@ -5,6 +5,15 @@
  *
  *   proyecto;fase;tarea;dias;predecesoras;recurso;dedicacion;disciplina;deadline;no_antes_de
  *
+ * Y tres columnas más, opcionales, para el trabajo que no es un entregable:
+ *
+ *   horas         el trabajo declarado. Con ella la tarea pasa a `fixed_work`:
+ *                 manda el trabajo y la duración sale de él, no al revés.
+ *   desde;hasta   las dos anclas de una tarea continua (ADR-0051): «arranque» o
+ *                 el nombre de una puerta. Con las dos puestas, la tarea ocupa
+ *                 la fase entera y `dias` sólo vale de reserva por si una de
+ *                 las dos puertas todavía no tiene fecha.
+ *
  * Reglas deliberadas:
  *   - Los recursos que no existen se crean, para que probar con datos propios
  *     no exija preparar nada antes.
@@ -52,6 +61,20 @@ export async function importPlanCsv(db: Queryable, text: string): Promise<Import
     if ((row['proyecto'] ?? '') === '') problems.push(`Fila ${String(line)}: falta el proyecto`)
     if ((row['tarea'] ?? '') === '') problems.push(`Fila ${String(line)}: falta el nombre de la tarea`)
     if (parseNumber(row['dias'] ?? '') === null) problems.push(`Fila ${String(line)}: «dias» no es un número`)
+    if ((row['horas'] ?? '') !== '' && parseNumber(row['horas'] ?? '') === null) {
+      problems.push(`Fila ${String(line)}: «horas» no es un número`)
+    }
+    // Media ventana no es una ventana: con una sola ancla no hay nada que
+    // resolver, y dejarlo pasar en silencio daría una tarea normal donde
+    // alguien creía haber declarado una continua.
+    const desde = (row['desde'] ?? '').trim()
+    const hasta = (row['hasta'] ?? '').trim()
+    if ((desde === '') !== (hasta === '')) {
+      problems.push(
+        `Fila ${String(line)}: «desde» y «hasta» van juntas o no van ` +
+          `(está ${desde === '' ? '«hasta»' : '«desde»'} sola)`,
+      )
+    }
   }
   if (problems.length > 0) throw new ImportError('El fichero tiene filas que no se pueden leer', problems)
 
@@ -150,10 +173,14 @@ export async function importPlanCsv(db: Queryable, text: string): Promise<Import
       tasks += 1
 
       const noEarlier = row['no_antes_de'] ?? ''
+      const horas = parseNumber(row['horas'] ?? '') ?? 0
+      const desde = (row['desde'] ?? '').trim()
+      const hasta = (row['hasta'] ?? '').trim()
       await db.query(
         `INSERT INTO task (node_id, task_type, is_effort_driven, duration_minutes, work_declared_minutes,
-                           constraint_kind, constraint_date, deadline, percent_complete_bp, is_milestone)
-         VALUES ($1, 'fixed_duration', TRUE, $2, 0, $3, $4, $5, 0, $6)`,
+                           constraint_kind, constraint_date, deadline, percent_complete_bp, is_milestone,
+                           span_from, span_to)
+         VALUES ($1, $7, TRUE, $2, $8, $3, $4, $5, 0, $6, $9, $10)`,
         [
           nodeId,
           Math.round(durationDays * DAY_MINUTES),
@@ -161,6 +188,10 @@ export async function importPlanCsv(db: Queryable, text: string): Promise<Import
           noEarlier === '' ? null : noEarlier,
           (row['deadline'] ?? '') === '' ? null : row['deadline'],
           isMilestone,
+          horas > 0 ? 'fixed_work' : 'fixed_duration',
+          Math.round(horas * 60),
+          desde === '' ? null : desde,
+          hasta === '' ? null : hasta,
         ],
       )
 

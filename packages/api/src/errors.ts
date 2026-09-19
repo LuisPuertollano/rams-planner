@@ -54,6 +54,7 @@ export const ERROR_CODES = [
   // --- Peticiones -----------------------------------------------------------
   'DATOS_INVALIDOS',
   'NADA_QUE_CAMBIAR',
+  'VENTANA_A_MEDIAS',
   'ENDPOINT_DESCONOCIDO',
   'CSV_VACIO',
   'CSV_INVALIDO',

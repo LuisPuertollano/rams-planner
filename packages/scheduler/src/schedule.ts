@@ -26,6 +26,7 @@ import {
 } from '@planner/calendar'
 import { NOOP_SINK, type DerivationSink } from '@planner/explain'
 import { resolveTaskMetrics, type TaskMetrics } from './equation.js'
+import { resolverAncla } from './span.js'
 import { topologicalOrder } from './graph.js'
 import { absoluteOf, earlierOf, endOfDay, formatInstant, laterOf, startOfDay } from './instant.js'
 import type {
@@ -49,6 +50,9 @@ export interface ScheduleOptions {
    */
   readonly levelingDelays?: ReadonlyMap<string, number>
 }
+
+/** La dedicación completa, en puntos básicos: el 100 %. */
+const TOTAL_BP = 10_000
 
 interface Working {
   readonly node: WbsNodeDefinition
@@ -88,6 +92,9 @@ export function schedulePlan(snapshot: PlanSnapshot, options: ScheduleOptions = 
   const childrenByParent = groupBy(snapshot.nodes, (node) => node.parentId ?? '')
 
   // --- Hojas planificables --------------------------------------------------
+  // Las tareas continuas, con su ventana ya resuelta: la llena `ventana()` al
+  // construir cada hoja y la leen los dos pasos del cálculo.
+  const ventanas = new Map<string, { inicio: PlanInstant; fin: PlanInstant }>()
   const leaves: Working[] = []
   for (const node of snapshot.nodes) {
     if (node.kind !== 'task' && node.kind !== 'milestone') continue
@@ -115,7 +122,7 @@ export function schedulePlan(snapshot: PlanSnapshot, options: ScheduleOptions = 
     leaves.push({
       node,
       task,
-      metrics,
+      metrics: ventana(node, task, metrics, calendar) ?? metrics,
       calendar,
       earlyStart: origin,
       earlyFinish: origin,
@@ -137,6 +144,100 @@ export function schedulePlan(snapshot: PlanSnapshot, options: ScheduleOptions = 
     const project = projectsById.get(node.projectId)
     if (project?.calendarId !== undefined) return project.calendarId
     return snapshot.defaultCalendarId
+  }
+
+  /**
+   * La ventana de una tarea continua, si se puede resolver.
+   *
+   * Devuelve las métricas con la duración puesta por la fase y la intensidad
+   * que sale de dividir el trabajo entre ella; `undefined` cuando la tarea no
+   * es continua o cuando sus anclas no cuadran —y entonces ya ha dejado dicho
+   * por qué—.
+   *
+   * Que caiga a tarea normal en vez de reventar es deliberado: una puerta sin
+   * fecha es un dato que falta, no un plan que no se puede calcular. El plan
+   * sale, con la fecha que sale, y el aviso al lado.
+   */
+  function ventana(
+    node: WbsNodeDefinition,
+    task: TaskDefinition,
+    metrics: TaskMetrics,
+    calendar: CompiledCalendar,
+  ): TaskMetrics | undefined {
+    const { spanFrom, spanTo } = task
+    if (spanFrom === undefined || spanTo === undefined) return undefined
+    const project = projectsById.get(node.projectId)
+    if (project === undefined) return undefined
+
+    const desde = resolverAncla(spanFrom, project)
+    const hasta = resolverAncla(spanTo, project)
+    if (!desde.hay || !hasta.hay) {
+      // La que falta, y si faltan las dos, la primera: el aviso nombra una
+      // puerta que buscar en la ficha del proyecto, no una lista.
+      const falta = desde.hay ? spanTo.trim() : desde.falta
+      findings.push({
+        severity: 'warning',
+        code: 'SPAN_ANCHOR_MISSING',
+        entityType: 'task',
+        entityId: node.id,
+        message:
+          `«${node.name}» dura desde ${spanFrom} hasta ${spanTo}, y ${project.code} no tiene fecha para ` +
+          `«${falta}». La tarea se calcula como una tarea normal.`,
+        payload: {
+          task: node.name,
+          project: project.code,
+          desde: spanFrom,
+          hasta: spanTo,
+          falta,
+        },
+      })
+      return undefined
+    }
+
+    const inicio = snapToWorkingTime(startOfDay(desde.date), calendar, 'forward')
+    const fin = snapToWorkingTime(endOfDay(hasta.date), calendar, 'backward')
+    const minutos = safeBetween(inicio, fin, calendar, horizonFrom)
+    if (minutos <= 0) {
+      findings.push({
+        severity: 'error',
+        code: 'SPAN_INVERTED',
+        entityType: 'task',
+        entityId: node.id,
+        message:
+          `«${node.name}» dura desde ${spanFrom} (${desde.date}) hasta ${spanTo} (${hasta.date}), ` +
+          'y el final cae antes que el principio. La tarea se calcula como una tarea normal.',
+        payload: {
+          task: node.name,
+          project: project.code,
+          desde: spanFrom,
+          fechaDesde: desde.date,
+          hasta: spanTo,
+          fechaHasta: hasta.date,
+        },
+      })
+      return undefined
+    }
+
+    ventanas.set(node.id, { inicio, fin })
+    // La intensidad, que es lo que esta tarea viene a contestar. Puede pasar
+    // del 100 %: eso significa que el trabajo declarado NO cabe en la fase, y
+    // es un dato, no un error — quien lo lea decide si mete a otra persona o
+    // mueve la puerta. Redondear a la baja lo escondería.
+    const intensidad = minutos === 0 ? 0 : Math.round((metrics.workMinutes * TOTAL_BP) / minutos)
+    sink.record({
+      targetType: 'task.durationMinutes',
+      targetId: node.id,
+      rule: 'SPAN_FROM_GATES',
+      inputs: {
+        desde: spanFrom,
+        fechaDesde: desde.date,
+        hasta: spanTo,
+        fechaHasta: hasta.date,
+        workMinutes: metrics.workMinutes,
+      },
+      output: minutos,
+    })
+    return { durationMinutes: minutos, workMinutes: metrics.workMinutes, unitsBp: intensidad }
   }
 
   const leafById = new Map(leaves.map((leaf) => [leaf.node.id, leaf]))
@@ -196,6 +297,33 @@ export function schedulePlan(snapshot: PlanSnapshot, options: ScheduleOptions = 
     if (leaf === undefined) continue
     const project = projectsById.get(leaf.node.projectId)
     const projectStart = startOfDay(project?.statusStart ?? horizonFrom)
+
+    // Una tarea continua NO la colocan sus predecesoras: la colocan las dos
+    // puertas que la declaran, y va en paralelo con todo lo demás. Encadenarla
+    // sería lo contrario de lo que significa — la gestión de un proyecto no
+    // espera a que termine nada, empieza cuando empieza el proyecto.
+    //
+    // Tampoco la mueve la nivelación (nunca entra en `levelingDelays`, ver
+    // `@planner/workload`) ni la recorta una restricción: la ventana declarada
+    // es el dato más fuerte que tiene esta tarea.
+    const declarada = ventanas.get(nodeId)
+    if (declarada !== undefined) {
+      leaf.earlyStart = declarada.inicio
+      leaf.earlyFinish = declarada.fin
+      sink.record({
+        targetType: 'task.earlyStart',
+        targetId: nodeId,
+        rule: 'SPAN_FROM_GATES',
+        inputs: {
+          desde: leaf.task.spanFrom ?? null,
+          hasta: leaf.task.spanTo ?? null,
+          project: project?.code ?? null,
+          calendar: codeOf(leaf.calendar.calendarId),
+        },
+        output: formatInstant(declarada.inicio),
+      })
+      continue
+    }
 
     let earlyStart = projectStart
     let reason = 'PROJECT_START'
@@ -296,6 +424,17 @@ export function schedulePlan(snapshot: PlanSnapshot, options: ScheduleOptions = 
   for (const nodeId of [...order].reverse()) {
     const leaf = leafById.get(nodeId)
     if (leaf === undefined) continue
+
+    // La ventana declarada ancla también el paso atrás, y por eso la holgura de
+    // una tarea continua sale cero: no hay nada que decidir, las fechas ya
+    // están puestas por las puertas. Si alguien la mete en el camino crítico de
+    // otra, lo que hay que mover es la puerta.
+    const fijada = ventanas.get(nodeId)
+    if (fijada !== undefined) {
+      leaf.lateStart = fijada.inicio
+      leaf.lateFinish = fijada.fin
+      continue
+    }
 
     // Lo que imponen los sucesores, que es igual en los dos modos.
     let porSucesores: PlanInstant | undefined
