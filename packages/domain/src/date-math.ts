@@ -15,11 +15,30 @@ import { calendarDate, UnitError, type CalendarDate } from './units.js'
 /** Día de la semana ISO-8601: 1 = lunes … 7 = domingo. */
 export type Weekday = 1 | 2 | 3 | 4 | 5 | 6 | 7
 
-/** Días transcurridos desde 1970-01-01 (negativo para fechas anteriores). */
+/** `'0'`, para leer cifras de una cadena sin cortarla. */
+const CERO = 48
+
+/**
+ * Días transcurridos desde 1970-01-01 (negativo para fechas anteriores).
+ *
+ * Las tres cifras se leen carácter a carácter y no con `slice` + `Number`.
+ * Parece una micro-optimización gratuita y no lo es: nivelar un portafolio de
+ * 34 proyectos llama aquí millones de veces, y cada `slice` es una cadena que
+ * el recolector tiene que barrer después. Era el 21 % del tiempo de nivelar.
+ *
+ * Se puede hacer porque `CalendarDate` es un tipo de marca: sólo `calendarDate()`
+ * lo construye y ahí se valida el formato `YYYY-MM-DD`. Sin esa garantía esto
+ * daría un número cualquiera en lugar de `NaN` ante una cadena torcida, que es
+ * bastante peor.
+ */
 export function toEpochDay(date: CalendarDate): number {
-  const year = Number(date.slice(0, 4))
-  const month = Number(date.slice(5, 7))
-  const day = Number(date.slice(8, 10))
+  const year =
+    (date.charCodeAt(0) - CERO) * 1000 +
+    (date.charCodeAt(1) - CERO) * 100 +
+    (date.charCodeAt(2) - CERO) * 10 +
+    (date.charCodeAt(3) - CERO)
+  const month = (date.charCodeAt(5) - CERO) * 10 + (date.charCodeAt(6) - CERO)
+  const day = (date.charCodeAt(8) - CERO) * 10 + (date.charCodeAt(9) - CERO)
 
   const shiftedYear = month <= 2 ? year - 1 : year
   const era = Math.floor(shiftedYear / 400)

@@ -27,6 +27,36 @@ describe('toEpochDay / fromEpochDay', () => {
     expect(() => fromEpochDay(1.5)).toThrow(UnitError)
   })
 
+  it('leer las cifras carácter a carácter da lo mismo que cortar la cadena', () => {
+    // `toEpochDay` lee la fecha con `charCodeAt` en vez de `slice` + `Number`,
+    // porque nivelar un portafolio grande llamaba ahí millones de veces y cada
+    // corte era una cadena que barrer. Esta prueba fija que las dos formas de
+    // leerla coinciden, día a día, en todo el rango en el que la herramienta
+    // planifica de verdad: de 1900 a 2200 son 109.573 días, y se comprueban
+    // todos, no una muestra.
+    const comoSeHacia = (fecha: string): string =>
+      [Number(fecha.slice(0, 4)), Number(fecha.slice(5, 7)), Number(fecha.slice(8, 10))].join('|')
+    const comoSeHaceAhora = (fecha: string): string =>
+      [
+        (fecha.charCodeAt(0) - 48) * 1000 + (fecha.charCodeAt(1) - 48) * 100 +
+          (fecha.charCodeAt(2) - 48) * 10 + (fecha.charCodeAt(3) - 48),
+        (fecha.charCodeAt(5) - 48) * 10 + (fecha.charCodeAt(6) - 48),
+        (fecha.charCodeAt(8) - 48) * 10 + (fecha.charCodeAt(9) - 48),
+      ].join('|')
+
+    const desde = toEpochDay(d('1900-01-01'))
+    const hasta = toEpochDay(d('2200-01-01'))
+    let dias = 0
+    for (let epochDay = desde; epochDay <= hasta; epochDay += 1) {
+      const fecha = fromEpochDay(epochDay)
+      expect(comoSeHaceAhora(fecha), fecha).toBe(comoSeHacia(fecha))
+      // Y que el resultado entero sigue siendo el que entró.
+      expect(toEpochDay(fecha), fecha).toBe(epochDay)
+      dias += 1
+    }
+    expect(dias).toBe(109_574)
+  })
+
   it('propiedad: fromEpochDay(toEpochDay(f)) === f', () => {
     fc.assert(
       fc.property(fc.integer({ min: -25_000, max: 60_000 }), (epochDay) => {
