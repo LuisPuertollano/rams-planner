@@ -88,6 +88,41 @@ describeSiHayBase('la copia de seguridad', () => {
     expect(despuesDelCalculo).not.toBe('')
   })
 
+  it('un texto con espacios, almohadilla o comillas vuelve tal cual', async () => {
+    if (pool === null) return
+    // Esta prueba existe por un defecto medido: el parser de CSV recortaba los
+    // espacios de todo valor. Al importar está bien; al restaurar es corromper
+    // el dato en silencio, porque nada falla — el nombre vuelve distinto y ya.
+    const RAROS = [
+      '  Proyecto con espacios  ',
+      '#3 Revisión de concepto',
+      'Con "comillas" y ; punto y coma',
+      'Acentos áéíóú ñ «» —',
+    ]
+    const ids = await withTransaction(pool, async (db) => {
+      const puestos: string[] = []
+      for (const [indice, nombre] of RAROS.entries()) {
+        const { rows } = await db.query<{ id: string }>(
+          `INSERT INTO project (code, name, status, status_start)
+           VALUES ($1, $2, 'activo', DATE '2026-01-01') RETURNING id`,
+          [`RARO-${String(indice)}`, nombre],
+        )
+        puestos.push(rows[0]?.id ?? '')
+      }
+      return puestos
+    })
+
+    const copia = await withTransaction(pool, (db) => exportarCopia(db, { instante: INSTANTE }))
+    await withTransaction(pool, (db) => importarCopia(db, copia.zip, 'prueba de textos raros'))
+
+    const vueltos = await withTransaction(pool, (db) =>
+      db.query<{ id: string; name: string }>(
+        'SELECT id, name FROM project WHERE id = ANY($1) ORDER BY code', [ids],
+      ),
+    )
+    expect(vueltos.rows.map((f) => f.name)).toEqual(RAROS)
+  })
+
   it('el zip se puede leer entero sin la herramienta', async () => {
     if (pool === null) return
     const copia = await withTransaction(pool, (db) => exportarCopia(db, { instante: INSTANTE }))

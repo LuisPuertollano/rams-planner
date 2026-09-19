@@ -244,7 +244,7 @@ export async function abrirCopia(db: Queryable, zip: Buffer): Promise<CopiaLeida
   }
 
   const esquemaAhora = await versionDelEsquema(db)
-  const filasManifiesto = parseCsv(manifiesto.toString('utf8'))
+  const filasManifiesto = parseCsv(manifiesto.toString('utf8'), 'literal')
   const esquemaCopia = leerEsquemaDelLeeme(entradas.get(FICHERO_LEEME)?.toString('utf8') ?? '')
   if (esquemaCopia !== '' && esquemaCopia !== esquemaAhora) {
     throw new CopiaInvalida(
@@ -263,7 +263,7 @@ export async function abrirCopia(db: Queryable, zip: Buffer): Promise<CopiaLeida
     if (contenido === undefined) {
       throw new CopiaInvalida(`El manifiesto nombra «${ruta}» y no está`, 'COPIA_INCOMPLETA', ruta)
     }
-    datos.set(tabla, parseCsv(contenido.toString('utf8')))
+    datos.set(tabla, parseCsv(contenido.toString('utf8'), 'literal'))
   }
 
   // Y que estén todas las que la base espera. Una copia a la que le falta una

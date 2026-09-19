@@ -32,27 +32,47 @@ export function detectDelimiter(text: string): ';' | ',' | '\t' {
 }
 
 /**
+ * Cómo leer un CSV, y por qué hay dos maneras.
+ *
+ * `'importacion'` es lo que espera un fichero que ha tocado una persona:
+ * recorta los espacios, baja las cabeceras a minúsculas y trata `#` en la
+ * primera columna como un comentario, para que la plantilla pueda traer su
+ * propio manual dentro.
+ *
+ * `'literal'` no hace nada de eso, y para una copia de seguridad es lo único
+ * correcto. Recortar espacios en una importación es amable; en una restauración
+ * es **corromper el dato**: un proyecto llamado `«Plan RAMS »` volvería sin su
+ * espacio, y ni siquiera fallaría. Y un valor que empiece por `#` haría
+ * desaparecer la fila entera sin decir nada.
+ *
+ * Esto no se vio leyendo el código: se vio pasándole al parser una fila con
+ * espacios, comillas, saltos de línea y punto y coma dentro. Todo lo demás daba
+ * la vuelta bien; los espacios, no.
+ */
+export type ModoCsv = 'importacion' | 'literal'
+
+/**
  * Parser completo: admite comillas, separadores dentro de comillas, saltos de
  * línea dentro de un campo, y líneas de comentario.
- *
- * El coste de los comentarios, dicho: un valor que empiece por `#` en la
- * primera columna se pierde. En las tres importaciones que hay, esa columna es
- * un código de proyecto o de entregable, donde `#` no aparece; y a cambio, la
- * plantilla puede traer su propio manual.
  */
-export function parseCsv(text: string): readonly CsvRow[] {
-  const delimiter = detectDelimiter(text)
+export function parseCsv(text: string, modo: ModoCsv = 'importacion'): readonly CsvRow[] {
+  const literal = modo === 'literal'
+  const delimiter = literal ? ';' : detectDelimiter(text)
   const clean = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text // BOM de Excel
-  const records = parseRecords(clean, delimiter).filter((record) => !esComentario(record[0] ?? ''))
+  const crudos = parseRecords(clean, delimiter)
+  const records = literal ? crudos : crudos.filter((record) => !esComentario(record[0] ?? ''))
   const header = records[0]
   if (header === undefined) return []
 
-  const columns = header.map((name) => name.trim().toLowerCase())
+  const columns = header.map((name) => (literal ? name : name.trim().toLowerCase()))
   return records.slice(1)
-    .filter((record) => record.some((value) => value.trim() !== ''))
+    .filter((record) => literal || record.some((value) => value.trim() !== ''))
     .map((record) => {
       const row: Record<string, string> = {}
-      for (const [index, column] of columns.entries()) row[column] = (record[index] ?? '').trim()
+      for (const [index, column] of columns.entries()) {
+        const bruto = record[index] ?? ''
+        row[column] = literal ? bruto : bruto.trim()
+      }
       return row
     })
 }

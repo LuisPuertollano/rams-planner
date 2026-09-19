@@ -67,3 +67,53 @@ describe('parseNumber', () => {
     expect(parseNumber('cinco')).toBeNull()
   })
 })
+
+describe('el modo literal, que es el de la copia de seguridad', () => {
+  // Esta prueba existe por un defecto medido, no por completismo. El parser
+  // recortaba los espacios de todo valor, que es lo correcto al importar un
+  // fichero que ha tocado una persona y es CORROMPER EL DATO al restaurar una
+  // copia: un proyecto llamado «Plan RAMS » volvía sin su espacio, y ni
+  // siquiera fallaba. Se vio pasándole una fila con valores feos; todo lo demás
+  // daba la vuelta bien.
+  const FEOS = [
+    { c: 'con;punto y coma', d: '1' },
+    { c: 'con "comillas" dentro', d: '2' },
+    { c: 'con\nsalto de línea', d: '3' },
+    { c: '  espacios a los lados  ', d: '4' },
+    { c: '#empieza por almohadilla', d: '5' },
+    { c: 'acentos áéíóú ñ «» —', d: '6' },
+    { c: '{"json": "con ; y \\"comillas\\""}', d: '7' },
+    { c: '', d: '8' },
+  ]
+
+  it('devuelve cada valor tal cual entró', () => {
+    const vuelta = parseCsv(toCsv(FEOS, ['c', 'd']), 'literal')
+    expect(vuelta).toHaveLength(FEOS.length)
+    for (const [indice, original] of FEOS.entries()) {
+      expect(vuelta[indice]?.['c'], original.d).toBe(original.c)
+      expect(vuelta[indice]?.['d'], original.d).toBe(original.d)
+    }
+  })
+
+  it('el modo de importación sigue recortando, que es lo que allí se quiere', () => {
+    const vuelta = parseCsv(toCsv([{ c: '  con espacios  ' }], ['c']))
+    expect(vuelta[0]?.['c']).toBe('con espacios')
+  })
+
+  it('una fila que empieza por almohadilla no desaparece', () => {
+    // En una importación `#` abre un comentario y la fila entera se descarta.
+    // En una copia eso sería perder una tarea sin decir nada.
+    const texto = toCsv([{ c: '#3 revisión de concepto', d: 'x' }], ['c', 'd'])
+    expect(parseCsv(texto, 'literal')).toHaveLength(1)
+    expect(parseCsv(texto)).toHaveLength(0)
+  })
+
+  it('una fila entera vacía se conserva', () => {
+    // Una tabla puede tener una fila con todas sus columnas de texto vacías.
+    // El modo de importación la descarta —allí es una línea en blanco—; aquí
+    // descartarla sería perder una fila.
+    const texto = toCsv([{ c: '', d: '' }], ['c', 'd'])
+    expect(parseCsv(texto, 'literal')).toHaveLength(1)
+    expect(parseCsv(texto)).toHaveLength(0)
+  })
+})
