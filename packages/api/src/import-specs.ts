@@ -130,6 +130,8 @@ export const DOCUMENTS_SPEC: ImportSpec = {
     'Las cinco casillas de la cadena (crear, revisar_1..3, soportar) son la lista COMPLETA: lo que no venga, se borra.',
     'Cada casilla de la cadena lleva sus horas —«Ing. RAMS:30»— porque partir una tarea reparte en la PROPORCIÓN del catálogo, y sin horas no hay proporción.',
     'El tercer trozo de una casilla cita la firma que descarga: «Ing. Sistemas:4:verificador_1». Así se avisa de una firma que cuesta horas y que nadie hace.',
+    '«entregas_previas» es la Checkliste: el mismo documento pedido en borrador en puertas ANTERIORES. La final sigue en «puerta».',
+    'El porcentaje de cada entrega previa es parte del esfuerzo del documento, no esfuerzo extra: lo que no se llevan las previas cuesta la final.',
   ],
   columnas: [
     { nombre: 'codigo', obligatoria: true, que: 'Código corto y único. Es lo que se ve en la matriz.', ejemplo: 'S-FMECA' },
@@ -152,11 +154,12 @@ export const DOCUMENTS_SPEC: ImportSpec = {
     { nombre: 'revisar_2', obligatoria: false, que: 'Segundo nivel de revisión. Los niveles no son rondas: puede haber 2 sin 1.', ejemplo: 'Jefe RAMS:2' },
     { nombre: 'revisar_3', obligatoria: false, que: 'Tercer nivel de revisión.', ejemplo: '' },
     { nombre: 'soportar', obligatoria: false, que: 'Acompañar: reuniones, dudas, el ISA. No encadena con nadie.', ejemplo: 'Jefe RAMS:10' },
+    { nombre: 'entregas_previas', obligatoria: false, que: 'Las veces que la Checkliste lo pide en borrador antes: «puerta:cómo:%:semanas», separadas por |.', ejemplo: 'PGR:preliminar:30:4' },
   ],
   ejemplos: [
-    ['S-HAZLOG', 'Hazard Log preliminar', 'documento', 'Safety', 'IGR', '48', '120', 'PWTDF-D800', 'Registro de peligros de la primera vuelta', '', 'Ing. RAMS', 'Ing. Sistemas', '', 'PrEM', '', 'Ing. RAMS:16', 'Ing. Sistemas:4:verificador_1', '', '', ''],
-    ['S-SAP', 'Safety Plan', 'documento', 'Safety', 'IGR', '50', '120', 'PWTDF-D800', '', 'S-HAZLOG', 'Ing. RAMS', 'Ing. Sistemas', 'Jefe RAMS', 'PrEM', 'Calidad|Compras', 'Ing. RAMS:14', 'Ing. Sistemas:4:verificador_1', 'Jefe RAMS:2:verificador_2', '', ''],
-    ['S-FMECA', 'FMECA', 'documento', 'Safety', 'CGR', '28', '450', 'PWTDF-D800', 'Modos de fallo, efectos y criticidad', 'S-HAZLOG|S-SAP', 'Ing. RAMS 1', 'Ing. RAMS 2', 'Ing. Sistemas', 'PrEM', '', 'Ing. RAMS 1:60', 'Ing. RAMS 2:8:verificador_1', 'Ing. Sistemas:6:verificador_2', '', 'Jefe RAMS:10'],
+    ['S-HAZLOG', 'Hazard Log preliminar', 'documento', 'Safety', 'IGR', '48', '120', 'PWTDF-D800', 'Registro de peligros de la primera vuelta', '', 'Ing. RAMS', 'Ing. Sistemas', '', 'PrEM', '', 'Ing. RAMS:16', 'Ing. Sistemas:4:verificador_1', '', '', '', ''],
+    ['S-SAP', 'Safety Plan', 'documento', 'Safety', 'IGR', '50', '120', 'PWTDF-D800', '', 'S-HAZLOG', 'Ing. RAMS', 'Ing. Sistemas', 'Jefe RAMS', 'PrEM', 'Calidad|Compras', 'Ing. RAMS:14', 'Ing. Sistemas:4:verificador_1', 'Jefe RAMS:2:verificador_2', '', '', ''],
+    ['S-FMECA', 'FMECA', 'documento', 'Safety', 'CGR', '28', '450', 'PWTDF-D800', 'Modos de fallo, efectos y criticidad', 'S-HAZLOG|S-SAP', 'Ing. RAMS 1', 'Ing. RAMS 2', 'Ing. Sistemas', 'PrEM', '', 'Ing. RAMS 1:60', 'Ing. RAMS 2:8:verificador_1', 'Ing. Sistemas:6:verificador_2', '', 'Jefe RAMS:10', 'PGR:preliminar:30:4'],
     ['MST-IQA', 'Puerta IQA', 'hito', '', 'IQA', '0', '16', '', 'Las 16 h son las de la propia reunión de revisión', 'S-FMECA', '', '', '', '', ''],
   ],
 }

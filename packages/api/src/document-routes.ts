@@ -11,10 +11,12 @@ import { z } from 'zod'
 import {
   activityMinutes,
   checkActivities,
+  checkDeliveries,
   checkSignatureCycle,
   lastGate,
   type ActivityProblem,
   type ActivityStep,
+  type DeliveryProblem,
   type DocumentActivity,
   type Signature,
   type SignatureProblem,
@@ -22,6 +24,7 @@ import {
 import {
   createDocumentType,
   readActivities,
+  readDeliveries,
   readDocumentTypes,
   readPrecedences,
   readSignatures,
@@ -35,6 +38,7 @@ import {
   withTransaction,
   DOCUMENT_KINDS,
   type DocumentActivityRow,
+  type DocumentGateRow,
   type DocumentKind,
   type DocumentSignature,
   type Pool,
@@ -192,6 +196,19 @@ function casillasDeSubactividad(
   }
 }
 
+/**
+ * Las entregas previas para el CSV, tal y como el importador las lee:
+ * `PGR:preliminar:30:4|IGR:as designed:20`.
+ */
+function casillaDeEntregas(entregas: readonly DocumentGateRow[]): string {
+  return entregas
+    .map((entrega) => {
+      const semanas = entrega.weeksBeforeGate === null ? '' : `:${String(entrega.weeksBeforeGate)}`
+      return `${entrega.gate}:${entrega.maturity}:${String(Math.round(entrega.shareBp / 100))}${semanas}`
+    })
+    .join('|')
+}
+
 /** Un problema de las subactividades, con el entregable al que pertenece. */
 interface ProblemaDeActividad extends ActivityProblem {
   readonly documentTypeId: string
@@ -228,6 +245,25 @@ function problemasDeActividad(
     checkActivities(tipo.kind, actividadesDe.get(tipo.id) ?? [], firmasDe.get(tipo.id) ?? []).map(
       (problema) => ({ ...problema, documentTypeId: tipo.id }),
     ),
+  )
+}
+
+/** Un problema de las entregas previas, con el entregable al que pertenece. */
+interface ProblemaDeEntrega extends DeliveryProblem {
+  readonly documentTypeId: string
+}
+
+/** Lo que está mal en las Checklisten declaradas, en una pasada y en orden. */
+function problemasDeEntrega(
+  types: readonly { readonly id: string; readonly kind: DocumentKind; readonly gate: string | null }[],
+  deliveries: readonly DocumentGateRow[],
+): readonly ProblemaDeEntrega[] {
+  const entregasDe = porEntregable(deliveries)
+  return types.flatMap((tipo) =>
+    checkDeliveries(entregasDe.get(tipo.id) ?? [], tipo.kind, tipo.gate).map((problema) => ({
+      ...problema,
+      documentTypeId: tipo.id,
+    })),
   )
 }
 
@@ -285,11 +321,13 @@ export function registerDocumentRoutes(app: FastifyInstance, pool: Pool): void {
       const types = await readDocumentTypes(db)
       const signatures = await readSignatures(db)
       const activities = await readActivities(db)
+      const deliveries = await readDeliveries(db)
       return {
         types,
         precedences: await readPrecedences(db),
         signatures,
         activities,
+        deliveries,
         activityEffort: esfuerzoPorEntregable(activities),
         // Los problemas del ciclo se calculan AQUÍ y no en la pantalla, por lo
         // mismo que los hallazgos, los permisos y los errores: el código es el
@@ -298,6 +336,7 @@ export function registerDocumentRoutes(app: FastifyInstance, pool: Pool): void {
         // una regla escrita dos veces es una regla que se separa.
         signatureProblems: problemasDeFirma(types, signatures),
         activityProblems: problemasDeActividad(types, activities, signatures),
+        deliveryProblems: problemasDeEntrega(types, deliveries),
       }
     }),
   )
@@ -477,11 +516,12 @@ export function registerDocumentRoutes(app: FastifyInstance, pool: Pool): void {
    * filas, y sólo funciona si el fichero que sale es el que entra.
    */
   app.get('/api/documents/export.csv', { config: { permission: 'documentos.ver' } }, async (_request, reply) => {
-    const { types, precedences, signatures, activities } = await withTransaction(pool, async (db) => ({
+    const { types, precedences, signatures, activities, deliveries } = await withTransaction(pool, async (db) => ({
       types: await readDocumentTypes(db),
       precedences: await readPrecedences(db),
       signatures: await readSignatures(db),
       activities: await readActivities(db),
+      deliveries: await readDeliveries(db),
     }))
     const codigoDe = new Map(types.map((tipo) => [tipo.id, tipo.code]))
     const esperaA = new Map<string, string[]>()
@@ -496,6 +536,12 @@ export function registerDocumentRoutes(app: FastifyInstance, pool: Pool): void {
       const lista = cadenaDe.get(actividad.documentTypeId) ?? []
       lista.push(actividad)
       cadenaDe.set(actividad.documentTypeId, lista)
+    }
+    const entregasDe = new Map<string, DocumentGateRow[]>()
+    for (const entrega of deliveries) {
+      const lista = entregasDe.get(entrega.documentTypeId) ?? []
+      lista.push(entrega)
+      entregasDe.set(entrega.documentTypeId, lista)
     }
     const firmasDe = new Map<string, DocumentSignature[]>()
     for (const firma of signatures) {
@@ -520,6 +566,7 @@ export function registerDocumentRoutes(app: FastifyInstance, pool: Pool): void {
       espera_a: (esperaA.get(tipo.id) ?? []).join('|'),
       ...casillasDeFirma(firmasDe.get(tipo.id) ?? []),
       ...casillasDeSubactividad(cadenaDe.get(tipo.id) ?? []),
+      entregas_previas: casillaDeEntregas(entregasDe.get(tipo.id) ?? []),
     }))
     return reply
       .header('content-type', 'text/csv; charset=utf-8')

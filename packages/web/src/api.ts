@@ -1095,6 +1095,29 @@ export interface ActivityEffort {
   readonly gateRole: string | null
 }
 
+/** Una entrega previa: el mismo documento, más verde, en una puerta anterior. */
+export interface PreviousDelivery {
+  readonly documentTypeId: string
+  readonly position: number
+  readonly gate: string
+  readonly maturity: string
+  readonly weeksBeforeGate: number | null
+  /** Parte del esfuerzo del documento, en puntos básicos. */
+  readonly shareBp: number
+}
+
+export type DeliveryProblemCode =
+  | 'DELIVERY_SHARE_FULL'
+  | 'DELIVERY_WITHOUT_FINAL_GATE'
+  | 'DELIVERY_SAME_AS_FINAL'
+  | 'DELIVERY_ON_CONTAINER'
+
+export interface DeliveryProblem {
+  readonly documentTypeId: string
+  readonly code: DeliveryProblemCode
+  readonly payload: Readonly<Record<string, string | number>>
+}
+
 export interface DocumentCatalogue {
   readonly types: readonly DocumentType[]
   readonly precedences: readonly DocumentPrecedence[]
@@ -1103,6 +1126,8 @@ export interface DocumentCatalogue {
   readonly activities: readonly DocumentActivity[]
   readonly activityProblems: readonly ActivityProblem[]
   readonly activityEffort: readonly ActivityEffort[]
+  readonly deliveries: readonly PreviousDelivery[]
+  readonly deliveryProblems: readonly DeliveryProblem[]
 }
 
 export async function fetchDocuments(): Promise<DocumentCatalogue> {
@@ -1146,6 +1171,8 @@ export interface DocumentsImported {
   readonly signatures: number
   /** Subactividades escritas. Cero también cuando el fichero no habla de la cadena. */
   readonly activities: number
+  /** Entregas previas escritas. Cero también cuando el fichero no habla de ellas. */
+  readonly deliveries: number
   readonly warnings: readonly string[]
 }
 

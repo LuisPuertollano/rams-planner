@@ -15,6 +15,7 @@
 import type {
   ActivityStep,
   DocumentActivity,
+  PreviousDelivery,
   Signature,
   SignatureStep,
 } from '@planner/domain'
@@ -524,4 +525,70 @@ export async function setActivities(
       limpias.map((actividad) => actividad.signature?.position ?? null),
     ],
   )
+}
+
+/** Una entrega previa, con el entregable al que pertenece. */
+export interface DocumentGateRow extends PreviousDelivery {
+  readonly documentTypeId: string
+}
+
+/**
+ * Las entregas previas del catálogo entero, en una consulta.
+ *
+ * Se leen todas de golpe por lo mismo que las firmas y las subactividades: la
+ * pantalla las enseña juntas y una consulta por fila sería ochenta viajes.
+ */
+export async function readDeliveries(db: Queryable): Promise<readonly DocumentGateRow[]> {
+  const { rows } = await db.query<{
+    document_type_id: string
+    position: number
+    gate: string
+    maturity: string
+    weeks_before_gate: number | null
+    share_bp: number
+  }>(
+    `SELECT g.document_type_id, g.position, g.gate, g.maturity, g.weeks_before_gate, g.share_bp
+     FROM document_gate g
+     JOIN document_type d ON d.id = g.document_type_id AND d.deleted_at IS NULL
+     ORDER BY g.document_type_id, g.position`,
+  )
+  return rows.map((row) => ({
+    documentTypeId: row.document_type_id,
+    position: row.position,
+    gate: row.gate,
+    maturity: row.maturity,
+    weeksBeforeGate: row.weeks_before_gate,
+    shareBp: row.share_bp,
+  }))
+}
+
+/**
+ * Deja las entregas previas de un entregable exactamente como se declaran.
+ *
+ * Reemplaza la lista entera, igual que los predecesores y el ciclo de firma:
+ * es lo que hace que volver a cargar un fichero corregido corrija de verdad.
+ * Aquí se puede borrar y reinsertar sin miedo —a diferencia de las firmas, de
+ * las que cuelgan las subactividades— porque nada apunta a estas filas.
+ */
+export async function setDeliveries(
+  db: Queryable,
+  documentTypeId: string,
+  entregas: readonly PreviousDelivery[],
+): Promise<void> {
+  await db.query('DELETE FROM document_gate WHERE document_type_id = $1', [documentTypeId])
+  for (const entrega of entregas) {
+    await db.query(
+      `INSERT INTO document_gate
+         (document_type_id, position, gate, maturity, weeks_before_gate, share_bp)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        documentTypeId,
+        entrega.position,
+        entrega.gate.trim(),
+        entrega.maturity.trim(),
+        entrega.weeksBeforeGate,
+        entrega.shareBp,
+      ],
+    )
+  }
 }
