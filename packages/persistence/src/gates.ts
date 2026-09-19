@@ -7,7 +7,7 @@
  * declaran las fechas de las puertas, y se aplica lo que devuelve.
  */
 
-import type { GatePlanResult } from '@planner/scheduler'
+import type { GatePlanResult, GateReadinessInput } from '@planner/scheduler'
 import type { Queryable } from './db.js'
 
 /** Una puerta del proyecto, con su fecha y para qué es. */
@@ -211,4 +211,106 @@ export async function applyGateDeadlines(
     else cambiados += 1
   }
   return { deadlinesSet: nuevos, deadlinesChanged: cambiados }
+}
+
+/**
+ * Lo que hace falta para decir cómo llega cada puerta (ADR-0056).
+ *
+ * Tres lecturas y ninguna cuenta: el cruce lo hace `assessGateReadiness`, que
+ * es puro. Aquí sólo se junta lo que ya está declarado.
+ */
+export async function readGateReadinessInputs(
+  db: Queryable,
+  projectId: string,
+  runId: string,
+): Promise<GateReadinessInput> {
+  // Lo que cada puerta exige, unido de los DOS sitios donde ya está dicho: las
+  // entregas previas viven en `document_gate` —una fila de Checkliste con su
+  // madurez— y la final en `document_type.gate`, sin nombre de madurez porque
+  // la final es el documento. No hay tercera tabla a propósito: declarar esto
+  // otra vez sería declararlo dos veces, y dos declaraciones divergen.
+  const esperadas = await db.query<{
+    gate: string
+    document_type_id: string
+    maturity: string | null
+    weeks_before_gate: number | null
+  }>(
+    `SELECT g.gate, g.document_type_id, g.maturity, g.weeks_before_gate
+       FROM document_gate g
+       JOIN document_type d ON d.id = g.document_type_id AND d.deleted_at IS NULL
+     UNION ALL
+     SELECT d.gate, d.id AS document_type_id, NULL AS maturity, d.weeks_before_gate
+       FROM document_type d
+      WHERE d.deleted_at IS NULL AND d.gate IS NOT NULL AND btrim(d.gate) <> ''
+     ORDER BY gate, document_type_id, maturity NULLS LAST`,
+  )
+
+  // Las entregas del plan, por las dos vías, igual que en `readGateInputs`:
+  // `node_delivery` cuando la tarea es una versión concreta —y ahí vive la
+  // madurez— y `node_document` cuando el documento no se ha partido, que se
+  // lee como la entrega final.
+  //
+  // El fin viene como DÍA, no como instante: la puerta es un día y comparar un
+  // timestamp con una fecha haría que una entrega que termina a las cinco de la
+  // tarde del día de la puerta llegara tarde.
+  const entregas = await db.query<{
+    node_id: string
+    name: string
+    path: string
+    document_type_id: string
+    maturity: string | null
+    scheduled_finish: string | null
+    percent_complete_bp: number | null
+  }>(
+    `SELECT n.id AS node_id, n.name, n.path, e.document_type_id, e.maturity,
+            r.scheduled_finish::date::text AS scheduled_finish,
+            r.percent_complete_bp
+       FROM wbs_node n
+       JOIN (
+         SELECT v.node_id, v.document_type_id, v.maturity FROM node_delivery v
+         UNION ALL
+         SELECT nd.node_id, nd.document_type_id, NULL AS maturity
+           FROM node_document nd
+          WHERE NOT EXISTS (SELECT 1 FROM node_delivery v WHERE v.node_id = nd.node_id)
+       ) AS e ON e.node_id = n.id
+       LEFT JOIN task_result r ON r.node_id = n.id AND r.run_id = $2
+       JOIN document_type d ON d.id = e.document_type_id AND d.deleted_at IS NULL
+      WHERE n.project_id = $1 AND n.deleted_at IS NULL
+      ORDER BY n.path, n.id, e.document_type_id`,
+    [projectId, runId],
+  )
+
+  const documentos = await db.query<{ id: string; code: string; name: string }>(
+    `SELECT id, code, name FROM document_type WHERE deleted_at IS NULL ORDER BY code, id`,
+  )
+
+  const enPlan = [...new Set(entregas.rows.map((row) => row.document_type_id))].sort()
+
+  return {
+    gates: (await readProjectGates(db, projectId)).map((puerta) => ({
+      gate: puerta.gate,
+      date: puerta.date,
+    })),
+    expectations: esperadas.rows.map((row) => ({
+      gate: row.gate,
+      documentTypeId: row.document_type_id,
+      maturity: row.maturity,
+      weeksBeforeGate: row.weeks_before_gate,
+    })),
+    planned: entregas.rows.map((row) => ({
+      nodeId: row.node_id,
+      name: row.name,
+      path: row.path,
+      documentTypeId: row.document_type_id,
+      maturity: row.maturity,
+      scheduledFinish: row.scheduled_finish,
+      percentCompleteBp: row.percent_complete_bp ?? 0,
+    })),
+    documents: documentos.rows.map((row) => ({
+      documentTypeId: row.id,
+      code: row.code,
+      name: row.name,
+    })),
+    documentsInPlan: enPlan,
+  }
 }

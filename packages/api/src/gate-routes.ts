@@ -15,14 +15,20 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import {
   applyGateDeadlines,
+  latestRun,
   readDocumentTypes,
   readGateInputs,
+  readGateReadinessInputs,
   readProjectGates,
   setProjectGates,
   withTransaction,
   type Pool,
 } from '@planner/persistence'
-import { planGateDeadlines, type GatePlanResult } from '@planner/scheduler'
+import {
+  assessGateReadiness,
+  planGateDeadlines,
+  type GatePlanResult,
+} from '@planner/scheduler'
 import { desde, enProyecto } from './permissions.js'
 import { calculate, defaultScenarioId } from './engine.js'
 
@@ -91,6 +97,35 @@ export function registerGateRoutes(app: FastifyInstance, pool: Pool): void {
         // le dice nada a nadie. Misma razón que en la matriz.
         documents: await readDocumentTypes(db),
       }))
+    },
+  )
+
+
+  /**
+   * Cómo llega el proyecto a cada una de sus puertas (ADR-0056).
+   *
+   * De sólo lectura y sin recalcular: se sirve de una ejecución concreta —la
+   * última, salvo que se pida otra— y la devuelve con su `runId`, para que dos
+   * personas que miran la misma puerta miren los mismos días.
+   *
+   * Sin ninguna ejecución todavía no se responde con una puerta vacía, que se
+   * leería como «no falta nada»: se dice que no hay cálculo.
+   */
+  app.get(
+    '/api/projects/:projectId/gates/readiness',
+    { config: { permission: 'plan.ver', project: desde(enProyecto()) } },
+    async (request) => {
+      const { projectId } = z.object({ projectId: z.string().uuid() }).parse(request.params)
+      const { runId } = z
+        .object({ runId: z.string().uuid().optional() })
+        .parse(request.query ?? {})
+
+      return withTransaction(pool, async (db) => {
+        const ejecucion = runId ?? (await latestRun(db))?.id
+        if (ejecucion === undefined) return { runId: null, gates: [], findings: [], totals: null }
+        const entrada = await readGateReadinessInputs(db, projectId, ejecucion)
+        return { runId: ejecucion, ...assessGateReadiness(entrada) }
+      })
     },
   )
 

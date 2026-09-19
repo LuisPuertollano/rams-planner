@@ -113,6 +113,19 @@ export function findingText(t: Traductor, finding: DecibleComoHallazgo): string 
 
     case 'hallazgo.DEADLINE_MISSED':
       return t(clave, texto(p, 'task'), fecha(p, 'finish'), fecha(p, 'deadline'))
+
+    // La puerta, vista desde la puerta: o llega tarde, o no está en el plan.
+    case 'hallazgo.GATE_EVIDENCE_LATE':
+      return t(
+        clave,
+        texto(p, 'documento'),
+        fecha(p, 'limite'),
+        texto(p, 'puerta'),
+        fecha(p, 'fin'),
+        numero(p, 'dias'),
+      )
+    case 'hallazgo.GATE_EVIDENCE_MISSING':
+      return t(clave, texto(p, 'puerta'), texto(p, 'documento'), texto(p, 'entregable'))
     case 'hallazgo.BUDGET_EXCEEDED':
       return t(clave, texto(p, 'task'), horas(p, 'planned'), horas(p, 'standard'))
     case 'hallazgo.TASK_UNASSIGNED':

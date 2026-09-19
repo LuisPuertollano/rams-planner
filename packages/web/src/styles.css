@@ -315,6 +315,8 @@ button { font: inherit; color: inherit; }
 .critical { color: var(--severity-error); font-weight: 600; }
 .muted { color: var(--text-muted); }
 .faint { color: var(--text-faint); }
+/* Lo que una puerta no se traga: llega tarde, o no está en el plan. */
+.bad { color: var(--severity-error); font-weight: 600; }
 
 /* El cronograma.
    La escala es PÍXELES POR DÍA y el lienzo se desplaza; antes todo cabía en el
