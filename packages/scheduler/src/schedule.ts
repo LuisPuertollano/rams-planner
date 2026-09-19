@@ -398,8 +398,19 @@ export function schedulePlan(snapshot: PlanSnapshot, options: ScheduleOptions = 
   // El fin de referencia es el de CADA proyecto, no el del plan entero: con el
   // global, un proyecto que acaba en junio tendría medio año de holgura sólo
   // porque otro acaba en diciembre, y su camino crítico desaparecería.
+  //
+  // Y las tareas continuas **no cuentan** para ese fin. Su fecha de fin no es
+  // un resultado, es una declaración: se pega a una puerta pase lo que pase. Si
+  // contara, la gestión de un proyecto —que va del arranque a la puesta en
+  // servicio— estiraría el fin calculado meses más allá del último trabajo, y
+  // todas las demás tareas saldrían con holgura de sobra: el proyecto se
+  // quedaría **sin camino crítico**, en silencio.
+  //
+  // Se vio mirando el cronograma, no leyendo el código: el rojo del camino
+  // crítico había desaparecido de un proyecto entero.
   const projectFinish = new Map<string, PlanInstant>()
   for (const leaf of leaves) {
+    if (ventanas.has(leaf.node.id)) continue
     const current = projectFinish.get(leaf.node.projectId)
     projectFinish.set(
       leaf.node.projectId,
@@ -544,7 +555,12 @@ export function schedulePlan(snapshot: PlanSnapshot, options: ScheduleOptions = 
       workMinutes: leaf.metrics.workMinutes,
       totalSlackMinutes: totalSlack,
       freeSlackMinutes: freeSlack,
-      isCritical: totalSlack <= criticalSlack,
+      // Una tarea continua tiene holgura cero porque su ventana está clavada
+      // entre dos puertas, no porque retrasarla retrase el plan: retrasarla no
+      // se puede. Llamarla crítica metería la gestión de todos los proyectos en
+      // el camino crítico y en el filtro de «sólo lo crítico», que es donde
+      // alguien va a buscar precisamente lo que sí puede mover.
+      isCritical: !ventanas.has(leaf.node.id) && totalSlack <= criticalSlack,
       levelingDelayMinutes: options.levelingDelays?.get(leaf.node.id) ?? 0,
       percentCompleteBp: leaf.task.percentCompleteBp,
       calendarUsedId: leaf.calendar.calendarId,

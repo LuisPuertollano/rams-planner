@@ -316,17 +316,48 @@ button { font: inherit; color: inherit; }
 .muted { color: var(--text-muted); }
 .faint { color: var(--text-faint); }
 
+/* El cronograma.
+   La escala es PÍXELES POR DÍA y el lienzo se desplaza; antes todo cabía en el
+   100 % del ancho y con tres años de plan cada tarea era una raya de dos
+   píxeles. La columna de etiquetas se queda pegada a la izquierda mientras el
+   resto se mueve: sin eso, desplazarse a junio deja las barras sin nombre. */
+.gantt__scroll { overflow-x: auto; overflow-y: visible; position: relative; }
 .gantt { position: relative; }
-.gantt__row { display: grid; grid-template-columns: 260px 1fr; align-items: center; border-bottom: 1px solid var(--border); }
+.gantt__row { display: grid; grid-template-columns: 260px 1fr; align-items: center; border-bottom: 1px solid var(--border); height: 31px; box-sizing: border-box; }
+.gantt__row--proyecto { background: var(--bg-sunken); }
 .gantt__label { padding: 6px 12px; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.gantt__track { position: relative; height: 30px; background: repeating-linear-gradient(90deg, transparent 0, transparent calc(var(--month) - 1px), var(--border) calc(var(--month) - 1px), var(--border) var(--month)); }
-.gantt__bar { position: absolute; top: 7px; height: 16px; border-radius: 4px; background: var(--accent); opacity: 0.85; }
+.gantt__label--fijo { position: sticky; left: 0; z-index: 3; background: var(--bg-raised); border-right: 1px solid var(--border); display: flex; align-items: center; gap: 4px; }
+.gantt__row--proyecto .gantt__label--fijo { background: var(--bg-sunken); }
+.gantt__track { position: relative; height: 30px; }
+.gantt__bar { position: absolute; top: 7px; height: 16px; border-radius: 4px; background: var(--accent); opacity: 0.9; overflow: hidden; }
 .gantt__bar--container { background: var(--text-faint); height: 8px; top: 11px; border-radius: 2px; }
+/* La barra de un proyecto: de su primera tarea a la última. Es lo único que se
+   ve cuando está plegado, así que tiene que decir cuándo va ese proyecto. */
+.gantt__bar--proyecto { background: var(--text-muted); height: 10px; top: 10px; border-radius: 2px; opacity: 0.75; }
 .gantt__bar--critical { background: var(--severity-error); }
+/* El avance, dentro de la barra: no es otra barra, es cuánto de ÉSTA está hecho. */
+.gantt__avance { position: absolute; inset: 0 auto 0 0; background: rgb(0 0 0 / 28%); }
+/* La holgura se dibuja a rayas y no maciza: no es trabajo, es sitio libre. */
+.gantt__holgura { position: absolute; top: 12px; height: 6px; border-radius: 3px;
+  background: repeating-linear-gradient(45deg, var(--border-strong) 0 3px, transparent 3px 6px); }
 .gantt__milestone { position: absolute; top: 8px; width: 14px; height: 14px; background: var(--text); transform: rotate(45deg); }
-.gantt__head { display: grid; grid-template-columns: 260px 1fr; border-bottom: 1px solid var(--border-strong); position: sticky; top: 0; background: var(--bg-raised); z-index: 2; }
+.gantt__head { display: grid; grid-template-columns: 260px 1fr; border-bottom: 1px solid var(--border-strong); position: sticky; top: 0; background: var(--bg-raised); z-index: 4; }
 .gantt__months { display: flex; }
-.gantt__month { font-size: 11px; color: var(--text-muted); padding: 6px 4px; border-left: 1px solid var(--border); text-align: center; overflow: hidden; }
+.gantt__month { font-size: 11px; color: var(--text-muted); padding: 6px 4px; border-left: 1px solid var(--border); text-align: center; overflow: hidden; box-sizing: border-box; }
+.gantt__dia { position: absolute; top: 22px; font-size: 9px; color: var(--text-faint); text-align: center; box-sizing: border-box; border-left: 1px solid var(--border); }
+/* Hoy: por encima de la rejilla y por debajo de las barras. */
+.gantt__hoy { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent); opacity: 0.55; z-index: 1; pointer-events: none; }
+/* Una puerta de certificación, en la fila de SU proyecto. */
+.gantt__puerta { position: absolute; width: 0; border-left: 2px dashed var(--severity-warning); z-index: 1; pointer-events: none; }
+.gantt__puerta-nombre { position: absolute; left: 3px; top: 6px; font-size: 10px; font-weight: 600; color: var(--severity-warning); white-space: nowrap; }
+.gantt__muestra-holgura { background: repeating-linear-gradient(45deg, var(--border-strong) 0 3px, transparent 3px 6px); }
+.gantt__muestra-puerta { background: var(--severity-warning); }
+/* Las flechas: encima de todo y sin comerse el ratón de las barras. */
+.gantt__flechas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 2; }
+.gantt__flechas path { fill: none; stroke: var(--text-faint); stroke-width: 1.2; }
+.gantt__flechas polygon { fill: var(--text-faint); }
+.gantt__flechas .gantt__flecha--critica path { stroke: var(--severity-error); stroke-width: 1.6; }
+.gantt__flechas .gantt__flecha--critica polygon { fill: var(--severity-error); }
 
 /* -------------------------------------------------------------- hallazgos -- */
 

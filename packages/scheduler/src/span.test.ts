@@ -182,3 +182,44 @@ describe('la tarea que dura una fase', () => {
     expect(resultado.findings.some((f) => f.code.startsWith('SPAN_'))).toBe(false)
   })
 })
+
+describe('una tarea continua y el camino crítico', () => {
+  it('no es crítica, aunque su holgura sea cero', () => {
+    // Su holgura es cero porque la ventana está clavada, no porque retrasarla
+    // retrase el plan — retrasarla no se puede. Salió mirando el cronograma:
+    // la gestión de cada proyecto aparecía en rojo y en el contador de tareas
+    // críticas, que es justo donde se va a buscar lo que sí se puede mover.
+    const snapshot = conPuertas()
+      .task('gestion', { projectId: 'p2', spanFrom: 'arranque', spanTo: 'IQA' })
+      .task('normal', { projectId: 'p2', durationMinutes: 480 * 5 })
+      .build(d('2027-12-31'))
+    const resultado = schedulePlan(snapshot)
+
+    const gestion = tarea(resultado, 'gestion')
+    expect(gestion.totalSlackMinutes).toBe(0)
+    expect(resultado.taskResults.find((t) => t.nodeId === 'gestion')?.isCritical).toBe(false)
+    // Y la tarea normal sin holgura sigue siendo crítica: no se ha roto nada.
+    expect(resultado.taskResults.find((t) => t.nodeId === 'normal')?.isCritical).toBe(true)
+  })
+
+  it('tampoco estira el fin del proyecto, que es lo que vaciaba el camino crítico', () => {
+    // El fallo de verdad, y el peor: la gestión va del arranque a la puesta en
+    // servicio, así que si contara para el fin calculado del proyecto, el resto
+    // de las tareas saldría con meses de holgura y el proyecto se quedaría SIN
+    // camino crítico. En silencio, que es lo que lo hace peligroso.
+    const snapshot = conPuertas()
+      .task('gestion', { projectId: 'p2', spanFrom: 'arranque', spanTo: 'FQA' })
+      .task('a', { projectId: 'p2', durationMinutes: 480 * 5 })
+      .task('b', { projectId: 'p2', durationMinutes: 480 * 5 })
+      .link('a', 'b')
+      .build(d('2027-12-31'))
+    const resultado = schedulePlan(snapshot)
+
+    // La cadena a → b es el camino crítico del proyecto, y lo sigue siendo
+    // aunque la gestión termine un año después.
+    expect(tarea(resultado, 'a').totalSlackMinutes).toBe(0)
+    expect(tarea(resultado, 'b').totalSlackMinutes).toBe(0)
+    expect(resultado.taskResults.filter((t) => t.isCritical).map((t) => t.nodeId).sort())
+      .toEqual(['a', 'b'])
+  })
+})
