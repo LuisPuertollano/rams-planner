@@ -186,6 +186,10 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
           .optional(),
         constraintDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
         deadline: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+        // Las dos anclas de una tarea continua (ADR-0051). Van juntas o no van:
+        // la base lo exige con un CHECK y aquí se dice antes, con una frase.
+        spanFrom: z.string().trim().min(1).max(60).nullable().optional(),
+        spanTo: z.string().trim().min(1).max(60).nullable().optional(),
         comment: z.string().max(500).optional(),
       })
       .parse(request.body)
@@ -202,6 +206,26 @@ export function registerRoutes(app: FastifyInstance, pool: Pool): void {
     if (body.constraintKind !== undefined) set('constraint_kind', body.constraintKind)
     if (body.constraintDate !== undefined) set('constraint_date', body.constraintDate)
     if (body.deadline !== undefined) set('deadline', body.deadline)
+    if ((body.spanFrom === undefined) !== (body.spanTo === undefined)) {
+      return fallar(
+        reply,
+        400,
+        'VENTANA_A_MEDIAS',
+        'Una ventana se declara con sus dos anclas: «desde» y «hasta» se mandan juntas, o ninguna.',
+      )
+    }
+    if (body.spanFrom !== undefined && body.spanTo !== undefined) {
+      if ((body.spanFrom === null) !== (body.spanTo === null)) {
+        return fallar(
+          reply,
+          400,
+          'VENTANA_A_MEDIAS',
+          'Una ventana se quita entera: «desde» y «hasta» se ponen a nulo las dos, o ninguna.',
+        )
+      }
+      set('span_from', body.spanFrom)
+      set('span_to', body.spanTo)
+    }
 
     if (updates.length === 0) {
       return fallar(reply, 400, 'NADA_QUE_CAMBIAR', 'No hay nada que cambiar.')

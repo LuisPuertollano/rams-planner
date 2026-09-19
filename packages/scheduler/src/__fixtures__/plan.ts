@@ -53,7 +53,7 @@ export class PlanBuilder {
   private readonly projects: ProjectDefinition[] = [
     {
       id: 'p1', code: 'P1', name: 'Proyecto', status: 'activo',
-      statusStart: d('2026-03-02'), priority: 500, scheduleMode: 'adelante',
+      statusStart: d('2026-03-02'), priority: 500, scheduleMode: 'adelante', gates: {},
     },
   ]
 
@@ -65,6 +65,7 @@ export class PlanBuilder {
       statusStart: d('2026-03-02'),
       scheduleMode: 'adelante',
       priority: 500,
+      gates: {},
       ...project,
     })
     return this

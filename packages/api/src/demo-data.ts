@@ -91,6 +91,11 @@ interface DemoTask {
   readonly constraint?: { kind: string; date: string }
   readonly ramsTag?: string
   readonly standardDays?: number
+  /**
+   * Las dos anclas de una tarea continua (ADR-0051), con las horas que ocupa.
+   * `days` deja de gobernar la duración: la ponen las dos puertas.
+   */
+  readonly span?: { from: string; to: string; hours: number }
 }
 
 interface DemoProject {
@@ -144,6 +149,18 @@ const PROJECTS: readonly DemoProject[] = [
       { key: 111, name: 'Ejecución de pruebas', days: 20, phase: 13, after: [108, 110], assign: [{ resource: 6 }, { resource: 4, unitsBp: 5_000 }], ramsTag: 'Verificación' },
       { key: 112, name: 'Safety Case', days: 15, phase: 13, after: [109, 111], assign: [{ resource: 2, contour: 'back_loaded' }], deadline: '2026-12-11', ramsTag: 'Safety Case' },
       { key: 113, name: 'Entrega a organismo notificado', days: 0, phase: 13, after: [112], milestone: true },
+      // La tarea que no termina un día (ADR-0051). Va desde el arranque hasta
+      // la puesta en servicio, en paralelo con todo lo demás: 240 h repartidas
+      // por los cinco meses del proyecto, no un bloque de mes y medio. Es lo
+      // que hace que la curva de carga de Bruno se parezca a la realidad.
+      {
+        key: 114,
+        name: 'Gestión del proyecto RAMS',
+        days: 0,
+        phase: 11,
+        assign: [{ resource: 2 }],
+        span: { from: 'arranque', to: 'PES', hours: 240 },
+      },
     ],
   },
   {
@@ -568,8 +585,8 @@ async function seedProjects(db: Queryable, ramsFieldId: string): Promise<void> {
       await db.query(
         `INSERT INTO task (node_id, task_type, is_effort_driven, duration_minutes, work_declared_minutes,
                            constraint_kind, constraint_date, deadline, percent_complete_bp,
-                           standard_effort_minutes, is_milestone)
-         VALUES ($1, 'fixed_duration', TRUE, $2, 0, $3, $4, $5, $6, $7, $8)`,
+                           standard_effort_minutes, is_milestone, span_from, span_to)
+         VALUES ($1, $9, TRUE, $2, $10, $3, $4, $5, $6, $7, $8, $11, $12)`,
         [
           nodeId,
           task.days * DAY,
@@ -579,6 +596,10 @@ async function seedProjects(db: Queryable, ramsFieldId: string): Promise<void> {
           progressFor(task),
           task.standardDays === undefined ? null : task.standardDays * DAY,
           task.milestone === true,
+          task.span === undefined ? 'fixed_duration' : 'fixed_work',
+          task.span === undefined ? 0 : task.span.hours * 60,
+          task.span?.from ?? null,
+          task.span?.to ?? null,
         ],
       )
       if (task.ramsTag !== undefined) {

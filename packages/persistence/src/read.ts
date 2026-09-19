@@ -205,6 +205,9 @@ export interface TaskRow {
   readonly declaredDurationMinutes: number | null
   readonly declaredWorkMinutes: number | null
   readonly declaredPercentCompleteBp: number | null
+  /** Las dos anclas de una tarea continua (ADR-0051), o null las dos. */
+  readonly spanFrom: string | null
+  readonly spanTo: string | null
 }
 
 export async function readTasks(db: Queryable, runId: string): Promise<readonly TaskRow[]> {
@@ -230,6 +233,8 @@ export async function readTasks(db: Queryable, runId: string): Promise<readonly 
     declared_duration_minutes: number | null
     declared_work_minutes: number | null
     declared_percent_complete_bp: number | null
+    span_from: string | null
+    span_to: string | null
   }>(
     `SELECT n.id AS node_id, n.project_id, n.parent_id, n.node_kind, n.code, n.name, n.path,
             r.scheduled_start, r.scheduled_finish, r.duration_minutes, r.work_minutes,
@@ -238,6 +243,7 @@ export async function readTasks(db: Queryable, runId: string): Promise<readonly 
             t.duration_minutes AS declared_duration_minutes,
             t.work_declared_minutes AS declared_work_minutes,
             t.percent_complete_bp AS declared_percent_complete_bp,
+            t.span_from, t.span_to,
             ARRAY(SELECT res.display_name FROM assignment a
                   JOIN resource res ON res.id = a.resource_id
                   WHERE a.node_id = n.id AND a.deleted_at IS NULL
@@ -271,6 +277,8 @@ export async function readTasks(db: Queryable, runId: string): Promise<readonly 
     declaredDurationMinutes: row.declared_duration_minutes,
     declaredWorkMinutes: row.declared_work_minutes,
     declaredPercentCompleteBp: row.declared_percent_complete_bp,
+    spanFrom: row.span_from,
+    spanTo: row.span_to,
   }))
 }
 

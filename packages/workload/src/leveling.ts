@@ -185,9 +185,18 @@ export function levelPlan(snapshot: PlanSnapshot, options: LevelingOptions = {})
     assignmentsByNode.set(assignment.nodeId, bucket)
   }
   const nodeOfAssignment = new Map(snapshot.assignments.map((assignment) => [assignment.id, assignment.nodeId]))
+  // Lo que nivelar no puede mover. Además de las restricciones duras, las
+  // tareas continuas (ADR-0051): su ventana la ponen dos puertas, y retrasar la
+  // gestión de un proyecto «para descargar a alguien» la sacaría de la fase que
+  // la define. Lo que se descarga es otra cosa.
   const hardConstraint = new Set(
     snapshot.tasks
-      .filter((task) => task.constraintKind === 'must_start_on' || task.constraintKind === 'must_finish_on')
+      .filter(
+        (task) =>
+          task.constraintKind === 'must_start_on' ||
+          task.constraintKind === 'must_finish_on' ||
+          (task.spanFrom !== undefined && task.spanTo !== undefined),
+      )
       .map((task) => task.nodeId),
   )
 

@@ -101,6 +101,8 @@ export interface TaskRow {
   readonly declaredDurationMinutes: number | null
   readonly declaredWorkMinutes: number | null
   readonly declaredPercentCompleteBp: number | null
+  readonly spanFrom: string | null
+  readonly spanTo: string | null
 }
 
 export interface Baseline {

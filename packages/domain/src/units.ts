@@ -159,3 +159,25 @@ export const SCHEDULE_MODES = ['adelante', 'atras'] as const
 
 export type ScheduleMode = (typeof SCHEDULE_MODES)[number]
 
+/**
+ * El ancla con la que una tarea continua marca el principio de su ventana
+ * cuando no es una puerta: el arranque del proyecto.
+ *
+ * Es una palabra y no una fecha a propósito. Si el arranque se mueve —y se
+ * mueve—, la ventana de la gestión se mueve con él sin que nadie tenga que
+ * acordarse de tocarla.
+ */
+export const ANCLA_ARRANQUE = 'arranque'
+
+/**
+ * El nombre de una puerta, normalizado para compararlo.
+ *
+ * Las puertas se escriben a mano en tres sitios distintos —el catálogo de
+ * documentos, las fechas del proyecto y ahora el ancla de una tarea— y
+ * `project_gate` ya las indexa por `upper(btrim(...))`. Lo mismo aquí: «iqa »
+ * y «IQA» son la misma puerta y no pueden dejar de serlo por un espacio.
+ */
+export function normalizeGate(gate: string): string {
+  return gate.trim().toUpperCase()
+}
+

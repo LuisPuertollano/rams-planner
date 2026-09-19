@@ -281,6 +281,22 @@ async function loadResources(db: Queryable): Promise<readonly ResourceDefinition
 }
 
 async function loadProjects(db: Queryable): Promise<readonly ProjectDefinition[]> {
+  // Las puertas viajan en la instantánea desde ADR-0051: el motor las necesita
+  // para colocar las tareas continuas, que declaran su ventana con el nombre de
+  // dos de ellas. Se indexan en mayúsculas igual que las indexa la tabla.
+  const puertas = await db.query<{ project_id: string; gate: string; gate_date: string }>(
+    `SELECT g.project_id, upper(btrim(g.gate)) AS gate, g.gate_date::text
+     FROM project_gate g JOIN project p ON p.id = g.project_id
+     WHERE ${EN_EL_PLAN}
+     ORDER BY g.project_id, gate`,
+  )
+  const puertasDe = new Map<string, Record<string, CalendarDate>>()
+  for (const fila of puertas.rows) {
+    const bolsa = puertasDe.get(fila.project_id) ?? {}
+    bolsa[fila.gate] = calendarDate(fila.gate_date)
+    puertasDe.set(fila.project_id, bolsa)
+  }
+
   const { rows } = await db.query<{
     id: string
     code: string
@@ -304,6 +320,7 @@ async function loadProjects(db: Queryable): Promise<readonly ProjectDefinition[]
     statusStart: calendarDate(row.status_start),
     priority: row.priority,
     scheduleMode: row.schedule_mode,
+    gates: puertasDe.get(row.id) ?? {},
   }))
 }
 
@@ -347,10 +364,13 @@ async function loadTasks(db: Queryable): Promise<readonly TaskDefinition[]> {
     percent_complete_bp: number
     standard_effort_minutes: number | null
     is_milestone: boolean
+    span_from: string | null
+    span_to: string | null
   }>(
     `SELECT t.node_id, t.task_type, t.is_effort_driven, t.duration_minutes, t.work_declared_minutes,
             t.calendar_id, t.constraint_kind, t.constraint_date::text, t.deadline::text,
-            t.percent_complete_bp, t.standard_effort_minutes, t.is_milestone
+            t.percent_complete_bp, t.standard_effort_minutes, t.is_milestone,
+            t.span_from, t.span_to
      FROM task t
      JOIN wbs_node n ON n.id = t.node_id AND n.deleted_at IS NULL
      JOIN project  p ON p.id = n.project_id AND ${EN_EL_PLAN}
@@ -369,6 +389,8 @@ async function loadTasks(db: Queryable): Promise<readonly TaskDefinition[]> {
     percentCompleteBp: row.percent_complete_bp,
     isMilestone: row.is_milestone,
     ...(row.standard_effort_minutes !== null ? { standardEffortMinutes: row.standard_effort_minutes } : {}),
+    ...(row.span_from !== null ? { spanFrom: row.span_from } : {}),
+    ...(row.span_to !== null ? { spanTo: row.span_to } : {}),
   }))
 }
 

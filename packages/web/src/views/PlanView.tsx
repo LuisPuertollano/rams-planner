@@ -10,7 +10,7 @@ import {
 } from '../api.js'
 import { days, fullDate, hours, percent } from '../format.js'
 import { errorText } from '../errors.js'
-import { useT } from '../i18n/index.js'
+import { useT, type Traductor } from '../i18n/index.js'
 
 interface Props {
   readonly tasks: readonly TaskRow[]
@@ -201,6 +201,17 @@ interface ProjectRowsProps {
   readonly tagOf: ReadonlyMap<string, string>
 }
 
+/**
+ * Cómo se lee un ancla de ventana.
+ *
+ * El nombre de una puerta se enseña tal cual —es del cliente y no se traduce—,
+ * pero «arranque» es una palabra nuestra: en la pantalla en inglés tiene que
+ * leerse en inglés. Es la misma regla que los tipos de enlace.
+ */
+function ancla(t: Traductor['t'], valor: string): string {
+  return valor.trim().toLowerCase() === 'arranque' ? t('editar.ventanaArranque') : valor
+}
+
 function ProjectRows({
   project,
   rows,
@@ -283,6 +294,11 @@ function ProjectRows({
                 {task.deadline === null ? null : (
                   <span className="wbs__kind" title={t('plan.deadlineTitulo')}>
                     ⚑ {fullDate(task.deadline)}
+                  </span>
+                )}
+                {task.spanFrom === null || task.spanTo === null ? null : (
+                  <span className="wbs__kind" title={t('plan.ventanaTitulo')}>
+                    ⟷ {ancla(t, task.spanFrom)} → {ancla(t, task.spanTo)}
                   </span>
                 )}
                 {task.constraintKind !== null && task.constraintKind !== 'asap' ? (

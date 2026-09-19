@@ -112,6 +112,15 @@ export interface ProjectDefinition {
    * tardía y lo que sale es el margen que queda — o el que ya no queda.
    */
   readonly scheduleMode: ScheduleMode
+  /**
+   * Las puertas de certificación de este proyecto con su fecha, indexadas por
+   * el nombre en mayúsculas (`normalizeGate`).
+   *
+   * Viajan en la instantánea desde ADR-0051 porque el motor las necesita para
+   * colocar las tareas continuas. Antes sólo las leía `planGateDeadlines`, que
+   * proponía fechas objetivo fuera del cálculo.
+   */
+  readonly gates: Readonly<Record<string, CalendarDate>>
 }
 
 export interface WbsNodeDefinition {
@@ -137,6 +146,16 @@ export interface TaskDefinition {
   readonly percentCompleteBp: number
   readonly isMilestone: boolean
   readonly standardEffortMinutes?: number
+  /**
+   * La ventana de una tarea continua: dos anclas, o ninguna.
+   *
+   * `spanFrom` es `arranque` o el nombre de una puerta; `spanTo`, el nombre de
+   * una puerta. Cuando las dos están, la fase manda sobre la duración: la
+   * tarea ocupa todo lo que hay entre las dos fechas y lo que el motor calcula
+   * es la intensidad a la que hay que llevarla.
+   */
+  readonly spanFrom?: string
+  readonly spanTo?: string
 }
 
 export interface DependencyDefinition {

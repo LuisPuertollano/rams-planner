@@ -99,6 +99,73 @@ export interface AssignmentCells {
  * las dos rutas no es comodidad: es lo que garantiza que el camino incremental
  * y el completo den la misma celda, hasta el minuto.
  */
+/**
+ * Las asignaciones de cada tarea, calculadas una vez por instantánea.
+ *
+ * La clave es el propio array: dos llamadas con la misma instantánea comparten
+ * el índice, y una instantánea nueva se construye el suyo. Sin esto, repartir
+ * la carga sería cuadrático — y `levelPlan` llama aquí una vez por asignación y
+ * por vuelta.
+ */
+const indicePorTarea = new WeakMap<
+  readonly PlanSnapshot['assignments'][number][],
+  ReadonlyMap<string, readonly PlanSnapshot['assignments'][number][]>
+>()
+
+function asignacionesDe(
+  snapshot: PlanSnapshot,
+  nodeId: string,
+): readonly PlanSnapshot['assignments'][number][] {
+  let indice = indicePorTarea.get(snapshot.assignments)
+  if (indice === undefined) {
+    const construido = new Map<string, PlanSnapshot['assignments'][number][]>()
+    for (const asignacion of snapshot.assignments) {
+      const bolsa = construido.get(asignacion.nodeId) ?? []
+      bolsa.push(asignacion)
+      construido.set(asignacion.nodeId, bolsa)
+    }
+    indice = construido
+    indicePorTarea.set(snapshot.assignments, construido)
+  }
+  return indice.get(nodeId) ?? []
+}
+
+/**
+ * El trabajo que le toca a una asignación.
+ *
+ * Es el trabajo de la TAREA repartido entre sus asignaciones en proporción a la
+ * dedicación de cada una — **no** `duración × dedicación`.
+ *
+ * Para una tarea normal las dos cuentas dan exactamente lo mismo, y por eso
+ * esto no mueve una sola cifra de lo que ya salía: la duración de una tarea
+ * sale del trabajo dividido entre la dedicación (`equation.ts`), así que al
+ * multiplicar otra vez por la dedicación se cancela.
+ *
+ * Donde deja de dar lo mismo es en una tarea continua (ADR-0051): ahí la
+ * duración la ponen dos puertas, y `duración × dedicación` pondría a una
+ * persona a jornada completa durante los siete meses de la fase por haber
+ * declarado 300 h de gestión. El trabajo declarado es el que manda.
+ *
+ * El reparto va con `distributeInteger` para que la suma de las partes sea
+ * exactamente el trabajo de la tarea aunque no divida (P5).
+ */
+function loQueLeToca(
+  snapshot: PlanSnapshot,
+  assignment: PlanSnapshot['assignments'][number],
+  result: TaskResult,
+): number {
+  const hermanas = asignacionesDe(snapshot, assignment.nodeId)
+  // Sin dedicación declarada en ninguna, el trabajo de la tarea se reparte a
+  // partes iguales: es lo que ya hacía `applyBasisPoints` con la dedicación
+  // efectiva del 100 % que pone la ecuación.
+  const pesos = hermanas.map((hermana) => (hermana.unitsBp === 0 ? 1 : hermana.unitsBp))
+  const partes = distributeInteger(result.workMinutes, pesos)
+  const cual = hermanas.findIndex((hermana) => hermana.id === assignment.id)
+  return cual < 0
+    ? applyBasisPoints(result.durationMinutes, basisPoints(assignment.unitsBp))
+    : (partes[cual] ?? 0)
+}
+
 export function cellsForAssignment(
   snapshot: PlanSnapshot,
   // Mutable a propósito: `calendarFor` memoiza dentro. Con un ReadonlyMap se
@@ -117,9 +184,7 @@ export function cellsForAssignment(
     if (resource.kind === 'cost' || resource.kind === 'material') return vacio
 
     const calendar = calendarFor(snapshot, compiled, resource.calendarId ?? snapshot.defaultCalendarId)
-    const workMinutes =
-      assignment.workDeclaredMinutes ??
-      applyBasisPoints(result.durationMinutes, basisPoints(assignment.unitsBp))
+    const workMinutes = assignment.workDeclaredMinutes ?? loQueLeToca(snapshot, assignment, result)
     if (workMinutes === 0) return vacio
 
     if (assignment.contour === 'manual' && assignment.manualContour !== undefined) {
