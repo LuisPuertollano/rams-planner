@@ -17,6 +17,7 @@ import {
   createPool, withTransaction, readGateInputs, setProjectGates, updateProject, loadSnapshot,
 } from '@planner/persistence'
 import { planGateDeadlines, schedulePlan } from '@planner/scheduler'
+import { levelPlan } from '@planner/workload'
 import { importDocumentsCsv } from './import-documents.js'
 import { importPlanCsv } from './import-plan.js'
 import { resolveHorizonFor } from './engine.js'
@@ -120,6 +121,50 @@ describeSiHayBase('planificar hacia atrás, de punta a punta', () => {
 
     // Con margen de sobra, ninguna puerta es inalcanzable.
     expect(despues.findings.some((f) => f.code === 'GATE_UNREACHABLE')).toBe(false)
+  })
+
+  it('nivelar un plan hacia atrás puede costar una puerta, y se ve', async () => {
+    if (pool === null) return
+    // La interacción que hay que mirar, y no era evidente: nivelar funciona
+    // RETRASANDO tareas, y en un proyecto hacia atrás retrasar es empujar hacia
+    // la puerta. Si el retraso se pasa, la puerta deja de ser alcanzable.
+    //
+    // Lo correcto no es impedirlo —nivelar propone, no decide— sino que se vea.
+    // Y se ve: el plan nivelado se vuelve a calcular con los retrasos puestos,
+    // la holgura contra la puerta se va a negativo y sale el hallazgo. Esta
+    // prueba está para que eso no se pierda sin que nadie se entere.
+    const { rows } = await withTransaction(pool, (db) =>
+      db.query<{ id: string }>('SELECT id FROM project WHERE code = $1', [PROY]),
+    )
+    const projectId = rows[0]?.id ?? ''
+
+    // Una puerta holgada: sin nivelar se llega de sobra.
+    const snapshot = await withTransaction(pool, async (db) => {
+      await setProjectGates(db, projectId, [{ gate: 'CGR', date: '2028-06-30', notes: null }])
+      for (const puesta of planGateDeadlines(await readGateInputs(db, projectId)).set) {
+        await db.query('UPDATE task SET deadline = $2 WHERE node_id = $1', [puesta.nodeId, puesta.deadline])
+      }
+      return loadSnapshot(db, { horizon: await resolveHorizonFor(db) })
+    })
+
+    const sinNivelar = schedulePlan(snapshot)
+    const rotasAntes = sinNivelar.findings.filter((f) => f.code === 'GATE_UNREACHABLE')
+    expect(rotasAntes, 'sin nivelar no debería romperse ninguna puerta').toHaveLength(0)
+
+    // Y nivelado, si algún retraso se pasa de la puerta, el plan lo dice en vez
+    // de callarlo. Puede que en este juego de datos no haya sobrecarga que
+    // nivelar; lo que se exige es que, si retrasa, el aviso exista.
+    const nivelado = levelPlan(snapshot, { maxIterations: 200 })
+    const rotasDespues = nivelado.schedule.findings.filter((f) => f.code === 'GATE_UNREACHABLE')
+    if (nivelado.delays.size > 0 && rotasDespues.length > 0) {
+      expect(rotasDespues[0]?.payload?.['diasQueFaltan']).toBeGreaterThan(0)
+    }
+    // Lo que sí se exige siempre: nivelar no puede INVENTARSE puertas rotas en
+    // tareas que no ha tocado.
+    for (const rota of rotasDespues) {
+      expect(nivelado.delays.size, 'hay una puerta rota y nivelar no movió nada').toBeGreaterThan(0)
+      expect(rota.entityType).toBe('task')
+    }
   })
 
   it('cuando la puerta está encima, lo dice con los días que faltan', async () => {

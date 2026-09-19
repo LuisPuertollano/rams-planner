@@ -839,6 +839,14 @@ Tres cosas cambian al ponerlo:
   menos** N días». El número real es mayor, y decirlo redondo sería peor que no
   decirlo.
 
+Y una cuarta, que importa el día que nivelas: **nivelar un plan hacia atrás
+puede costarte una puerta**. Nivelar funciona retrasando tareas, y aquí retrasar
+es empujar hacia la certificación. Si el retraso se pasa, el aviso de puerta
+inalcanzable aparece — y eso es justo lo que hay que mirar antes de aceptar la
+nivelación: cuánto margen de certificación cuesta deshacer las sobrecargas. La
+herramienta no te lo impide, porque nivelar propone y tú decides; lo que hace es
+no callárselo.
+
 Una cosa que conviene saber antes de buscarla: **un proyecto sin fechas objetivo
 puestas no cambia nada al ponerlo hacia atrás**, porque no hay dónde anclar.
 Primero se ponen las puertas y sus fechas objetivo, y después se cambia el modo.

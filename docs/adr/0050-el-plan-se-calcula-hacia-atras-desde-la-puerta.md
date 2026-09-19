@@ -94,6 +94,25 @@ dónde empieza. Y la diferencia en lo que sale no es de cantidad sino de clase:
 272 avisos de que algo termina tarde, contra 1 972 que dicen cuánto y desde
 cuándo.
 
+### Nivelar sobre un plan hacia atrás cuesta puertas, y se ve
+
+Esto no estaba en el diseño: salió de probarlo. Nivelar funciona **retrasando**
+tareas, y en un proyecto hacia atrás retrasar es empujar hacia la puerta. Si el
+retraso se pasa, la puerta deja de ser alcanzable.
+
+Lo correcto no es impedirlo —nivelar propone, no decide— sino que **se vea**. Y
+se ve, porque el plan nivelado se vuelve a calcular con los retrasos puestos, la
+holgura contra la puerta se va a negativo y sale el hallazgo. Medido sobre los
+datos de demostración con las puertas fechadas:
+
+| | hallazgos |
+|---|---|
+| sin nivelar | ninguna puerta rota |
+| nivelado | **2 × `GATE_UNREACHABLE`**, tras retrasar 6 tareas |
+
+Que es exactamente lo que hay que saber antes de aceptar una nivelación: cuánto
+margen de certificación cuesta deshacer las sobrecargas.
+
 ## Alternativas descartadas
 
 **Un segundo motor.** Es lo que hace el libro: `CalcPredecessorEngine` son
