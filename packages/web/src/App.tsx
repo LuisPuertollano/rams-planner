@@ -16,8 +16,6 @@ import {
 } from './api.js'
 import { dateTime, euros, fijarLocale, hours, percent } from './format.js'
 import {
-  IDIOMAS,
-  NOMBRE_DEL_IDIOMA,
   TraductorProvider,
   crearTraductor,
   idiomaInicial,
@@ -26,10 +24,13 @@ import {
   type Idioma,
 } from './i18n/index.js'
 import { GRUPOS, type GrupoId, type Vista, type VistaId } from './nav.js'
+import { ESCALA_NORMAL, guardarEscala, leerEscala, type Escala } from './escala.js'
 import { activePeriods } from './periods.js'
 import { EditPanel } from './components/EditPanel.js'
 import { ImportDialog, type TipoDeImportacion } from './components/ImportDialog.js'
 import { Menu } from './components/Menu.js'
+import { MenuVista, type Tema } from './components/MenuVista.js'
+import { NavBar } from './components/NavBar.js'
 import { PasswordPanel } from './components/PasswordPanel.js'
 import { ProjectPanel } from './components/ProjectPanel.js'
 import { WhyPanel } from './components/WhyPanel.js'
@@ -65,6 +66,21 @@ import { errorText } from './errors.js'
  * pinte nada: un componente que se monta y luego cambia de idioma parpadea, y
  * la pantalla de entrada es justo la primera que alguien ve.
  */
+/**
+ * El almacenamiento local, o nada.
+ *
+ * En una ventana privada el mero acceso a `window.localStorage` lanza. Que
+ * lance aquí, una vez y en un sitio, es mejor que que lance dentro de cada
+ * lector.
+ */
+function almacenLocal(): Storage | null {
+  try {
+    return window.localStorage
+  } catch {
+    return null
+  }
+}
+
 export function App(): React.JSX.Element {
   const [idioma, setIdioma] = useState<Idioma>(() => idiomaInicial())
   const traductor = useMemo(() => crearTraductor(idioma), [idioma])
@@ -110,7 +126,10 @@ function Planner({
   const [explaining, setExplaining] = useState<TaskRow | null>(null)
   const [editing, setEditing] = useState<TaskRow | null>(null)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
-  const [theme, setTheme] = useState<'auto' | 'light' | 'dark'>('auto')
+  const [theme, setTheme] = useState<Tema>('auto')
+  // Cuánta información cabe en la pantalla. Ver `escala.ts`: es zoom de verdad
+  // sobre el documento, porque el cronograma calcula píxeles en JavaScript.
+  const [escala, setEscala] = useState<Escala>(ESCALA_NORMAL)
   const [cambiandoClave, setCambiandoClave] = useState(false)
   // Qué se está importando, si es que se está importando algo. Vive aquí y no
   // en el menú porque cerrar el menú no puede cancelar una importación a medias.
@@ -155,6 +174,18 @@ function Planner({
       // Da igual: es una comodidad, no un dato del plan.
     }
   }, [theme])
+
+  useEffect(() => {
+    setEscala(leerEscala(almacenLocal()))
+  }, [])
+
+  useEffect(() => {
+    // `zoom` y no `transform: scale`: escala el documento entero sin sacar
+    // nada del flujo, y lo que está en `position: fixed` sigue midiendo el
+    // viewport. Comprobado en un navegador antes de elegirlo.
+    document.documentElement.style.zoom = escala === 1 ? '' : String(escala)
+    guardarEscala(almacenLocal(), escala)
+  }, [escala])
 
   const recargar = useCallback((): void => {
     load().catch((cause: unknown) => { setError(errorText(t, cause, 'app.errorRecargar')) })
@@ -371,20 +402,13 @@ function Planner({
           <span>{t('app.lema')}</span>
         </div>
 
-        <nav className="tabs" role="tablist">
-          {grupos.map((grupo) => (
-            <button
-              key={grupo.id}
-              role="tab"
-              aria-selected={grupoActivo?.id === grupo.id}
-              className="tab"
-              onClick={() => { irAlGrupo(grupo.id) }}
-              title={t(grupo.hint)}
-            >
-              {t(grupo.label)}
-            </button>
-          ))}
-        </nav>
+        <NavBar
+          grupos={grupos}
+          grupoActivo={grupoActivo?.id}
+          vista={vistaActiva?.id}
+          onVista={irALaVista}
+          onGrupo={irAlGrupo}
+        />
 
         {/* Hacer: lo que cambia los datos y recalcula el plan. */}
         {acciones.length === 0 ? null : (
@@ -396,54 +420,46 @@ function Planner({
         )}
 
         {/* Mirar: cómo ves tú la herramienta. No cambia ni un dato. */}
-        <div className="topbar__mirar">
-          <button
-            className="button"
-            onClick={() => { setTheme(theme === 'dark' ? 'light' : theme === 'light' ? 'auto' : 'dark') }}
-            title={t('boton.tema')}
-          >
-            {theme === 'auto' ? '◐' : theme === 'light' ? '☀' : '☾'}
-          </button>
-          <select
-            className="input input--idioma"
-            value={idioma}
-            title={t('boton.idioma')}
-            aria-label={t('boton.idioma')}
-            onChange={(event) => { onIdioma(event.target.value as Idioma) }}
-          >
-            {IDIOMAS.map((codigo) => (
-              // Cada idioma, escrito en su propio idioma: quien abre esto sin
-              // entender la pantalla necesita reconocer el suyo, no leerlo.
-              <option key={codigo} value={codigo}>{NOMBRE_DEL_IDIOMA[codigo]}</option>
-            ))}
-          </select>
-          {me.user === null ? null : (
-            <span className="usuario-chip" title={me.user.email}>
-              {me.user.displayName}
-              <button
-                className="button"
-                title={t('boton.contrasenaTitulo')}
-                onClick={() => { setCambiandoClave(true) }}
-              >
-                {t('boton.contrasena')}
-              </button>
-              <button
-                className="button"
-                title={t('boton.salir')}
-                onClick={() => {
-                  signOut()
-                    .then(fetchMe)
-                    .then(setMe)
-                    .catch((cause: unknown) => {
-                      setError(errorText(t, cause, 'app.errorRecargar'))
-                    })
-                }}
-              >
-                {t('boton.salir')}
-              </button>
-            </span>
-          )}
-        </div>
+        <MenuVista
+          tema={theme}
+          onTema={setTheme}
+          idioma={idioma}
+          onIdioma={onIdioma}
+          escala={escala}
+          onEscala={setEscala}
+        />
+
+        {me.user === null ? null : (
+          <div className="topbar__yo">
+            <span className="topbar__quien" title={me.user.email}>{me.user.displayName}</span>
+            <Menu etiqueta={t('menu.cuenta')} titulo={t('menu.cuenta.titulo')}>
+              {(cerrar) => (
+                <>
+                  <button
+                    className="menu__item"
+                    onClick={() => { cerrar(); setCambiandoClave(true) }}
+                  >
+                    {t('boton.contrasena')}
+                  </button>
+                  <button
+                    className="menu__item"
+                    onClick={() => {
+                      cerrar()
+                      signOut()
+                        .then(fetchMe)
+                        .then(setMe)
+                        .catch((cause: unknown) => {
+                          setError(errorText(t, cause, 'app.errorRecargar'))
+                        })
+                    }}
+                  >
+                    {t('boton.salir')}
+                  </button>
+                </>
+              )}
+            </Menu>
+          </div>
+        )}
       </header>
 
       <main className="content">
@@ -470,19 +486,22 @@ function Planner({
         )}
 
         {totals === null || grupos.length === 0 || sinCifras ? null : (
-          <div className="stat-row">
-            <div className="stat">
-              <div className="stat__label">{t('stat.planificado')}</div>
-              <div className="stat__value">{hours(totals.planned)} h</div>
-              <div className="stat__hint">
-                {totals.hasCapacity
-                  ? t('stat.planificado.sobre', hours(totals.capacity))
-                  : t('stat.planificado.recortado')}
-              </div>
+          /* Un renglón, no cinco tarjetas. La cifra grande se reserva para
+             «Hoy» y el panel, donde la cifra ES la pantalla. */
+          <div className="cinta">
+            <div className="cinta__dato">
+              <span className="cinta__etiqueta">{t('stat.planificado')}</span>
+              <span className="cinta__valor">{hours(totals.planned)} h</span>
+              {/* La pista aparece cuando hace falta explicar el hueco, no
+                  pegada a cada número: cinco coletillas en un renglón lo
+                  convierten en un párrafo. */}
+              {totals.hasCapacity ? null : (
+                <span className="cinta__pista">{t('stat.planificado.recortado')}</span>
+              )}
             </div>
-            <div className="stat">
-              <div className="stat__label">{t('stat.ocupacion')}</div>
-              <div className="stat__value">
+            <div className="cinta__dato">
+              <span className="cinta__etiqueta">{t('stat.ocupacion')}</span>
+              <span className="cinta__valor">
                 {totals.hasCapacity
                   ? percent(
                       totals.capacity === 0
@@ -490,31 +509,23 @@ function Planner({
                         : Math.round((totals.planned * 10_000) / totals.capacity),
                     )
                   : '—'}
-              </div>
-              <div className="stat__hint">
-                {totals.hasCapacity ? t('stat.ocupacion.media') : t('stat.ocupacion.sinCapacidad')}
-              </div>
+              </span>
             </div>
-            <div className="stat">
-              <div className="stat__label">{t('stat.sobrecargadas')}</div>
-              <div className="stat__value">{totals.hasCapacity ? totals.overallocated : '—'}</div>
-              <div className="stat__hint">
-                {totals.hasCapacity ? t('stat.sobrecargadas.pista') : t('stat.sobrecargadas.sinCapacidad')}
-              </div>
+            <div className="cinta__dato">
+              <span className="cinta__etiqueta">{t('stat.sobrecargadas')}</span>
+              <span className={totals.hasCapacity && totals.overallocated > 0 ? 'cinta__valor bad' : 'cinta__valor'}>
+                {totals.hasCapacity ? totals.overallocated : '—'}
+              </span>
             </div>
             {!totals.showCost ? null : (
-              <div className="stat">
-                <div className="stat__label">{t('stat.coste')}</div>
-                <div className="stat__value">{euros(totals.cost)}</div>
-                <div className="stat__hint">
-                  {totals.cost === 0 ? t('stat.coste.cero') : t('stat.coste.pista')}
-                </div>
+              <div className="cinta__dato">
+                <span className="cinta__etiqueta">{t('stat.coste')}</span>
+                <span className="cinta__valor">{euros(totals.cost)}</span>
               </div>
             )}
-            <div className="stat">
-              <div className="stat__label">{t('stat.criticas')}</div>
-              <div className="stat__value">{totals.critical}</div>
-              <div className="stat__hint">{t('stat.criticas.pista')}</div>
+            <div className="cinta__dato">
+              <span className="cinta__etiqueta">{t('stat.criticas')}</span>
+              <span className="cinta__valor">{totals.critical}</span>
             </div>
           </div>
         )}
@@ -522,26 +533,7 @@ function Planner({
         {grupos.length === 0 || grupoActivo === undefined || vistaActiva === undefined ? null : (
         <section className="panel">
           <div className="panel__head">
-            {grupoActivo.vistas.length === 1 ? (
-              <h2>{t(vistaActiva.label)}</h2>
-            ) : (
-              // El segundo nivel: dentro de un grupo se cambia de pantalla sin
-              // salir de él. Es lo que permite que arriba haya seis y no catorce.
-              <div className="subtabs" role="tablist" aria-label={t(grupoActivo.label)}>
-                {grupoActivo.vistas.map((item) => (
-                  <button
-                    key={item.id}
-                    role="tab"
-                    aria-selected={item.id === vista}
-                    className="subtab"
-                    onClick={() => { irALaVista(item.id) }}
-                    title={t(item.hint)}
-                  >
-                    {t(item.label)}
-                  </button>
-                ))}
-              </div>
-            )}
+            <h2>{t(vistaActiva.label)}</h2>
             <p>{t(vistaActiva.hint)}</p>
             <span className="spacer faint" style={{ fontSize: 12 }}>
               {state?.run == null || sinCifras ? null : (

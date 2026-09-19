@@ -219,15 +219,18 @@ export function GanttView({ tasks, projects }: Props): React.JSX.Element {
     <div>
       <div className="toolbar">
         <span className="faint">{t('cronograma.escala')}</span>
-        {(Object.keys(PX_POR_DIA) as readonly Zoom[]).map((nivel) => (
-          <button
-            key={nivel}
-            className={zoom === nivel ? 'button button--primary' : 'button'}
-            onClick={() => { setZoom(nivel) }}
-          >
-            {t(`cronograma.zoom.${nivel}` as 'cronograma.zoom.dia')}
-          </button>
-        ))}
+        <div className="segmentado" role="group" aria-label={t('cronograma.escala')}>
+          {(Object.keys(PX_POR_DIA) as readonly Zoom[]).map((nivel) => (
+            <button
+              key={nivel}
+              className="segmentado__opcion"
+              aria-pressed={zoom === nivel}
+              onClick={() => { setZoom(nivel) }}
+            >
+              {t(`cronograma.zoom.${nivel}` as 'cronograma.zoom.dia')}
+            </button>
+          ))}
+        </div>
         <label className="faint" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <input
             type="checkbox"

@@ -35,10 +35,14 @@ export function LoginView({ onEntered }: Props): React.JSX.Element {
 
   return (
     <div className="login">
-      <form className="login__card" onSubmit={entrar}>
+      {/* La puerta lleva la misma tinta que la barra de mando: lo primero que
+          se ve ya es la herramienta, no una tarjeta blanca cualquiera. */}
+      <div className="login__marca">
         <h1>{t('app.nombre')}</h1>
-        <p className="faint">{t('app.lema')}</p>
+        <p>{t('app.lema')}</p>
+      </div>
 
+      <form className="login__card" onSubmit={entrar}>
         {error === null ? null : <div className="error-banner">{error}</div>}
 
         <label className="login__campo">

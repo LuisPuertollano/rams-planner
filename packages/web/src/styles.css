@@ -53,11 +53,36 @@
   --severity-warning: #b7842c;
   --severity-info: #4a7fb5;
 
-  --radius: 10px;
-  --radius-sm: 6px;
-  --shadow: 0 1px 2px rgb(16 18 29 / 6%), 0 4px 16px rgb(16 18 29 / 6%);
+  /* Esquinas secas. Diez píxeles de radio en cada tarjeta es lo que hacía que
+     una herramienta de ingeniería pareciera una aplicación de notas. */
+  --radius: 7px;
+  --radius-sm: 4px;
+  --shadow: 0 1px 2px rgb(16 18 29 / 5%);
+  --shadow-menu: 0 10px 34px rgb(16 18 29 / 16%), 0 2px 6px rgb(16 18 29 / 8%);
   --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", monospace;
   --sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* Una escala tipográfica de verdad, en vez de catorce tamaños sueltos
+     repartidos por el fichero. Seis pasos y nada entre ellos. */
+  --fs-micro: 10.5px;
+  --fs-sm: 11.5px;
+  --fs-base: 13px;
+  --fs-md: 14px;
+  --fs-lg: 17px;
+  --fs-xl: 23px;
+
+  /* Espaciado: potencias de cuatro. El que no está aquí no existe. */
+  --e1: 4px; --e2: 8px; --e3: 12px; --e4: 16px; --e5: 24px; --e6: 32px;
+
+  /* La barra de mando. Es TINTA, no papel, en los dos temas: separa de un
+     vistazo el mando del contenido, y así el contenido empieza en el borde de
+     arriba de su propia zona en vez de flotar en una página sin cabecera. */
+  --barra-bg: #12151c;
+  --barra-alto: #1b1f28;
+  --barra-texto: #e9ecf3;
+  --barra-apagado: #949dab;
+  --barra-linea: #272d38;
+  --barra-acento: #2dd4bf;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -87,7 +112,14 @@
     --severity-warning: #d8a94b;
     --severity-info: #7ab0e0;
 
-    --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 6px 20px rgb(0 0 0 / 30%);
+    --shadow: 0 1px 2px rgb(0 0 0 / 40%);
+    --shadow-menu: 0 10px 34px rgb(0 0 0 / 50%), 0 2px 6px rgb(0 0 0 / 40%);
+    --barra-bg: #161a22;
+    --barra-alto: #1f242e;
+    --barra-texto: #e7eaf0;
+    --barra-apagado: #9aa3b2;
+    --barra-linea: #2b313c;
+    --barra-acento: #2dd4bf;
   }
 }
 
@@ -113,7 +145,14 @@
   --severity-error: #e2795f;
   --severity-warning: #d8a94b;
   --severity-info: #7ab0e0;
-  --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 6px 20px rgb(0 0 0 / 30%);
+  --shadow: 0 1px 2px rgb(0 0 0 / 40%);
+  --shadow-menu: 0 10px 34px rgb(0 0 0 / 50%), 0 2px 6px rgb(0 0 0 / 40%);
+  --barra-bg: #161a22;
+  --barra-alto: #1f242e;
+  --barra-texto: #e7eaf0;
+  --barra-apagado: #9aa3b2;
+  --barra-linea: #2b313c;
+  --barra-acento: #2dd4bf;
 }
 
 * { box-sizing: border-box; }
@@ -136,90 +175,97 @@ button { font: inherit; color: inherit; }
 
 .app { display: flex; flex-direction: column; min-height: 100%; }
 
+/* La barra de mando: tinta sobre la que va el nombre, la navegación y las dos
+   cosas que se pulsan —«Calcular», que toca datos, y «Vista», que no—. */
 .topbar {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 12px 20px;
-  background: var(--bg-raised);
-  border-bottom: 1px solid var(--border);
+  gap: var(--e4);
+  padding: 0 var(--e4);
+  height: 46px;
+  background: var(--barra-bg);
+  color: var(--barra-texto);
+  border-bottom: 1px solid var(--barra-linea);
   position: sticky;
   top: 0;
   z-index: 20;
-  flex-wrap: wrap;
 }
 
-.brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
-.brand h1 { font-size: 16px; font-weight: 650; margin: 0; letter-spacing: -0.01em; }
-.brand span { font-size: 12px; color: var(--text-faint); }
-
-.tabs {
-  display: flex;
-  gap: 2px;
-  background: var(--bg-sunken);
-  padding: 3px;
-  border-radius: var(--radius);
-  /* En pantallas estrechas las pestañas se deslizan en vez de desbordar. */
-  max-width: 100%;
-  overflow-x: auto;
-  scrollbar-width: none;
+.brand { display: flex; align-items: baseline; gap: var(--e2); margin-right: var(--e2); }
+.brand h1 {
+  font-size: var(--fs-md); font-weight: 600; margin: 0;
+  letter-spacing: -0.015em; color: var(--barra-texto); white-space: nowrap;
 }
-.tabs::-webkit-scrollbar { display: none; }
+/* El lema cabe cuando cabe. En una pantalla estrecha estorba antes que ayuda. */
+.brand span { font-size: var(--fs-sm); color: var(--barra-apagado); }
+@media (max-width: 1100px) { .brand span { display: none; } }
 
-.tab {
-  border: 0;
-  background: transparent;
-  padding: 7px 14px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  color: var(--text-muted);
-  font-weight: 500;
-  white-space: nowrap;
-}
-.tab:hover { color: var(--text); }
-.tab[aria-selected="true"] { background: var(--bg-raised); color: var(--text); box-shadow: var(--shadow); }
+/* ------------------------------------------------------------ navegación -- */
 
-/* El segundo nivel. Vive dentro del panel, no en la cabecera: es «dónde estoy
-   dentro de este grupo», no «a qué grupo voy». Por eso pesa menos —sin fondo
-   hundido, subrayado en vez de pastilla— y por eso no compite con las seis
-   pestañas de arriba. */
-.subtabs { display: flex; gap: 4px; flex-wrap: wrap; }
-.subtab {
-  border: 0;
+.nav { display: flex; align-items: stretch; height: 100%; margin-right: auto; }
+.nav__grupo { position: relative; display: flex; }
+
+.nav__boton {
+  display: inline-flex; align-items: center; gap: var(--e1);
+  border: 0; background: transparent; cursor: pointer;
+  padding: 0 var(--e3);
+  color: var(--barra-apagado);
+  font-size: var(--fs-base); font-weight: 500; white-space: nowrap;
+  /* El subrayado del activo se dibuja con el borde de abajo, pegado a la línea
+     de la barra: es una regla que marca sitio, no una pastilla que flota. */
   border-bottom: 2px solid transparent;
-  background: transparent;
-  padding: 2px 8px 5px;
-  cursor: pointer;
-  color: var(--text-muted);
-  font-size: 14px;
-  font-weight: 600;
-  white-space: nowrap;
+  margin-bottom: -1px;
 }
-.subtab:hover { color: var(--text); }
-.subtab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.nav__boton:hover { color: var(--barra-texto); background: var(--barra-alto); }
+.nav__boton[aria-current="page"] { color: var(--barra-texto); border-bottom-color: var(--barra-acento); }
+.nav__boton[aria-expanded="true"] { color: var(--barra-texto); background: var(--barra-alto); }
+.nav__flecha { font-size: 9px; opacity: 0.6; }
 
-/* Lo que cambia los datos, detrás de un solo botón. La cabecera tenía diez
-   controles en fila y «Recalcular» pesaba lo mismo que «Tema». */
+.nav__panel {
+  position: absolute; top: 100%; left: 0; z-index: 41;
+  min-width: 300px; max-width: 380px;
+  display: flex; flex-direction: column;
+  padding: var(--e1);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: 0 0 var(--radius) var(--radius);
+  border-top: 0;
+  box-shadow: var(--shadow-menu);
+}
+.nav__item {
+  display: flex; flex-direction: column; gap: 1px;
+  border: 0; background: transparent; text-align: left; cursor: pointer;
+  padding: var(--e2) var(--e3);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+}
+.nav__item:hover { background: var(--accent-soft); }
+.nav__item[aria-current="page"] { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
+.nav__item-nombre { font-size: var(--fs-base); font-weight: 600; }
+.nav__item-pista { font-size: var(--fs-sm); color: var(--text-muted); white-space: normal; line-height: 1.35; }
+
+/* ---------------------------------------------------------------- menús -- */
+
 .menu { position: relative; }
 .menu__panel {
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + 4px);
   right: 0;
   z-index: 41;
-  min-width: 220px;
+  min-width: 230px;
   display: flex;
   flex-direction: column;
-  padding: 4px;
+  padding: var(--e1);
   background: var(--bg-raised);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
-  box-shadow: 0 8px 28px rgb(0 0 0 / 18%);
+  box-shadow: var(--shadow-menu);
 }
 .menu__item {
   border: 0;
   background: transparent;
   text-align: left;
-  padding: 8px 10px;
+  padding: var(--e2) var(--e3);
   border-radius: var(--radius-sm);
   cursor: pointer;
   color: var(--text);
@@ -233,16 +279,33 @@ button { font: inherit; color: inherit; }
    por un desplegable de seis líneas es un peaje que no paga nadie. */
 .menu .backdrop { background: transparent; }
 
-/* Mirar: el tema, el idioma y quién eres. No cambian ni un dato, y por eso
-   están al otro lado del menú de «Calcular» y no mezclados con él. */
-.topbar__mirar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+/* «Vista»: tres ajustes que no tocan ningún dato, juntos y fuera de la barra. */
+.ajustes { display: flex; flex-direction: column; gap: var(--e3); padding: var(--e2); min-width: 300px; }
+.ajustes__fila { display: flex; flex-direction: column; gap: var(--e1); }
+.ajustes__nombre { font-size: var(--fs-sm); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+.ajustes__pista { font-size: var(--fs-sm); color: var(--text-faint); line-height: 1.35; }
+
+.segmentado { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); overflow: hidden; }
+.segmentado__opcion {
+  border: 0; border-right: 1px solid var(--border);
+  background: var(--bg-raised); color: var(--text-muted);
+  padding: var(--e1) var(--e2); cursor: pointer;
+  font-size: var(--fs-sm); font-weight: 600; font-variant-numeric: tabular-nums;
+  flex: 1;
+}
+.segmentado__opcion:last-child { border-right: 0; }
+.segmentado__opcion:hover { background: var(--accent-soft); color: var(--accent-text); }
+.segmentado__opcion[aria-pressed="true"] { background: var(--accent); color: #fff; }
+
+/* -------------------------------------------------------------- botones -- */
 
 .button {
   border: 1px solid var(--border-strong);
   background: var(--bg-raised);
-  padding: 7px 13px;
+  padding: 5px var(--e3);
   border-radius: var(--radius-sm);
   cursor: pointer;
+  font-size: var(--fs-base);
   font-weight: 500;
 }
 .button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent-text); }
@@ -250,39 +313,136 @@ button { font: inherit; color: inherit; }
 .button--primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .button--primary:hover:not(:disabled) { filter: brightness(1.08); color: #fff; }
 
+/* Dentro de la barra oscura los botones son de la barra, no del papel. */
+.topbar .button {
+  background: transparent; color: var(--barra-texto); border-color: var(--barra-linea);
+}
+.topbar .button:hover:not(:disabled) { background: var(--barra-alto); color: var(--barra-texto); border-color: var(--barra-apagado); }
+.topbar .button--primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* Quién eres: el nombre y lo poco que se hace con él, detrás de un menú. */
+.topbar__yo { display: flex; align-items: center; gap: var(--e2); }
+.topbar__quien { font-size: var(--fs-base); color: var(--barra-apagado); white-space: nowrap; }
+@media (max-width: 900px) { .topbar__quien { display: none; } }
+
 .run-chip {
-  display: flex; align-items: center; gap: 8px;
-  font-family: var(--mono); font-size: 11px; color: var(--text-muted);
-  background: var(--bg-sunken); padding: 5px 10px; border-radius: var(--radius-sm);
+  display: inline-flex; align-items: center; gap: var(--e2);
+  font-family: var(--mono); font-size: var(--fs-sm); color: var(--text-muted);
+  background: var(--bg-sunken); padding: 3px var(--e2); border-radius: var(--radius-sm);
   border: 1px solid var(--border);
 }
 .run-chip b { font-weight: 600; color: var(--text); }
 
-.content { padding: 20px; display: flex; flex-direction: column; gap: 16px; flex: 1; }
+/* ------------------------------------------------------------ contenido -- */
+
+.content { padding: var(--e4); display: flex; flex-direction: column; gap: var(--e3); flex: 1; }
+
+/* La cinta de cifras: lo que antes eran cinco tarjetas de 110 px de alto con
+   un número enorme cada una, en TODAS las pantallas. Ahora es un renglón. El
+   número grande se reserva para donde la cifra es el asunto de la pantalla
+   —«Hoy» y el panel—, no para adornar la cabecera de una tabla. */
+.cinta {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: 0 var(--e5);
+  padding: var(--e2) var(--e4);
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.cinta__dato { display: flex; align-items: baseline; gap: var(--e2); }
+.cinta__etiqueta { font-size: var(--fs-sm); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.cinta__valor { font-size: var(--fs-md); font-weight: 650; font-variant-numeric: tabular-nums; }
+.cinta__pista { font-size: var(--fs-sm); color: var(--text-faint); }
+.cinta .spacer { margin-left: auto; }
 
 .panel {
   background: var(--bg-raised);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow);
   overflow: hidden;
 }
+/* La cabecera del panel es una barra de estado, no un titular: nombre a la
+   izquierda, de qué va, y a la derecha de dónde salen los números. */
 .panel__head {
-  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
-  padding: 14px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: baseline; gap: var(--e3); flex-wrap: wrap;
+  padding: var(--e2) var(--e4);
+  background: var(--bg-sunken);
+  border-bottom: 1px solid var(--border);
 }
-.panel__head h2 { font-size: 14px; margin: 0; font-weight: 650; }
-.panel__head p { margin: 0; font-size: 12px; color: var(--text-muted); }
+.panel__head h2 {
+  font-size: var(--fs-base); margin: 0; font-weight: 650;
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+.panel__head p { margin: 0; font-size: var(--fs-sm); color: var(--text-muted); }
 .panel__head .spacer { margin-left: auto; }
-.panel__body { padding: 16px; overflow: auto; }
+.panel__body { padding: var(--e4); overflow: auto; }
 .panel__body--flush { padding: 0; }
+
+/* Un foco que se ve igual en toda la herramienta, y en la barra oscura también. */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 2px; }
+.topbar :focus-visible { outline-color: var(--barra-acento); }
+
+/* Pestañas DENTRO de un panel (la hoja de roles, por ejemplo). Ya no son la
+   navegación de la herramienta —eso vive en la barra—, así que pesan poco:
+   una regla debajo, sin pastilla ni fondo hundido. */
+.tabs { display: flex; gap: var(--e1); flex-wrap: wrap; }
+.tab {
+  border: 0; border-bottom: 2px solid transparent; background: transparent;
+  padding: var(--e1) var(--e2) 5px; cursor: pointer;
+  color: var(--text-muted); font-size: var(--fs-base); font-weight: 600; white-space: nowrap;
+}
+.tab:hover { color: var(--text); }
+.tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+
+/* Las acciones DE UNA FILA se callan hasta que la fila importa.
+   Cada fila del plan llevaba dos botones con su borde y su fondo: en una tabla
+   de cuatrocientas filas eso son ochocientos rectángulos compitiendo con los
+   números, que es lo que se ha venido a leer. Siguen estando —no se ocultan,
+   que sería peor— pero pesan lo que pesa una acción secundaria, y recuperan su
+   borde en cuanto el ratón o el teclado llegan a la fila. */
+.grid td .button {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-faint);
+  padding: 2px var(--e2);
+}
+.grid tr:hover td .button,
+.grid td .button:focus-visible,
+.grid td .button:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--bg-raised);
+  color: var(--text-muted);
+}
+.grid td .button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent-text); }
+
+/* ------------------------------------------------------------- etiquetas -- */
+
+/* Un estado se dice con forma Y con color, nunca con color solo: el punto
+   cambia de relleno y el texto sigue estando escrito. */
+.chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: var(--fs-sm); font-weight: 600; white-space: nowrap;
+  padding: 1px var(--e2) 1px 6px;
+  border: 1px solid var(--border); border-radius: 999px;
+  background: var(--bg-sunken); color: var(--text-muted);
+}
+.chip::before {
+  content: ""; width: 6px; height: 6px; border-radius: 50%;
+  background: currentcolor; flex: none;
+}
+.chip--bien { color: var(--accent-text); border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); background: var(--accent-soft); }
+.chip--mal { color: var(--severity-error); border-color: color-mix(in srgb, var(--severity-error) 40%, var(--border)); background: color-mix(in srgb, var(--severity-error) 10%, transparent); }
+.chip--aviso { color: var(--severity-warning); border-color: color-mix(in srgb, var(--severity-warning) 40%, var(--border)); background: color-mix(in srgb, var(--severity-warning) 10%, transparent); }
+/* El neutro lleva el punto hueco: «no se sabe» no es «va bien en gris». */
+.chip--neutro::before { background: transparent; box-shadow: inset 0 0 0 1.5px currentcolor; }
 
 /* ----------------------------------------------------------------- table -- */
 
 .grid { width: 100%; border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; }
-.grid th, .grid td { padding: 7px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--border); }
-.grid th { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; background: var(--bg-raised); position: sticky; top: 0; z-index: 2; }
+.grid th, .grid td { padding: 5px var(--e3); text-align: right; white-space: nowrap; border-bottom: 1px solid var(--border); }
+.grid th { font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; background: var(--bg-sunken); position: sticky; top: 0; z-index: 2; border-bottom: 1px solid var(--border-strong); }
 .grid th:first-child, .grid td:first-child { text-align: left; position: sticky; left: 0; background: var(--bg-raised); z-index: 1; }
+.grid th:first-child { background: var(--bg-sunken); }
 .grid th:first-child { z-index: 3; }
 .grid tbody tr:hover td { background: var(--accent-soft); }
 /* Una tabla de frases, no de números: alinear a la derecha una columna de
@@ -612,8 +772,8 @@ a.button { text-decoration: none; display: inline-block; }
   box-shadow: inset 0 0 0 1px var(--border);
 }
 
-.empty { padding: 48px 16px; text-align: center; color: var(--text-muted); }
-.empty h3 { margin: 0 0 6px; color: var(--text); font-size: 15px; }
+.empty { padding: var(--e6) var(--e4); text-align: center; color: var(--text-muted); max-width: 60ch; margin: 0 auto; }
+.empty h3 { margin: 0 0 var(--e2); color: var(--text); font-size: var(--fs-lg); letter-spacing: -0.01em; }
 
 .stat-row { display: flex; gap: 10px; flex-wrap: wrap; }
 .stat { flex: 1 1 150px; background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; box-shadow: var(--shadow); }
@@ -737,19 +897,51 @@ a.button { text-decoration: none; display: inline-block; }
 .sin-guardar { color: var(--accent); }
 
 /* --- La puerta ----------------------------------------------------------- */
-.login { min-height: 100vh; display: grid; place-items: center; background: var(--bg-sunken); padding: 24px; }
-.login__card {
-  display: flex; flex-direction: column; gap: 14px;
-  width: min(380px, 100%); padding: 28px;
-  background: var(--bg-raised); border: 1px solid var(--border); border-radius: 10px;
-  box-shadow: 0 6px 28px rgb(0 0 0 / 12%);
+/* La puerta: tinta a la izquierda, formulario a la derecha. Antes era una
+   tarjeta blanca centrada en un gris, que es la pantalla de entrada de
+   cualquier cosa; ésta es la de esta herramienta. */
+.login {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: stretch;
+  /* Papel a la derecha: el formulario se apoya en algo, no flota en un gris. */
+  background: var(--bg-raised);
 }
-.login__card h1 { margin: 0; font-size: 22px; }
-.login__card p { margin: 0; font-size: 12px; }
-.login__campo { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
-.login__campo span { color: var(--text-muted); }
-.login__pie { border-top: 1px solid var(--border); padding-top: 12px; line-height: 1.5; }
-.login__pie code { font-size: 10px; word-break: break-all; }
+.login__marca {
+  background: var(--barra-bg);
+  color: var(--barra-texto);
+  display: flex; flex-direction: column; justify-content: center;
+  gap: var(--e3);
+  padding: var(--e6) clamp(24px, 8vw, 96px);
+}
+.login__marca h1 {
+  margin: 0; font-size: clamp(28px, 4vw, 44px); font-weight: 650;
+  letter-spacing: -0.025em; line-height: 1.05; text-wrap: balance;
+}
+.login__marca p { margin: 0; color: var(--barra-apagado); font-size: var(--fs-lg); max-width: 26ch; line-height: 1.4; }
+/* Una regla en el acento de la barra, para que el bloque no sea sólo un rectángulo. */
+.login__marca::after { content: ""; width: 56px; height: 3px; background: var(--barra-acento); }
+
+.login__card {
+  align-self: center; justify-self: start;
+  width: min(380px, 100%);
+  display: flex; flex-direction: column; gap: var(--e3);
+  padding: var(--e6) clamp(24px, 6vw, 64px);
+}
+.login__card h1 { margin: 0; font-size: var(--fs-xl); }
+.login__card p { margin: 0; font-size: var(--fs-sm); }
+.login__campo { display: flex; flex-direction: column; gap: var(--e1); font-size: var(--fs-sm); }
+.login__campo span { color: var(--text-muted); font-weight: 600; }
+.login__pie { border-top: 1px solid var(--border); padding-top: var(--e3); line-height: 1.5; }
+.login__pie code { font-size: var(--fs-micro); word-break: break-all; }
+
+/* En vertical la tinta se queda de cabecera y el formulario debajo. */
+@media (max-width: 860px) {
+  .login { grid-template-columns: 1fr; }
+  .login__marca { padding: var(--e5) var(--e4); }
+  .login__card { justify-self: stretch; width: 100%; padding: var(--e5) var(--e4); }
+}
 
 /* Quién está mirando, y por dónde se sale. */
 .usuario-chip { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); white-space: nowrap; }

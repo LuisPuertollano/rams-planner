@@ -11,6 +11,7 @@ import {
 import { days, fullDate, hours, percent } from '../format.js'
 import { errorText } from '../errors.js'
 import { useT, type Traductor } from '../i18n/index.js'
+import { Menu } from '../components/Menu.js'
 
 interface Props {
   readonly tasks: readonly TaskRow[]
@@ -137,17 +138,24 @@ export function PlanView({
         <button className="button" onClick={addProject} disabled={saving !== null}>
           {t('plan.nuevoProyecto')}
         </button>
-        {plantillas.map((template) => (
-          <button
-            key={template.id}
-            className="button"
-            disabled={saving !== null}
-            onClick={() => { fromTemplate(template) }}
-            title={t('plan.desdePlantillaTitulo', template.name)}
-          >
-            {t('plan.desdePlantilla', template.code)}
-          </button>
-        ))}
+        {/* Una plantilla por botón llenaba una banda entera de la pantalla con
+            doce botones idénticos que sólo se distinguían leyendo el código
+            hasta el final. Con veinte moldes no cabía ninguno. */}
+        {plantillas.length === 0 ? null : (
+          <Menu etiqueta={t('plan.desdeMolde')} titulo={t('plan.desdeMoldeTitulo')}>
+            {(cerrar) => plantillas.map((template) => (
+              <button
+                key={template.id}
+                className="menu__item"
+                disabled={saving !== null}
+                title={t('plan.desdePlantillaTitulo', template.name)}
+                onClick={() => { cerrar(); fromTemplate(template) }}
+              >
+                {t('plan.desdePlantilla', template.code)}
+              </button>
+            ))}
+          </Menu>
+        )}
         <span className="faint">{t('plan.nota')}</span>
       </div>
       <table className="grid">
